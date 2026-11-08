@@ -143,7 +143,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Remove selected duplicates?'),
         content: Text(
-          'Tone selected ${selected.length} lower-priority copies. '
+          'Melo selected ${selected.length} lower-priority copies. '
           'Favorites, frequently played songs, and better-tagged copies were '
           'prioritized to keep. This deletes the selected song files.',
         ),
@@ -274,9 +274,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         title: const Text('Allow music access'),
         content: Text(
           permanentlyDenied
-              ? 'Tone scans music already on this device. Music access is '
-                    'turned off, so allow it for Tone in your system settings.'
-              : 'Tone needs access to your device music before it can scan '
+              ? 'Melo scans music already on this device. Music access is '
+                    'turned off, so allow it for Melo in your system settings.'
+              : 'Melo needs access to your device music before it can scan '
                     'your songs.',
         ),
         actions: [
@@ -357,7 +357,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           builder: (context) => AlertDialog(
             title: const Text('No matching songs yet'),
             content: const Text(
-              'Tone checked playlist paths, original filenames, and available '
+              'Melo checked playlist paths, original filenames, and available '
               'song metadata. Scan device music once in case these downloads '
               'have not been added to the library yet.',
             ),
@@ -1043,10 +1043,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               ),
                             ),
                             IconButton(
-                              tooltip: 'Import Spotify',
+                              tooltip: 'Import Online Playlist',
                               icon: const Icon(
                                 Icons.playlist_add_rounded,
-                                color: Color(0xFF1DB954),
+                                color: ToneColors.cherry,
                               ),
                               onPressed: () => SpotifyImportSheet.show(
                                 context,
@@ -1162,9 +1162,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ),
                                 icon: const Icon(
                                   Icons.playlist_add_rounded,
-                                  color: Color(0xFF1DB954),
+                                  color: ToneColors.cherry,
                                 ),
-                                label: const Text('Import Spotify'),
+                                label: const Text('Import link'),
                               ),
                               OutlinedButton.icon(
                                 onPressed: () => UniversalLinkSheet.show(
@@ -1299,7 +1299,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             _duplicateGroups.isEmpty &&
                             !showEmpty)
                           const Text(
-                            'No likely duplicates found. Tone keeps every source until you choose to remove one.',
+                            'No likely duplicates found. Melo keeps every source until you choose to remove one.',
                           )
                         else if (_selectedFilter == 'Duplicates' && !showEmpty)
                           Column(
@@ -2223,7 +2223,7 @@ class _EmptyLibrary extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Scan your device to find your music in one go. Tone plays those originals in place, without copying them.',
+            'Scan your device to find your music in one go. Melo plays those originals in place, without copying them.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: colors.onSurfaceVariant),

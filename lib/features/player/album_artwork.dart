@@ -667,7 +667,7 @@ class _PlaylistArtworkState extends State<PlaylistArtwork> {
                     SizedBox(width: size * 0.035),
                     Expanded(
                       child: Text(
-                        'TONE PLAYLIST',
+                        'MELO PLAYLIST',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

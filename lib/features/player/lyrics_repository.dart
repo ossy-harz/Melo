@@ -612,15 +612,35 @@ class LyricsRepository {
     final title = candidate['trackName'];
     final artist = candidate['artistName'];
     if (title is! String || artist is! String) return false;
+
+    // Strict Artist Validation: NEVER download lyrics if the artist is completely wrong!
+    final cleanCandidateArtist = _cleanTitleForMatch(artist);
+    final cleanItemArtist = _cleanTitleForMatch(item.artist ?? '');
+    if (cleanItemArtist.isNotEmpty && cleanCandidateArtist.isNotEmpty) {
+      final artistMatches = cleanCandidateArtist == cleanItemArtist ||
+          cleanCandidateArtist.contains(cleanItemArtist) ||
+          cleanItemArtist.contains(cleanCandidateArtist);
+      if (!artistMatches) return false;
+    }
+
+    // Strict Title Validation: require matching root title without short substring accidents
     final cleanCandidateTitle = _cleanTitleForMatch(title);
     final cleanItemTitle = _cleanTitleForMatch(item.title);
     if (cleanCandidateTitle.isEmpty || cleanItemTitle.isEmpty) return false;
+
     final titleMatches = cleanCandidateTitle == cleanItemTitle ||
-        cleanCandidateTitle.contains(cleanItemTitle) ||
-        cleanItemTitle.contains(cleanCandidateTitle);
+        (cleanCandidateTitle.length >= 4 &&
+            cleanItemTitle.length >= 4 &&
+            (cleanCandidateTitle.startsWith(cleanItemTitle) ||
+                cleanItemTitle.startsWith(cleanCandidateTitle)));
     if (!titleMatches) return false;
+
+    // Strict Duration Validation (max 10 seconds difference if track duration is known)
     final difference = _durationDifference(item, candidate['duration']);
-    return difference == 0 || difference <= 25;
+    if (item.duration != null && item.duration!.inSeconds > 0) {
+      return difference <= 10;
+    }
+    return difference == 0 || difference <= 12;
   }
 
   static String _cleanTitleForMatch(String value) => value

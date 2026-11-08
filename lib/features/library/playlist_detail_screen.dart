@@ -312,7 +312,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<void> _changeCoverThemeDialog() async {
     const themeNames = [
-      'Velvet Sunset (Apple Cherry)',
+      'Velvet Sunset (Melo Cherry)',
       'Midnight Groove (Electric Sky)',
       'Solar Flare (Radiant Amber)',
       'Emerald Wave (Aqua Mint)',
@@ -364,7 +364,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Choose an Apple Music editorial gradient style or pick a photo from your device.',
+                'Choose a curated Melo editorial gradient style or pick a photo from your device.',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6),
                   fontSize: 13,
@@ -411,7 +411,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               ),
               const Divider(height: 24),
               Text(
-                'Apple Music Editorial Themes',
+                'Melo Editorial Themes',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
@@ -728,7 +728,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
                       // Curator & Info
                       Text(
-                        'Tone Playlist · ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
+                        'Melo Playlist · ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,

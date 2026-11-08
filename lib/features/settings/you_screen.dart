@@ -159,7 +159,7 @@ class YouScreen extends StatelessWidget {
                     icon: hasUpdate
                         ? Icons.system_update_rounded
                         : Icons.info_outline_rounded,
-                    title: 'About Tone',
+                    title: 'About Melo',
                     subtitle: hasUpdate
                         ? 'Update available ($latestTag) on GitHub · Tap to install'
                         : 'v${updater.currentVersion} · GitHub updates & versions',
@@ -215,7 +215,7 @@ class OfflineDataScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Tone plays music already on this device. Local playback does not '
+            'Melo plays music already on this device. Local playback does not '
             'use mobile data, and scanned originals stay where they are.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
@@ -359,7 +359,7 @@ class AppearanceInfoScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Tone uses a deep red, glass-inspired player with artwork-led color. '
+            'Melo uses a deep red, glass-inspired player with artwork-led color. '
             'Ambient motion follows your device’s Reduce animations accessibility '
             'setting so playback stays comfortable.',
             style: Theme.of(context).textTheme.bodyLarge,
@@ -461,7 +461,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
       final status = await _updater.downloadAndInstallRelease(release);
       if (!mounted) return;
       final message = status == 'PERMISSION_REQUIRED'
-          ? 'Allow "Install unknown apps" for Tone, then tap Install APK again.'
+          ? 'Allow "Install unknown apps" for Melo, then tap Install APK again.'
           : 'Launching Android package installer for ${release.tagName}...';
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -492,7 +492,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Enter your GitHub repository (owner/repo) where Tone releases and APKs are published:',
+              'Enter your GitHub repository (owner/repo) where Melo releases and APKs are published:',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -536,7 +536,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('About Tone'),
+        title: const Text('About Melo'),
         actions: [
           IconButton(
             tooltip: 'Check for updates',
@@ -601,7 +601,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            'Tone is a local-first music player. It works without an account, '
+            'Melo is a local-first music player. It works without an account, '
             'keeps recommendations on-device, and gives you control over how '
             'your music flows.',
             style: textTheme.bodyLarge,
@@ -642,7 +642,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                             Text(
                               isUpdateAvailable
                                   ? 'Update Available · ${latest?.tagName}'
-                                  : 'Tone v${_updater.currentVersion} Installed',
+                                  : 'Melo v${_updater.currentVersion} Installed',
                               style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -790,7 +790,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: const Text(
-                      'Check github.com/ossy-harz/Tone when Tone starts',
+                      'Check github.com/ossy-harz/Tone when Melo starts',
                     ),
                     value: _updater.autoCheckOnStartup,
                     onChanged: (v) => _updater.setAutoCheckOnStartup(v),
@@ -940,7 +940,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
         title: const Text('Clear personal mix preferences?'),
         content: const Text(
           'This removes your favorites and songs excluded from mixes. '
-          'Your music files, playlists, queue, and cached lyrics stay in Tone.',
+          'Your music files, playlists, queue, and cached lyrics stay in Melo.',
         ),
         actions: [
           TextButton(
@@ -999,9 +999,9 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Tone stores your library references, favorites, playlists, '
+            'Melo stores your library references, favorites, playlists, '
             'playback queue and position, mix exclusions, and cached local '
-            'lyrics on this device. Tone does not record listening history. '
+            'lyrics on this device. Melo does not record listening history. '
             'Online lyrics are optional and send only the current song’s '
             'metadata to LRCLIB when enabled.',
           ),
@@ -1020,7 +1020,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
             contentPadding: EdgeInsets.zero,
             title: const Text('Cached lyrics'),
             subtitle: const Text(
-              'Remove lyrics copied into Tone’s local cache. Sidecar files '
+              'Remove lyrics copied into Melo’s local cache. Sidecar files '
               'and selected lyric files are not deleted.',
             ),
             trailing: TextButton(
@@ -1549,14 +1549,14 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
             ListTile(
               leading: const Icon(
                 Icons.playlist_add_check_circle_rounded,
-                color: Color(0xFF1DB954),
+                color: ToneColors.cherry,
               ),
               title: const Text(
-                'Import Spotify or Music Link',
+                'Import Music or Playlist Link',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               subtitle: const Text(
-                'Paste any Spotify, YouTube, or Deezer playlist link',
+                'Paste any shared music or playlist link',
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => SpotifyImportSheet.show(

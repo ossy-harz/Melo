@@ -40,7 +40,7 @@ class ToneServices {
       builder: ToneAudioHandler.new,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.tone.player.audio',
-        androidNotificationChannelName: 'Tone music playback',
+        androidNotificationChannelName: 'Melo music playback',
         androidNotificationChannelDescription:
             'Playback controls for music playing in Tone.',
         androidNotificationOngoing: true,

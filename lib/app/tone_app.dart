@@ -30,7 +30,7 @@ class ToneApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ToneAppearanceController.instance,
       builder: (context, themeMode, _) => MaterialApp(
-        title: 'Tone',
+        title: 'Melo',
         debugShowCheckedModeBanner: false,
         theme: ToneTheme.light,
         darkTheme: ToneTheme.dark,
@@ -86,7 +86,7 @@ class _ServicesLoaderState extends State<_ServicesLoader> {
                   const Icon(Icons.music_off_rounded, size: 40),
                   const SizedBox(height: 16),
                   Text(
-                    'Tone couldn’t start audio services.',
+                    'Melo couldn’t start audio services.',
                     style: Theme.of(context).textTheme.titleLarge,
                     textAlign: TextAlign.center,
                   ),

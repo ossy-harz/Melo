@@ -1570,7 +1570,7 @@ class MusicLibrary extends ChangeNotifier {
       final musicDirectory = p.normalize(p.absolute(_musicDirectory.path));
       final trackPath = p.normalize(p.absolute(track.path));
       if (!p.isWithin(musicDirectory, trackPath)) {
-        throw StateError('Tone can only delete files stored in its library.');
+        throw StateError('Melo can only delete files stored in its library.');
       }
       final file = File(track.path);
       if (await file.exists()) await file.delete();

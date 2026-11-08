@@ -394,14 +394,14 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Spotify Playlist Import',
+                        'Cloud Playlist Import',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       Text(
-                        'Paste any Spotify playlist, album, or track link',
+                        'Paste any shared playlist, album, or track link',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.onSurfaceVariant,

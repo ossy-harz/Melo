@@ -391,7 +391,7 @@ class _MixSetupScreenState extends State<MixSetupScreen> {
           const SizedBox(height: 8),
           Text(
             'Choose a session length and how familiar or exploratory it feels. '
-            'Tone uses available, unexcluded songs that fit the time, then '
+            'Melo uses available, unexcluded songs that fit the time, then '
             'builds a set that opens gently, rises, and settles with compatible '
             'genre and BPM where those tags are present.',
             style: Theme.of(context).textTheme.bodyLarge
@@ -469,7 +469,7 @@ class _MixSetupScreenState extends State<MixSetupScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Recommendations stay on this device. Tone uses favorites '
+                    'Recommendations stay on this device. Melo uses favorites '
                     'and embedded genre/BPM tags when available; it never '
                     'guesses your mood or sends listening history.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -522,7 +522,7 @@ class _MixSetupScreenState extends State<MixSetupScreen> {
                   message: widget.library!.tracks.isEmpty
                       ? 'Your library is empty. Add local audio from Library to make a mix.'
                       : widget.library!.tracksWithDuration == 0
-                      ? 'No mixable tracks have a known duration. Rescan your device or grant a music folder so Tone can read track lengths.'
+                      ? 'No mixable tracks have a known duration. Rescan your device or grant a music folder so Melo can read track lengths.'
                       : widget.library!.hasMixExclusions
                       ? 'No songs fit the session length with your current exclusions. Choose a longer session or clear the exclusions above.'
                       : 'No tracks fit this session length. Choose a longer session or check the track durations.',

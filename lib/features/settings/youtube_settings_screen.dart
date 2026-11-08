@@ -422,7 +422,7 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
                               ? 'Syncing Liked Songs...'
                               : _syncedCount > 0
                                   ? 'Re-sync Liked Songs ($_syncedCount synced)'
-                                  : 'Sync Liked Songs to Tone',
+                                  : 'Sync Liked Songs to Melo',
                         ),
                       ),
                     ),
@@ -537,7 +537,7 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'When you download a YouTube track in Tone, the raw audio stream is tagged and cached locally alongside its synced .lrc lyrics file, allowing seamless word-by-word karaoke playback offline.',
+            'When you download a streaming track in Melo, the raw audio stream is tagged and cached locally alongside its synced .lrc lyrics file, allowing seamless word-by-word karaoke playback offline.',
             style: TextStyle(
               fontSize: 13,
               color: colors.onSurfaceVariant,

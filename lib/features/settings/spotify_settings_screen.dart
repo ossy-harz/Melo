@@ -117,7 +117,7 @@ class _SpotifySettingsScreenState extends State<SpotifySettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Spotify in Tone',
+                            'Cloud Integration in Melo',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleLarge

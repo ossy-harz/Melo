@@ -168,12 +168,23 @@ class _NowPlayingFavoriteButtonState extends State<_NowPlayingFavoriteButton>
             _controller.forward(from: 0);
           }
         },
-        icon: Icon(
-          widget.isFavorite
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          color: widget.isFavorite ? ToneColors.cherry : ToneColors.playerMuted,
-          size: 26,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.isFavorite
+                ? ToneColors.cherry.withValues(alpha: 0.22)
+                : Colors.white.withValues(alpha: 0.06),
+          ),
+          child: Icon(
+            widget.isFavorite
+                ? Icons.star_rounded
+                : Icons.star_border_rounded,
+            color: widget.isFavorite ? ToneColors.cherry : ToneColors.playerMuted,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -598,7 +609,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
           builder: (context) => AlertDialog(
             title: const Text('Find lyrics online?'),
             content: const Text(
-              'Tone will send this song’s title, artist, album, and duration to '
+              'Melo will send this song’s title, artist, album, and duration to '
               'LRCLIB to find matching lyrics. Your listening history is not sent. '
               'You can turn automatic online lyrics off in Privacy & your data.',
             ),

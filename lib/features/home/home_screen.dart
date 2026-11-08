@@ -46,7 +46,7 @@ class HomeScreen extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    'tone',
+                    'melo',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
@@ -1995,7 +1995,7 @@ class _LiveDiscoverySectionState extends State<_LiveDiscoverySection> {
             id: 'youtube:${t.id}',
             title: t.title,
             artist: t.author,
-            album: t.album ?? 'Tone Discovery',
+            album: t.album ?? 'Melo Discovery',
             duration: t.duration > Duration.zero ? t.duration : null,
             artUri: t.thumbnailUrl != null
                 ? Uri.tryParse(t.thumbnailUrl!)
@@ -2312,7 +2312,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
   static const List<_CuratedPlaylistPreset> _playlists = [
     _CuratedPlaylistPreset(
       title: "Today's Top Hits",
-      curatorSubtitle: 'Tone Editorial · Global Chart Toppers',
+      curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
       badge: 'UPDATED TODAY',
       searchQuery: 'Top Pop Global Hits 2025 Official Audio',
       gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
@@ -2398,7 +2398,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
               ),
             ),
             Text(
-              'Apple Music & Spotify Picks',
+              'Melo Curated Picks',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: colors.onSurfaceVariant,
                 fontWeight: FontWeight.w600,

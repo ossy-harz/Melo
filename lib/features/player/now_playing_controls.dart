@@ -33,26 +33,27 @@ class _MixNextControl extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: ToneMotion.respecting(context, ToneMotion.fast),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: transitioning
                   ? [
-                      accent.withValues(alpha: 0.26),
-                      Colors.white.withValues(alpha: 0.09),
+                      accent.withValues(alpha: 0.22),
+                      Colors.white.withValues(alpha: 0.08),
                     ]
                   : [
-                      Colors.white.withValues(alpha: 0.09),
-                      Colors.white.withValues(alpha: 0.035),
+                      Colors.white.withValues(alpha: 0.07),
+                      Colors.white.withValues(alpha: 0.03),
                     ],
             ),
             border: Border.all(
               color: transitioning
-                  ? accent.withValues(alpha: 0.55)
-                  : Colors.white.withValues(alpha: 0.13),
+                  ? accent.withValues(alpha: 0.45)
+                  : Colors.white.withValues(alpha: 0.1),
+              width: 0.8,
             ),
           ),
           child: Column(
@@ -62,52 +63,58 @@ class _MixNextControl extends StatelessWidget {
                 children: [
                   AnimatedContainer(
                     duration: ToneMotion.respecting(context, ToneMotion.fast),
-                    width: 34,
-                    height: 34,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: transitioning
-                          ? accent.withValues(alpha: 0.26)
-                          : Colors.white.withValues(alpha: 0.08),
+                          ? accent.withValues(alpha: 0.24)
+                          : Colors.white.withValues(alpha: 0.07),
                     ),
                     child: Icon(
                       transitioning
                           ? Icons.close_rounded
                           : Icons.multitrack_audio_rounded,
                       color: ToneColors.playerText,
-                      size: 20,
+                      size: 15,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          transitioning ? 'MIXING' : 'MIX NEXT',
-                          style: TextStyle(
-                            color: transitioning
-                                ? accent
-                                : ToneColors.playerMuted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _transitionLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: ToneColors.playerText,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              transitioning ? 'MIXING' : 'MIX NEXT',
+                              style: TextStyle(
+                                color: transitioning
+                                    ? accent
+                                    : ToneColors.playerMuted,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _transitionLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: ToneColors.playerText,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         if (analysisHint != null) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Semantics(
                             label:
                                 '$analysisHint. Relative waveform energy estimate; not beat or phrase detection.',
@@ -117,7 +124,7 @@ class _MixNextControl extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: ToneColors.playerMuted,
-                                fontSize: 11,
+                                fontSize: 10,
                               ),
                             ),
                           ),
@@ -126,7 +133,7 @@ class _MixNextControl extends StatelessWidget {
                     ),
                   ),
                   if (transitioning) ...[
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     _MixActivityWaveform(
                       active: true,
                       color: accent,
@@ -135,13 +142,13 @@ class _MixNextControl extends StatelessWidget {
                 ],
               ),
               if (transitioning) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: progress.clamp(0, 1),
-                    minHeight: 4,
-                    backgroundColor: Colors.white.withValues(alpha: 0.14),
+                    minHeight: 3,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
                     valueColor: AlwaysStoppedAnimation<Color>(accent),
                     semanticsLabel:
                         'Gain ramp command progress; not rendered audio output',
