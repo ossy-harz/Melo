@@ -345,50 +345,73 @@ class TrackDetailsSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
-                child: Row(
-                  children: [
-                    AlbumArtwork(
-                      size: 64,
+              const SizedBox(height: 16),
+              // Big Centered Hero Artwork (Apple Music visual fidelity)
+              Center(
+                child: Container(
+                  width: 210,
+                  height: 210,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: MeloColors.cherry.withValues(alpha: 0.35),
+                        blurRadius: 30,
+                        offset: const Offset(0, 12),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: AlbumArtwork(
+                      size: 210,
                       title: item.title,
                       artworkUri: item.artUri,
                       sourceUri: Uri.tryParse(item.id),
-                      borderRadius: 14,
+                      borderRadius: 20,
+                      iconSize: 64,
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Track details',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: const Color(0xFFFF827A),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    Text(
+                      item.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    PlayerGlassIconButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Close track details',
-                      onPressed: () => Navigator.of(context).pop(),
+                    const SizedBox(height: 4),
+                    Text(
+                      displayArtistName(item.artist),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 14),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),

@@ -1094,10 +1094,10 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   builder: (context, constraints) {
                                     final artSize = math
                                         .min(
-                                          constraints.maxWidth - 36,
-                                          constraints.maxHeight * 0.96,
+                                          constraints.maxWidth - 24,
+                                          constraints.maxHeight * 0.98,
                                         )
-                                        .clamp(0.0, 380.0);
+                                        .clamp(0.0, 460.0);
                                     return Center(
                                       child: GestureDetector(
                                         onTap: () =>

@@ -1833,6 +1833,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     StackTrace stackTrace,
     String context,
   ) {
+    if (error is PlayerInterruptedException) return;
     FlutterError.reportError(
       FlutterErrorDetails(
         exception: error,
@@ -1876,6 +1877,7 @@ class _PlayerFilter {
       _parameters = resolved;
       unawaited(_shape());
     } on Object catch (error, stackTrace) {
+      if (error is PlayerInterruptedException) return;
       FlutterError.reportError(
         FlutterErrorDetails(
           exception: error,

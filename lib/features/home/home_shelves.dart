@@ -658,27 +658,92 @@ class StationTile extends StatelessWidget {
   }
 }
 
-class FoldedPrismPainter extends CustomPainter {
-  const FoldedPrismPainter({required this.color});
+/// Authentic Apple Music dynamic 3D chevron origami waves (Screenshot 3).
+/// Renders multi-layered perspective folds with gradients and specular highlights.
+class AppleStationWavePainter extends CustomPainter {
+  const AppleStationWavePainter({
+    required this.color,
+    this.accentColor,
+  });
+
   final Color color;
+  final Color? accentColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
+    final w = size.width;
+    final h = size.height;
+    final accent = accentColor ?? Colors.white;
 
-    final path = Path()
-      ..moveTo(0, size.height * 0.4)
-      ..lineTo(size.width * 0.7, 0)
-      ..lineTo(size.width, size.height * 0.3)
-      ..lineTo(size.width * 0.3, size.height)
+    // Layer 1: Deep shadow angled chevron
+    final p1 = Path()
+      ..moveTo(w * 0.15, h)
+      ..lineTo(w * 0.95, h * 0.52)
+      ..lineTo(w * 0.95, h * 0.65)
+      ..lineTo(w * 0.25, h)
       ..close();
-    canvas.drawPath(path, paint);
+    canvas.drawPath(
+      p1,
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+
+    // Layer 2: Main dynamic folded chevron wing
+    final p2 = Path()
+      ..moveTo(0, h * 0.30)
+      ..lineTo(w * 0.70, h * 0.50)
+      ..lineTo(0, h * 0.78)
+      ..close();
+    canvas.drawPath(
+      p2,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.45),
+            color.withValues(alpha: 0.20),
+          ],
+        ).createShader(Rect.fromLTWH(0, h * 0.3, w * 0.7, h * 0.48)),
+    );
+
+    // Layer 3: Secondary perspective wing (origami fold)
+    final p3 = Path()
+      ..moveTo(w * 0.32, h * 0.15)
+      ..lineTo(w, h * 0.50)
+      ..lineTo(w * 0.32, h * 0.88)
+      ..close();
+    canvas.drawPath(
+      p3,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            Colors.white.withValues(alpha: 0.28),
+            Colors.white.withValues(alpha: 0.08),
+          ],
+        ).createShader(Rect.fromLTWH(w * 0.32, h * 0.15, w * 0.68, h * 0.73)),
+    );
+
+    // Specular glossy edge
+    final edgePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.40)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(
+      Offset(w * 0.32, h * 0.15),
+      Offset(w, h * 0.50),
+      edgePaint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant FoldedPrismPainter oldDelegate) => false;
+  bool shouldRepaint(covariant AppleStationWavePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class FoldedPrismPainter extends AppleStationWavePainter {
+  const FoldedPrismPainter({required super.color, super.accentColor});
 }
 
 class RecommendedPlaylistsSection extends StatelessWidget {

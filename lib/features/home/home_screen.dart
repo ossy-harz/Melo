@@ -161,7 +161,7 @@ class HomeScreen extends StatelessWidget {
 
               // Shelf 2: Top Picks for You (Hero Showcase Carousel)
               TopPicksShelf(
-                onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
+                onPlayVibe: (vibe) => _openStation(context, vibe),
                 onPlayPreset: (preset) => _openCuratedPreset(context, preset),
               ),
               const SizedBox(height: 24),
@@ -179,7 +179,7 @@ class HomeScreen extends StatelessWidget {
               // Shelf 4: Stations for You (Continuous Radio Flow with Real Art)
               StationsForYouShelf(
                 library: library,
-                onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
+                onPlayVibe: (vibe) => _openStation(context, vibe),
               ),
               const SizedBox(height: 24),
 
@@ -199,7 +199,48 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _openCuratedPreset(BuildContext context, CuratedPlaylistPreset preset) {
+  void _openStation(BuildContext context, SmartVibe vibe) {
+    final (title, subtitle, badge, gradient, icon) = switch (vibe) {
+      SmartVibe.dailyFlow => (
+        'Personal Station',
+        'Continuous dynamic stream tailored to your favorites',
+        'PERSONAL STATION',
+        const [Color(0xFFE52D27), Color(0xFFB31217), Color(0xFF1E0608)],
+        Icons.graphic_eq_rounded,
+      ),
+      SmartVibe.highEnergy => (
+        'Discovery Station',
+        'Endless exploration & fresh music discoveries',
+        'DISCOVERY',
+        const [Color(0xFF4A00E0), Color(0xFF8E2DE2), Color(0xFF0F051D)],
+        Icons.radar_rounded,
+      ),
+      SmartVibe.deepFocus => (
+        'Deep Focus & Study',
+        'Calm instrumental grooves and ambient lofi beats',
+        'INSTRUMENTAL',
+        const [Color(0xFF134E5E), Color(0xFF71B280), Color(0xFF061A21)],
+        Icons.headphones_rounded,
+      ),
+      SmartVibe.lateNightChill => (
+        'Late Night Chill',
+        'Mellow acoustic & atmospheric midnight soul',
+        'LATE NIGHT',
+        const [Color(0xFF3A1C71), Color(0xFFD76D77), Color(0xFF190A2E)],
+        Icons.nightlight_round,
+      ),
+    };
+
+    final preset = CuratedPlaylistPreset(
+      title: title,
+      curatorSubtitle: subtitle,
+      badge: badge,
+      searchQuery: '',
+      gradient: gradient,
+      icon: icon,
+      vibe: vibe,
+    );
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CuratedPlaylistScreen(
@@ -211,47 +252,16 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _playSmartVibe(BuildContext context, SmartVibe vibe) async {
-    final handler = audioHandler;
-    if (handler == null) return;
-
-    final vibeName = switch (vibe) {
-      SmartVibe.dailyFlow => 'My Daily Flow',
-      SmartVibe.highEnergy => 'High Energy Workout',
-      SmartVibe.deepFocus => 'Deep Focus & Study',
-      SmartVibe.lateNightChill => 'Late Night Chill',
-    };
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Starting $vibeName (Continuous autoplay)...'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
+  void _openCuratedPreset(BuildContext context, CuratedPlaylistPreset preset) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: audioHandler,
+          library: library,
         ),
-      );
-
-    try {
-      final playlist = await SmartPlaylistService.instance.generateVibeMix(
-        vibe: vibe,
-        library: library,
-      );
-      await SmartPlaylistService.instance.playSmartPlaylist(
-        audioHandler: handler,
-        playlist: playlist,
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not start $vibeName: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
+      ),
+    );
   }
 
   Future<void> _playTrack(BuildContext context, ImportedTrack track) async {
