@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -7,9 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tone_player/app/tone_app.dart';
 import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/player/dj_transition.dart';
+import 'package:tone_player/features/player/audio_profile.dart';
 import 'package:tone_player/features/player/mini_player.dart';
+import 'package:tone_player/features/player/audio_profile_service.dart';
 import 'package:tone_player/features/player/lyrics_repository.dart';
+import 'package:tone_player/features/mix/local_discovery.dart';
 import 'package:tone_player/features/shell/app_shell.dart';
 import 'package:tone_player/features/library/music_library.dart';
 import 'package:tone_player/features/home/home_screen.dart';
@@ -17,9 +20,9 @@ import 'package:tone_player/features/settings/you_screen.dart';
 
 void main() {
   test('app color system uses red as its primary accent', () {
-    expect(ToneTheme.light.colorScheme.primary, ToneColors.plum);
-    expect(ToneTheme.dark.colorScheme.primary, ToneColors.ember);
-    expect(ToneTheme.dark.colorScheme.surface, const Color(0xFF0D090B));
+    expect(ToneTheme.light.colorScheme.primary, const Color(0xFFFA243C));
+    expect(ToneTheme.dark.colorScheme.primary, const Color(0xFFFA243C));
+    expect(ToneTheme.dark.colorScheme.surface, const Color(0xFF000000));
   });
 
   testWidgets('artwork requests embedded cover from its audio source', (
@@ -27,6 +30,9 @@ void main() {
   ) async {
     const channel = MethodChannel('app.tone.tone_player/library');
     final calls = <MethodCall>[];
+    final sourceUri = Uri.parse(
+      'content://media/external/audio/cache-test-${DateTime.now().microsecondsSinceEpoch}',
+    );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           calls.add(call);
@@ -40,13 +46,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AlbumArtwork(
-            size: 96,
-            title: 'A song',
-            sourceUri: Uri.parse('content://media/external/audio/media/17'),
-          ),
+          body: AlbumArtwork(size: 96, title: 'A song', sourceUri: sourceUri),
         ),
       ),
+    );
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
     await tester.pump();
 
@@ -54,7 +60,7 @@ void main() {
     expect(calls.single.method, 'getArtwork');
     expect(calls.single.arguments, {
       'uri': null,
-      'sourceUri': 'content://media/external/audio/media/17',
+      'sourceUri': sourceUri.toString(),
     });
   });
 
@@ -64,7 +70,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     const channel = MethodChannel('app.tone.tone_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (_) async => null);
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'readAudioWaveform') {
+            return List<double>.filled(256, 0.4);
+          }
+          return null;
+        });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null),
@@ -76,8 +87,16 @@ void main() {
 
     final handler = _PreviewAudioHandler()
       ..queue.add([
-        const MediaItem(id: 'local-track', title: 'Evening Walk'),
-        const MediaItem(id: 'next-track', title: 'Next Song'),
+        const MediaItem(
+          id: 'local-track',
+          title: 'Evening Walk',
+          duration: Duration(minutes: 5, seconds: 35),
+        ),
+        const MediaItem(
+          id: 'next-track',
+          title: 'Next Song',
+          duration: Duration(minutes: 4),
+        ),
       ])
       ..mediaItem.add(
         const MediaItem(
@@ -113,6 +132,14 @@ void main() {
     await tester.tap(find.byTooltip('Play'));
     await tester.pump();
     expect(handler.actions, contains('play'));
+
+    expect(find.text('MIX NEXT'), findsOneWidget);
+    expect(find.text('Manual crossfade · 10 sec'), findsOneWidget);
+    await tester.tap(
+      find.byTooltip('Manually crossfade to the next track over 10 seconds'),
+    );
+    await tester.pump();
+    expect(handler.actions, contains('custom:autoMix.transitionToNextTrack'));
 
     await tester.tap(find.byTooltip('Pause'));
     await tester.pump();
@@ -200,6 +227,235 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Now Playing disposes cleanly during a manual transition', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.tone.tone_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => null);
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+
+    final handler = _PreviewAudioHandler()
+      ..queue.add([
+        const MediaItem(
+          id: 'current-track',
+          title: 'Current track',
+          duration: Duration(minutes: 3),
+        ),
+        const MediaItem(
+          id: 'next-track',
+          title: 'Next track',
+          duration: Duration(minutes: 4),
+        ),
+      ])
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'current-track',
+          title: 'Current track',
+          duration: Duration(minutes: 3),
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        ),
+      );
+    handler.transitionCompletion = Completer<dynamic>();
+
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byTooltip('Manually crossfade to the next track over 10 seconds'),
+    );
+    await tester.pump();
+
+    expect(find.text('MIXING'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    handler.transitionCompletion!.complete({'completed': false});
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Now Playing analyzes current and next waveform cues', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.tone.tone_player/library');
+    final outgoing = [
+      ...List<double>.filled(230, 0.65),
+      ...List<double>.filled(26, 0.01),
+    ];
+    final incoming = [
+      ...List<double>.filled(12, 0.02),
+      ...List<double>.filled(244, 0.7),
+    ];
+    final waveformRequests = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method != 'readAudioWaveform') return null;
+          final arguments = call.arguments! as Map;
+          final uri = arguments['uri']! as String;
+          waveformRequests.add(uri);
+          return uri == 'outgoing-cue-track' ? outgoing : incoming;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..queue.add([
+        const MediaItem(
+          id: 'outgoing-cue-track',
+          title: 'Outgoing',
+          duration: Duration(seconds: 256),
+        ),
+        const MediaItem(
+          id: 'incoming-cue-track',
+          title: 'Incoming',
+          duration: Duration(seconds: 256),
+        ),
+      ])
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'outgoing-cue-track',
+          title: 'Outgoing',
+          duration: Duration(seconds: 256),
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      waveformRequests,
+      containsAll(['outgoing-cue-track', 'incoming-cue-track']),
+    );
+    expect(
+      find.textContaining('Quiet outro 3:50 · Quiet intro 0:12'),
+      findsOneWidget,
+    );
+    expect(find.text('No quiet intro/outro detected'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home plays a local genre and mood mix', (tester) async {
+    final directory = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('tone-home-taste-'),
+    );
+    if (directory == null) fail('Could not create taste test directory.');
+    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
+    addTearDown(() => directory.delete(recursive: true));
+
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final library = MusicLibrary.forTesting(
+      musicDirectory: directory,
+      preferences: preferences,
+      pickAudio: () async => const [],
+      scanDeviceAudio: () async => const [
+        DeviceAudio(
+          uri: 'content://media/external/audio/media/999',
+          name: 'electronic.mp3',
+          title: 'Night Signal',
+          artist: 'Tone Test',
+          genre: 'Electronic',
+          bpm: 120,
+        ),
+      ],
+    );
+    await library.scanDeviceMusic();
+    addTearDown(library.close);
+    final handler = _PreviewAudioHandler();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeScreen(
+            onOpenLibrary: () {},
+            library: library,
+            audioHandler: handler,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Electronic'), findsOneWidget);
+    expect(find.text('Night drive'), findsOneWidget);
+    await tester.ensureVisible(find.text('Electronic'));
+    await tester.tap(find.text('Electronic'));
+    await tester.pumpAndSettle();
+    expect(handler.queue.value.map((item) => item.title), ['Night Signal']);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('queue sheet removes upcoming songs and protects current song', (
+    tester,
+  ) async {
+    final handler = _PreviewAudioHandler()
+      ..queue.add(const [
+        MediaItem(id: 'previous', title: 'Previous song'),
+        MediaItem(id: 'current', title: 'Current song'),
+        MediaItem(id: 'next', title: 'Next song'),
+        MediaItem(id: 'later', title: 'Later song'),
+      ])
+      ..mediaItem.add(const MediaItem(id: 'current', title: 'Current song'))
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: false,
+          queueIndex: 1,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Up next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Current song'), findsNWidgets(2));
+    expect(find.text('Previous song'), findsNothing);
+    expect(find.byTooltip('Remove from queue'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Remove from queue').first);
+    await tester.pumpAndSettle();
+
+    expect(handler.queue.value, hasLength(3));
+    expect(handler.queue.value[1].id, 'current');
+    expect(find.text('Current song'), findsNWidgets(2));
+    expect(find.byTooltip('Remove from queue'), findsOneWidget);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(handler.queue.value.map((item) => item.id), ['previous', 'current']);
+    expect(find.text('Nothing else is queued.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Now Playing keeps the reference-inspired layout and app tabs', (
     tester,
   ) async {
@@ -245,17 +501,17 @@ void main() {
 
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
-      Colors.white,
+      ToneColors.amoled,
     );
     expect(find.text('Quiet Motion'), findsOneWidget);
     expect(find.text('Tone Test'), findsOneWidget);
     expect(find.byType(AlbumArtwork), findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
-    expect(find.text('Hotlist'), findsOneWidget);
+    expect(find.text('You'), findsOneWidget);
 
     await tester.tap(find.text('Library'));
     await tester.pumpAndSettle();
-    expect(destination, 2);
+    expect(destination, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -367,11 +623,125 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // The always-on lyric preview shows the current line before expanding.
+    expect(find.text('A line that follows the song'), findsOneWidget);
+
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read lyrics'));
     await tester.pumpAndSettle();
-    expect(find.text('A line that follows the song'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('A line that follows the song'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('live lyrics mode follows the song on the Now Playing screen', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.tone.tone_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'readLyrics') {
+            return '[00:00.00]First live line\n[00:10.00]Second live line';
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'song-with-live-lyrics',
+          title: 'A song',
+          artist: 'Tone Test',
+          duration: Duration(minutes: 3),
+          extras: {'lyricsUri': 'content://music/lyrics/song.lrc'},
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: false,
+          updatePosition: const Duration(seconds: 12),
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Show live lyrics'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('LYRICS'), findsOneWidget);
+    expect(find.text('LINE SYNC'), findsOneWidget);
+    expect(find.text('First live line'), findsOneWidget);
+    expect(find.text('Second live line'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('Show artwork'));
+    await tester.pumpAndSettle();
+    expect(find.text('LYRICS'), findsNothing);
+    expect(find.byTooltip('Show live lyrics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('live lyrics mode offers to find lyrics when none are saved', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.tone.tone_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => null);
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'song-with-no-lyrics',
+          title: 'A song',
+          artist: 'Tone Test',
+          duration: Duration(minutes: 3),
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: false,
+          updatePosition: Duration.zero,
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Show live lyrics'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No lyrics yet'), findsOneWidget);
+    expect(find.text('Find online'), findsOneWidget);
+    expect(find.text('Add file'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -472,7 +842,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read lyrics'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('First line').first);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('First line'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(
@@ -539,7 +914,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read lyrics'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('First word').first);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('First word'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     Text activeLine = tester.widget<Text>(
@@ -614,11 +994,19 @@ void main() {
     await tester.tap(find.text('Track details'));
     await tester.pumpAndSettle();
     expect(calls.any((call) => call.method == 'readAudioQuality'), isTrue);
-    expect(find.text('FLAC · 96 kHz · Stereo · 3000 kbps'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Codec'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('FLAC'), findsAtLeastNWidgets(2));
+    expect(find.text('96 kHz'), findsAtLeastNWidgets(2));
+    expect(find.text('Stereo'), findsAtLeastNWidgets(2));
+    expect(find.text('3000 kbps'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Now Playing exposes DJ mode and complete tagged track details', (
+  testWidgets('Now Playing exposes complete tagged track details', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -674,17 +1062,6 @@ void main() {
 
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Turn DJ mode off'));
-    await tester.pumpAndSettle();
-    expect(handler.actions, contains('dj:off'));
-
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
-    expect(find.text('Turn DJ mode on'), findsOneWidget);
-    await tester.tap(find.text('Turn DJ mode on'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Track details'));
     await tester.pumpAndSettle();
     expect(find.text('Release year'), findsOneWidget);
@@ -693,11 +1070,19 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     expect(find.text('House'), findsOneWidget);
     expect(find.text('124 BPM'), findsOneWidget);
-    expect(find.text('FLAC · 96 kHz · Stereo · 3000 kbps'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Codec'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('FLAC'), findsAtLeastNWidgets(2));
+    expect(find.text('96 kHz'), findsAtLeastNWidgets(2));
+    expect(find.text('Stereo'), findsAtLeastNWidgets(2));
+    expect(find.text('3000 kbps'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('deck nudge responds to artwork drags and resets on release', (
+  testWidgets('artwork drags do not scratch the deck from Now Playing', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -741,12 +1126,52 @@ void main() {
 
     expect(find.text('DECK NUDGE'), findsNothing);
     expect(
-      handler.actions.any(
-        (action) => action.startsWith('scratch:') && action != 'scratch:1.0',
-      ),
-      isTrue,
+      handler.actions.where((action) => action.startsWith('scratch:')),
+      isEmpty,
     );
-    expect(handler.actions, contains('scratch:1.0'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Now Playing exposes standard playback controls', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.tone.tone_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => null);
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'mix-track',
+          title: 'A song',
+          artist: 'Tone Test',
+          duration: Duration(minutes: 3),
+          extras: {'bpm': 124},
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('VIRTUAL DECK'), findsNothing);
+    expect(find.text('DECK A'), findsNothing);
+    expect(find.text('DECK B'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
     expect(tester.takeException(), isNull);
   });
 
@@ -792,13 +1217,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home opens a local music mix setup', (tester) async {
+  testWidgets('Personal mixes remain available in the reduced navigation', (
+    tester,
+  ) async {
     await tester.pumpWidget(const ToneApp.preview());
 
-    expect(find.text('A little space for your sound.'), findsOneWidget);
-    await tester.tap(find.text('Build your mix'));
-    await tester.pumpAndSettle();
+    expect(find.byType(NavigationDestination), findsNWidgets(3));
+    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(
+      List.generate(
+        3,
+        (index) => tester
+            .widget<TickerMode>(
+              find.byKey(ValueKey('destination-$index'), skipOffstage: false),
+            )
+            .enabled,
+      ),
+      [true, false, false],
+    );
+    expect(find.text('Flow'), findsNothing);
+    expect(find.text('Tone Flow'), findsNothing);
 
+    await tester.tap(find.text('You'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Personal mixes'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Personal mixes'));
+    await tester.pumpAndSettle();
     expect(find.text('Make a mix from your music'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -450));
     await tester.pumpAndSettle();
@@ -808,9 +1256,7 @@ void main() {
     );
   });
 
-  testWidgets('Home plays a selected mood mix from tagged local songs', (
-    tester,
-  ) async {
+  testWidgets('Home plays a selected library recommendation', (tester) async {
     SharedPreferences.setMockInitialValues({});
     const channel = MethodChannel('app.tone.tone_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -865,7 +1311,6 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: HomeScreen(
-            onBuildMix: () {},
             onOpenLibrary: () {},
             library: library,
             audioHandler: handler,
@@ -874,23 +1319,91 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Morning glow'));
+    await tester.ensureVisible(find.text('Picked for you'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Set the scene'), findsOneWidget);
-    await tester.tap(find.text('Morning glow'));
-    await tester.pumpAndSettle();
-
-    expect(handler.queue.value.map((item) => item.title), ['Warm Start']);
-    expect(handler.actions, contains('play'));
-    expect(
-      find.text('Playing Morning glow from your library tags.'),
-      findsOneWidget,
+    expect(find.text('Picked for you'), findsOneWidget);
+    expect(find.text('Library'), findsNothing);
+    expect(find.text('Flow'), findsNothing);
+    expect(find.text('Search'), findsNothing);
+    expect(find.text('You'), findsNothing);
+    final recommendedTitles = LocalDiscovery.recommendations(
+      library.tracks,
+      favoriteTrackIds: {for (final track in library.favoriteTracks) track.id},
+    ).first.tracks.map((track) => track.title).toList();
+    await tester.tap(
+      find.byTooltip(RegExp(r'^Play .* · \d+ songs from your library$')),
     );
+    await tester.pumpAndSettle();
+
+    expect(handler.queue.value.map((item) => item.title), recommendedTitles);
+    expect(handler.actions, contains('play'));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home makes the current song a playable artwork-led hero', (
+  testWidgets('Home surfaces favorites and saved playlists', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final directory = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('tone-home-listening-'),
+    );
+    if (directory == null) fail('Could not create home test directory.');
+    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
+    addTearDown(() => directory.delete(recursive: true));
+
+    final library = MusicLibrary.forTesting(
+      musicDirectory: directory,
+      preferences: preferences,
+      pickAudio: () async => const [],
+      scanDeviceAudio: () async => const [
+        DeviceAudio(
+          uri: 'content://media/external/audio/media/901',
+          name: 'favorite.mp3',
+          title: 'Favorite Song',
+          artist: 'Tone Test',
+        ),
+      ],
+    );
+    await library.scanDeviceMusic();
+    final track = library.tracks.single;
+    await library.toggleFavorite(track.id);
+    final playlist = await library.createPlaylist('Mornye downloads');
+    await library.addTracksToPlaylist(playlist.id, [track.id]);
+    final handler = _PreviewAudioHandler();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeScreen(
+            onOpenLibrary: () {},
+            library: library,
+            audioHandler: handler,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your listening'), findsOneWidget);
+    expect(find.text('FAVORITES'), findsOneWidget);
+    expect(find.textContaining('1 saved'), findsOneWidget);
+    expect(find.text('MOST PLAYED'), findsOneWidget);
+    expect(find.text('No plays yet'), findsOneWidget);
+    expect(find.text('Your playlists'), findsOneWidget);
+    await tester.ensureVisible(find.text('Mornye downloads'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mornye downloads'), findsOneWidget);
+    await tester.tap(find.text('Mornye downloads'));
+    await tester.pumpAndSettle();
+    expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
+    await tester.ensureVisible(find.text('FAVORITES'));
+    await tester.tap(find.text('FAVORITES'));
+    await tester.pumpAndSettle();
+    expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home does not duplicate current playback controls', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -925,21 +1438,19 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: HomeScreen(
-            onBuildMix: () {},
-            onOpenLibrary: () {},
-            audioHandler: handler,
-          ),
+          body: HomeScreen(onOpenLibrary: () {}, audioHandler: handler),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('PICK UP THE VIBE'), findsOneWidget);
-    expect(find.text('Afterglow'), findsOneWidget);
-    await tester.tap(find.byTooltip('Play'));
-    await tester.pump();
-    expect(handler.actions, contains('play'));
+    expect(find.text('Continue listening'), findsNothing);
+    expect(find.text('Afterglow'), findsNothing);
+    expect(find.byTooltip('Play'), findsNothing);
+    expect(find.text('Search'), findsNothing);
+    expect(find.text('Library'), findsNothing);
+    expect(find.text('Flow'), findsNothing);
+    expect(find.text('You'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1011,7 +1522,6 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: HomeScreen(
-            onBuildMix: () {},
             onOpenLibrary: () {},
             library: library,
             audioHandler: handler,
@@ -1021,17 +1531,17 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('A spark from your library'),
+      find.text('Picked for you'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
     final radioTooltip = find.byTooltip(
-      'Play Artist A radio · 3 songs from your library',
+      'Play Artist A Radio · 3 songs from your library',
     );
     expect(radioTooltip, findsOneWidget);
-    expect(find.text('Electronic flow'), findsOneWidget);
+    expect(find.text('Artist A Radio'), findsOneWidget);
 
     await tester.tap(radioTooltip);
     await tester.pumpAndSettle();
@@ -1041,7 +1551,7 @@ void main() {
     await tester.tap(find.byTooltip('Save playlist').first);
     await tester.pumpAndSettle();
     expect(library.playlists, hasLength(1));
-    expect(library.playlists.single.name, 'Artist A on repeat');
+    expect(library.playlists.single.name, 'Artist A Radio');
     expect(
       library.tracksForPlaylist(library.playlists.single.id),
       hasLength(3),
@@ -1172,23 +1682,41 @@ void main() {
     await tester.tap(find.text('Import files'));
     await tester.pump();
     expect(
-      find.text('Music import is planned for an upcoming build.'),
+      find.text('Music import is unavailable in this preview build.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('search and personal settings destinations are reachable', (
+  testWidgets('top-right search and personal settings are reachable', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const ToneApp.preview());
 
-    await tester.tap(find.text('Search songs, artists, albums'));
+    expect(find.text('Search'), findsNothing);
+    await tester.tap(find.byTooltip('Search').first);
     await tester.pumpAndSettle();
-    expect(find.text('Find your next favorite.'), findsOneWidget);
+    expect(find.text('Search'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Personal sources'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.local_fire_department_outlined));
+    for (final destination in ['Library', 'You']) {
+      await tester.tap(find.text(destination));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Search'), findsNothing);
+      expect(find.byType(NavigationDestination), findsNWidgets(3));
+      if (destination == 'Library') {
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('library-track-filter')),
+        );
+        expect(
+          find.byKey(const ValueKey('library-track-filter')),
+          findsOneWidget,
+        );
+      }
+    }
     await tester.pumpAndSettle();
     expect(find.text('Your space'), findsOneWidget);
     expect(find.text('Offline & data'), findsOneWidget);
@@ -1215,11 +1743,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Personal DJ'),
+      find.text('Personal mixes'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Personal DJ'));
+    await tester.tap(find.text('Personal mixes'));
     await tester.pumpAndSettle();
     expect(find.text('Make a mix from your music'), findsOneWidget);
 
@@ -1237,7 +1765,7 @@ void main() {
     expect(find.text('There were no cached lyrics to clear.'), findsOneWidget);
   });
 
-  testWidgets('DJ mix settings control the active playback transition', (
+  testWidgets('audio settings remain available without DJ controls', (
     tester,
   ) async {
     final handler = _PreviewAudioHandler();
@@ -1248,6 +1776,7 @@ void main() {
             onOpenLibrary: () {},
             onOpenMix: () {},
             audioHandler: handler,
+            audioProfileService: AudioServiceAudioProfileService(handler),
           ),
         ),
       ),
@@ -1255,32 +1784,73 @@ void main() {
 
     await tester.tap(find.text('Sound & playback'));
     await tester.pumpAndSettle();
-    expect(find.text('Let the songs flow.'), findsOneWidget);
-    expect(find.text('Beat-matched DJ blend'), findsOneWidget);
-
-    await tester.tap(find.text('Smooth blend'));
-    await tester.pumpAndSettle();
-    expect(handler.djMixMode, DjMixMode.smooth.name);
+    expect(find.text('Make playback sound like yours.'), findsOneWidget);
+    expect(find.text('Crossfade duration'), findsNothing);
+    expect(find.text('Beat-matched DJ blend'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Approximate loudness leveling'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(handler.audioProfile['loudnessNormalization'], isFalse);
     expect(tester.takeException(), isNull);
   });
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {
   final List<String> actions = [];
-  String djMixMode = DjMixMode.beatMatched.name;
+  Map<String, Object?> audioProfile = const AudioProfile().toJson();
+  Completer<dynamic>? transitionCompletion;
+
+  @override
+  Future<void> removeQueueItem(MediaItem mediaItem) async {
+    queue.add(
+      queue.value
+          .where((item) => item.id != mediaItem.id)
+          .toList(growable: false),
+    );
+  }
 
   @override
   Future<dynamic> customAction(
     String name, [
     Map<String, dynamic>? extras,
   ]) async {
-    if (name == 'getDjMixMode') return djMixMode;
-    if (name == 'setDjMixMode') {
-      djMixMode = extras!['mode']! as String;
-      actions.add('dj:$djMixMode');
+    actions.add('custom:$name');
+    if (name == 'autoMix.getNextTrackForAnalysis') {
+      final currentId = mediaItem.value?.id;
+      final currentIndex = queue.value.indexWhere(
+        (item) => item.id == currentId,
+      );
+      final nextIndex = currentIndex + 1;
+      if (currentIndex >= 0 && nextIndex < queue.value.length) {
+        final item = queue.value[nextIndex];
+        return {
+          'id': item.id,
+          'title': item.title,
+          'durationMs': item.duration?.inMilliseconds,
+        };
+      }
+      return null;
     }
-    if (name == 'scratchDeck') {
-      actions.add('scratch:${extras!['speed']}');
+    if (name == 'autoMix.transitionToNextTrack') {
+      if (transitionCompletion case final completion?) {
+        return completion.future;
+      }
+      return {'completed': true, 'trackId': 'next-track'};
+    }
+    if (name == 'getAudioProfile') return audioProfile;
+    if (name == 'getAudioCapabilities') {
+      return {
+        'equalizer': false,
+        'loudnessNormalization': false,
+        'balance': false,
+        'outputSelection': false,
+        'headphoneProfiles': false,
+      };
+    }
+    if (name == 'setAudioProfile') {
+      audioProfile = Map<String, Object?>.from(extras!['profile']! as Map);
     }
     return null;
   }

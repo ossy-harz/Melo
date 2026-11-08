@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle inner glass disc -->
+    <path
+        android:fillColor="#18FFFFFF"
+        android:pathData="M54,54m-31,0a31,31 0,1 1,62 0a31,31 0,1 1,-62 0" />
+
+    <!-- Left outer harmonic bar (x=30..36, y=45..63, r=3) -->
+    <path
+        android:fillColor="#FFFF3B5C"
+        android:pathData="M33,45 C34.66,45 36,46.34 36,48 L36,60 C36,61.66 34.66,63 33,63 C31.34,63 30,61.66 30,60 L30,48 C30,46.34 31.34,45 33,45 Z" />
+
+    <!-- Right outer harmonic bar (x=72..78, y=45..63, r=3) -->
+    <path
+        android:fillColor="#FFFF3B5C"
+        android:pathData="M75,45 C76.66,45 78,46.34 78,48 L78,60 C78,61.66 76.66,63 75,63 C73.34,63 72,61.66 72,60 L72,48 C72,46.34 73.34,45 75,45 Z" />
+
+    <!-- Mid-left harmonic bar (x=40.4..46.6, y=36.4..71.6, r=3.1) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M43.5,36.4 C45.21,36.4 46.6,37.79 46.6,39.5 L46.6,68.5 C46.6,70.21 45.21,71.6 43.5,71.6 C41.79,71.6 40.4,70.21 40.4,68.5 L40.4,39.5 C40.4,37.79 41.79,36.4 43.5,36.4 Z" />
+
+    <!-- Mid-right harmonic bar (x=61.4..67.6, y=36.4..71.6, r=3.1) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M64.5,36.4 C66.21,36.4 67.6,37.79 67.6,39.5 L67.6,68.5 C67.6,70.21 66.21,71.6 64.5,71.6 C62.79,71.6 61.4,70.21 61.4,68.5 L61.4,39.5 C61.4,37.79 62.79,36.4 64.5,36.4 Z" />
+
+    <!-- Center peak bar with signature cherry glow (x=50.6..57.4, y=27.6..80.4, r=3.4) -->
+    <path
+        android:fillColor="#FFFF2A4F"
+        android:pathData="M54,27.6 C55.88,27.6 57.4,29.12 57.4,31 L57.4,77 C57.4,78.88 55.88,80.4 54,80.4 C52.12,80.4 50.6,78.88 50.6,77 L50.6,31 C50.6,29.12 52.12,27.6 54,27.6 Z" />
+
+    <!-- Signature Tone cherry dot accent -->
+    <path
+        android:fillColor="#FFFF2A4F"
+        android:pathData="M75,35m-3.6,0a3.6,3.6 0,1 1,7.2 0a3.6,3.6 0,1 1,-7.2 0" />
+</vector>

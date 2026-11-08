@@ -138,7 +138,85 @@ void main() {
     );
 
     expect(mix, hasLength(3));
-    expect(mix.any((pick) => pick.reason.startsWith('DJ flow')), isTrue);
+    expect(mix.any((pick) => pick.reason == 'Similar genre and tempo'), isTrue);
+  });
+
+  test('orders the set as an energy arc — open low, peak, then land', () {
+    // Genre keywords from the app's energy table, so the pick order has a
+    // known target shape to be measured against.
+    const energy = <String, double>{
+      'ambient': 0.12,
+      'jazz': 0.38,
+      'pop': 0.60,
+      'house': 0.72,
+      'rock': 0.76,
+      'edm': 0.88,
+      'metal': 0.95,
+    };
+    final library = [
+      for (final entry in energy.entries)
+        ImportedTrack(
+          id: entry.key,
+          path: '/music/${entry.key}.mp3',
+          title: entry.key,
+          durationMs: 180000,
+          genre: entry.key,
+        ),
+    ];
+
+    final mix = PersonalMixGenerator.generate(
+      tracks: library,
+      favoriteTrackIds: const {},
+      excludedTrackIds: const {},
+      targetDuration: const Duration(minutes: 21),
+      discovery: 0.5,
+      randomSeed: 7,
+    );
+
+    expect(mix, hasLength(energy.length));
+
+    final sequence = [for (final pick in mix) energy[pick.track.id]!];
+    final peak = sequence.reduce((a, b) => a > b ? a : b);
+    final peakIndex = sequence.indexOf(peak);
+
+    // Never opens on the loudest moment, and eases back down to land.
+    expect(peakIndex, greaterThan(0));
+    expect(peakIndex, lessThan(sequence.length - 1));
+    expect(sequence.first, lessThan(peak));
+    expect(sequence.last, lessThan(peak));
+  });
+
+  test('avoids back-to-back songs from the same artist', () {
+    ImportedTrack byArtist(String id, String artist) => ImportedTrack(
+      id: id,
+      path: '/music/$id.mp3',
+      title: id,
+      durationMs: 180000,
+      artist: artist,
+    );
+
+    final mix = PersonalMixGenerator.generate(
+      tracks: [
+        byArtist('a1', 'Artist A'),
+        byArtist('a2', 'Artist A'),
+        byArtist('b1', 'Artist B'),
+        byArtist('b2', 'Artist B'),
+      ],
+      favoriteTrackIds: const {},
+      excludedTrackIds: const {},
+      targetDuration: const Duration(minutes: 12),
+      discovery: 0.5,
+      randomSeed: 5,
+    );
+
+    expect(mix, hasLength(4));
+    for (var i = 1; i < mix.length; i++) {
+      expect(
+        mix[i].track.artist,
+        isNot(mix[i - 1].track.artist),
+        reason: '${mix[i].track.id} followed ${mix[i - 1].track.id}',
+      );
+    }
   });
 
   test('persists optional genre and BPM metadata', () {

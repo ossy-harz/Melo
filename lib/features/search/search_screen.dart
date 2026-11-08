@@ -2,10 +2,14 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/features/downloads/jamendo_screen.dart';
+import 'package:tone_player/app/tone_theme.dart';
 import 'package:tone_player/features/library/imported_track.dart';
 import 'package:tone_player/features/library/music_library.dart';
 import 'package:tone_player/features/player/mini_player.dart';
+import 'package:tone_player/features/sources/lossless_audio_service.dart';
+import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
+import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:tone_player/features/youtube/youtube_search_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({this.library, this.audioHandler, super.key});
@@ -20,19 +24,123 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   Timer? _searchDebounce;
+  List<ImportedTrack> _searchResults = const [];
+  List<YoutubeTrack> _onlineResults = const [];
+  Object? _searchError;
+  bool _isSearchLoading = false;
+  bool _isOnlineLoading = false;
+  int _searchRequest = 0;
+  String? _playingOnlineId;
+  final Map<String, double> _downloadProgress = {};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library?.addListener(_onLibraryChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library == widget.library) return;
+    oldWidget.library?.removeListener(_onLibraryChanged);
+    widget.library?.addListener(_onLibraryChanged);
+    _refreshSearchResults(_controller.text);
+  }
 
   void _onQueryChanged(String query) {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
-      if (mounted) setState(() {});
+    final hasText = query.trim().isNotEmpty;
+    setState(() {
+      _isSearchLoading = hasText;
+      _isOnlineLoading = hasText;
+      _searchResults = const [];
+      if (!hasText) _onlineResults = const [];
+      _searchError = null;
     });
+    _searchDebounce = Timer(const Duration(milliseconds: 220), () {
+      _refreshSearchResults(query);
+    });
+  }
+
+  void _onLibraryChanged() {
+    if (!mounted) return;
+    if (_controller.text.trim().isNotEmpty) {
+      _refreshSearchResults(_controller.text, localOnly: true);
+    } else {
+      setState(() {});
+    }
+  }
+
+  Future<void> _refreshSearchResults(
+    String query, {
+    bool localOnly = false,
+  }) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _searchResults = const [];
+        _onlineResults = const [];
+        _searchError = null;
+        _isSearchLoading = false;
+        _isOnlineLoading = false;
+      });
+      return;
+    }
+
+    final request = ++_searchRequest;
+    try {
+      final results =
+          await widget.library?.searchTracksIndexed(cleanQuery) ??
+          const <ImportedTrack>[];
+      if (!mounted || request != _searchRequest) return;
+      setState(() {
+        _searchResults = results;
+        _searchError = null;
+        _isSearchLoading = false;
+      });
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'tone search',
+          context: ErrorDescription('while searching the music library'),
+        ),
+      );
+      if (!mounted || request != _searchRequest) return;
+      setState(() {
+        _searchResults = const [];
+        _searchError = error;
+        _isSearchLoading = false;
+      });
+    }
+
+    if (localOnly) return;
+
+    try {
+      final online = await YoutubeAudioService.instance.search(cleanQuery);
+      if (!mounted || request != _searchRequest) return;
+      setState(() {
+        _onlineResults = online;
+        _isOnlineLoading = false;
+      });
+    } on Object {
+      if (!mounted || request != _searchRequest) return;
+      setState(() {
+        _onlineResults = const [];
+        _isOnlineLoading = false;
+      });
+    }
   }
 
   Future<void> _playTrack(int index) async {
     final library = widget.library;
     final handler = widget.audioHandler;
     if (library == null || handler == null) return;
-    final track = library.searchTracks(_controller.text)[index];
+    if (index < 0 || index >= _searchResults.length) return;
+    final track = _searchResults[index];
     final libraryIndex = library.indexOfTrack(track.id);
     if (libraryIndex < 0) return;
     try {
@@ -50,83 +158,221 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  Future<void> _playOnlineTrack(YoutubeTrack track) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    setState(() => _playingOnlineId = track.id);
+    try {
+      final localMatch = widget.library?.findMatchingLocalTrack(
+        providerTrackId: track.id,
+        title: track.title,
+        artist: track.author,
+      );
+      if (localMatch != null) {
+        await handler.playMediaItem(localMatch.toMediaItem());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Playing "${track.title}" from your device'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        return;
+      }
+
+      final item = track.toMediaItem();
+      await handler.playMediaItem(item);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Streaming "${track.title}" — tap Download anytime to save to device'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not play "${track.title}": $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _playingOnlineId = null);
+      }
+    }
+  }
+
+  Future<void> _downloadOnlineTrack(YoutubeTrack track) async {
+    final library = widget.library;
+    if (library == null) return;
+    if (_downloadProgress.containsKey(track.id)) return;
+    if (library.isTrackDownloaded(
+      providerTrackId: track.id,
+      title: track.title,
+      artist: track.author,
+    )) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('"${track.title}" is already on your device.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return;
+    }
+
+    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
+      context,
+      title: track.title,
+      artist: track.author,
+    );
+    if (chosenQuality == null || !mounted) return;
+
+    setState(() => _downloadProgress[track.id] = 0.01);
+    try {
+      await YoutubeAudioService.instance.downloadTrack(
+        track: track,
+        library: library,
+        qualityOverride: chosenQuality,
+        onProgress: (p) {
+          if (mounted) {
+            setState(() => _downloadProgress[track.id] = p.clamp(0.01, 1.0));
+          }
+        },
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Saved "${track.title}" (${chosenQuality.shortLabel} + Artwork & Lyrics) to Music/Tone',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not download "${track.title}": $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _downloadProgress.remove(track.id));
+      }
+    }
+  }
+
+  Future<void> _playAll({required bool shuffle}) async {
+    final library = widget.library;
+    final handler = widget.audioHandler;
+    if (library == null || handler == null) return;
+    final results = [..._searchResults];
+    if (results.isEmpty) return;
+    if (shuffle) results.shuffle();
+    try {
+      await library.playMix(handler, results);
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not start this queue: $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    widget.library?.removeListener(_onLibraryChanged);
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.library ?? _NoopListenable.instance,
-      builder: (context, _) => CustomScrollView(
+    final hasQuery = _controller.text.trim().isNotEmpty;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Search')),
+      body: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
             sliver: SliverList.list(
               children: [
-                Text(
-                  'Find your next favorite.',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.8,
-                  ),
-                ),
-                const SizedBox(height: 20),
                 TextField(
                   controller: _controller,
+                  autofocus: true,
                   textInputAction: TextInputAction.search,
                   onChanged: _onQueryChanged,
+                  onSubmitted: (q) => _refreshSearchResults(q),
                   decoration: InputDecoration(
                     hintText: 'Songs, albums, artists',
                     prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchDebounce?.cancel();
-                        _controller.clear();
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
+                    suffixIcon: _controller.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () {
+                              _searchDebounce?.cancel();
+                              _controller.clear();
+                              _onQueryChanged('');
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.download_for_offline_outlined),
-                    title: const Text('Licensed downloads'),
-                    subtitle: const Text(
-                      'Browse artist-approved music from Jamendo',
-                    ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                if (!hasQuery) ...[
+                  const SizedBox(height: 18),
+                  _BrowseDestinationCard(
+                    icon: Icons.graphic_eq_rounded,
+                    title: 'Browse & stream catalog',
+                    subtitle: 'Search millions of songs or save them to your device',
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => JamendoScreen(library: widget.library),
+                        builder: (_) => YoutubeSearchScreen(
+                          audioHandler: widget.audioHandler,
+                          library: widget.library,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 28),
-                if (_controller.text.trim().isNotEmpty)
-                  _SearchResults(
-                    library: widget.library,
-                    query: _controller.text,
-                    onPlay: _playTrack,
-                  )
-                else ...[
-                  Text(
-                    'Search your music',
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                  const SizedBox(height: 10),
+                  _BrowseDestinationCard(
+                    icon: Icons.playlist_add_rounded,
+                    title: 'Import playlist',
+                    subtitle: 'Bring in any public Spotify or YouTube playlist link',
+                    onTap: () => SpotifyImportSheet.show(
+                      context,
+                      library: widget.library,
+                      audioHandler: widget.audioHandler,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 18),
                   Text(
                     widget.library?.isEmpty == false
-                        ? 'Search stays on this device. Choose a song to start listening.'
-                        : 'Scan your device from Your library to find your music here.',
+                        ? 'Search your library or stream any song above.'
+                        : 'Type a song or artist above to listen or save to your device.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -135,7 +381,188 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
+          if (hasQuery) ...[
+            if (_searchResults.isNotEmpty || _searchError != null)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                sliver: SliverToBoxAdapter(
+                  child: _SearchResults(
+                    results: _searchResults,
+                    isLoading: _isSearchLoading,
+                    error: _searchError,
+                    onPlayAll: () => _playAll(shuffle: false),
+                    onShuffle: () => _playAll(shuffle: true),
+                  ),
+                ),
+              ),
+            if (!_isSearchLoading &&
+                _searchError == null &&
+                _searchResults.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _SearchResultTile(
+                      track: _searchResults[index],
+                      onTap: () => _playTrack(index),
+                    ),
+                    childCount: _searchResults.length > 100
+                        ? 100
+                        : _searchResults.length,
+                  ),
+                ),
+              ),
+            if (_isOnlineLoading || _onlineResults.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                sliver: SliverToBoxAdapter(
+                  child: Row(
+                    children: [
+                      Text(
+                        'Songs to stream or download',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      if (_isOnlineLoading)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_onlineResults.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 96),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final track = _onlineResults[index];
+                      final isDownloaded =
+                          widget.library?.isTrackDownloaded(
+                            providerTrackId: track.id,
+                            title: track.title,
+                            artist: track.author,
+                          ) ??
+                          false;
+                      return _OnlineSearchResultTile(
+                        track: track,
+                        isPlaying: _playingOnlineId == track.id,
+                        isDownloaded: isDownloaded,
+                        downloadProgress: _downloadProgress[track.id],
+                        onTap: () => _playOnlineTrack(track),
+                        onDownload: widget.library == null
+                            ? null
+                            : () => _downloadOnlineTrack(track),
+                      );
+                    },
+                    childCount: _onlineResults.length,
+                  ),
+                ),
+              ),
+            if (!_isSearchLoading &&
+                !_isOnlineLoading &&
+                _searchError == null &&
+                _searchResults.isEmpty &&
+                _onlineResults.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                sliver: SliverToBoxAdapter(
+                  child: _SearchResults(
+                    results: const [],
+                    isLoading: false,
+                    error: null,
+                    onPlayAll: () {},
+                    onShuffle: () {},
+                  ),
+                ),
+              ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _BrowseDestinationCard extends StatelessWidget {
+  const _BrowseDestinationCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(ToneRadii.lg),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(ToneRadii.lg),
+              color: colors.surfaceContainerLow,
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(icon, color: colors.primary),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -143,88 +570,287 @@ class _SearchScreenState extends State<SearchScreen> {
 
 class _SearchResults extends StatelessWidget {
   const _SearchResults({
-    required this.library,
-    required this.query,
-    required this.onPlay,
+    required this.results,
+    required this.isLoading,
+    required this.error,
+    required this.onPlayAll,
+    required this.onShuffle,
   });
 
-  final MusicLibrary? library;
-  final String query;
-  final ValueChanged<int> onPlay;
+  final List<ImportedTrack> results;
+  final bool isLoading;
+  final Object? error;
+  final VoidCallback onPlayAll;
+  final VoidCallback onShuffle;
 
   @override
   Widget build(BuildContext context) {
-    final results = library?.searchTracks(query) ?? const [];
-    if (results.isEmpty) {
+    if (error != null) {
       return Padding(
-        padding: const EdgeInsets.only(top: 18),
-        child: Text(
-          'No matching songs found.',
-          style: Theme.of(context).textTheme.bodyLarge,
+        padding: const EdgeInsets.only(top: 28),
+        child: Text('Could not search your library: $error'),
+      );
+    }
+    if (isLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 28),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (results.isEmpty) {
+      final colors = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.only(top: 28),
+        child: Column(
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 44,
+              color: colors.primary.withValues(alpha: 0.7),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No matching songs found.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Try a different title, artist, or album.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${results.length} ${results.length == 1 ? 'result' : 'results'}',
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w800),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'On this device (${results.length})',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onShuffle,
+              icon: const Icon(Icons.shuffle_rounded, size: 18),
+              label: const Text('Shuffle'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onPlayAll,
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: const Text('Play all'),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        for (
-          var index = 0;
-          index < (results.length > 100 ? 100 : results.length);
-          index++
-        )
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: AlbumArtwork(
-              size: 48,
-              title: results[index].title,
-              artworkUri: results[index].artworkUri == null
-                  ? null
-                  : Uri.tryParse(results[index].artworkUri!),
-              sourceUri: Uri.tryParse(results[index].path),
-              borderRadius: 10,
-            ),
-            title: Text(
-              results[index].title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              results[index].album == 'Unknown album'
-                  ? displayArtistName(results[index].artist)
-                  : '${displayArtistName(results[index].artist)} · ${results[index].album}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: const Icon(Icons.play_arrow_rounded),
-            onTap: () => onPlay(index),
-          ),
-        if (results.length > 100)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Showing the first 100 results. Refine your search to see more.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
       ],
     );
   }
 }
 
-class _NoopListenable implements Listenable {
-  const _NoopListenable._();
+class _SearchResultTile extends StatelessWidget {
+  const _SearchResultTile({required this.track, required this.onTap});
 
-  static const instance = _NoopListenable._();
-
-  @override
-  void addListener(VoidCallback listener) {}
+  final ImportedTrack track;
+  final VoidCallback onTap;
 
   @override
-  void removeListener(VoidCallback listener) {}
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final subtitle = track.album == 'Unknown album'
+        ? displayArtistName(track.artist)
+        : '${displayArtistName(track.artist)} · ${track.album}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(ToneRadii.md),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(ToneRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+            child: Row(
+              children: [
+                AlbumArtwork(
+                  size: 50,
+                  title: track.title,
+                  artworkUri: track.artworkUri == null
+                      ? null
+                      : Uri.tryParse(track.artworkUri!),
+                  sourceUri: Uri.tryParse(track.path),
+                  borderRadius: 12,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.play_arrow_rounded,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.8),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnlineSearchResultTile extends StatelessWidget {
+  const _OnlineSearchResultTile({
+    required this.track,
+    required this.isPlaying,
+    required this.isDownloaded,
+    required this.downloadProgress,
+    required this.onTap,
+    required this.onDownload,
+  });
+
+  final YoutubeTrack track;
+  final bool isPlaying;
+  final bool isDownloaded;
+  final double? downloadProgress;
+  final VoidCallback onTap;
+  final VoidCallback? onDownload;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final metaLine = track.duration > Duration.zero
+        ? '${track.displaySubtitle} · ${track.durationString}'
+        : track.displaySubtitle;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(ToneRadii.md),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(ToneRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+            child: Row(
+              children: [
+                AlbumArtwork(
+                  size: 50,
+                  title: track.title,
+                  artworkUri: track.thumbnailUrl == null
+                      ? null
+                      : Uri.tryParse(track.thumbnailUrl!),
+                  borderRadius: 12,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        metaLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isPlaying)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else if (downloadProgress != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        value: downloadProgress! > 0.05
+                            ? downloadProgress
+                            : null,
+                        strokeWidth: 2.2,
+                      ),
+                    ),
+                  )
+                else if (isDownloaded)
+                  Tooltip(
+                    message: 'Saved on device',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(
+                        Icons.download_done_rounded,
+                        size: 20,
+                        color: colors.primary,
+                      ),
+                    ),
+                  )
+                else if (onDownload != null)
+                  IconButton(
+                    tooltip: 'Save to device',
+                    onPressed: onDownload,
+                    icon: Icon(
+                      Icons.download_for_offline_outlined,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

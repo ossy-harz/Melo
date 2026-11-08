@@ -4,57 +4,116 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tone_player/features/library/music_library.dart';
+import 'package:tone_player/features/player/audio_profile_service.dart';
 import 'package:tone_player/features/player/tone_audio_handler.dart';
+import 'package:tone_player/features/updates/app_update_service.dart';
 
 class ToneServices {
   const ToneServices({
     required this.audioHandler,
+    required this.audioProfileService,
     required this.musicLibrary,
     required this._subscriptions,
   });
 
   final AudioHandler audioHandler;
+  final AudioProfileService audioProfileService;
   final MusicLibrary musicLibrary;
   final List<StreamSubscription<dynamic>> _subscriptions;
 
-  static Future<ToneServices> initialize() async {
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
-    final handler = await AudioService.init(
+  static Future<ToneServices> initialize({
+    bool persistPlaybackState = true,
+  }) async {
+    final libraryFuture = MusicLibrary.open(
+      platformDataSource: const MethodChannelLibraryPlatformDataSource(),
+    );
+    final sessionFuture = () async {
+      final session = await AudioSession.instance;
+      await session.configure(
+        const AudioSessionConfiguration.music().copyWith(
+          androidWillPauseWhenDucked: true,
+        ),
+      );
+      return session;
+    }();
+    final handler = await AudioService.init<ToneAudioHandler>(
       builder: ToneAudioHandler.new,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.tone.player.audio',
         androidNotificationChannelName: 'Tone music playback',
+        androidNotificationChannelDescription:
+            'Playback controls for music playing in Tone.',
         androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
       ),
     );
-    final library = await MusicLibrary.open();
-    await library.restoreQueue(handler);
+    final session = await sessionFuture;
+    final library = await libraryFuture;
+    unawaited(handler.attachAudioSession(session));
+    handler.attachMusicLibrary(library);
+    final audioProfileService = AudioServiceAudioProfileService(handler);
+    unawaited(
+      library.restoreQueue(handler).catchError((Object error, StackTrace st) {
+        _reportStreamError(error, st, 'restore playback queue');
+      }),
+    );
+    unawaited(AppUpdateService.instance.initialize(runStartupCheck: true));
     final subscriptions = <StreamSubscription<dynamic>>[];
-    subscriptions.add(
-      handler.mediaItem.listen(
-        (item) => _reportPersistence(library.saveCurrentTrack(item?.id)),
-        onError: (Object error, StackTrace stackTrace) =>
-            _reportStreamError(error, stackTrace, 'current media item'),
-      ),
+    Future<void> persistPlaybackQueue() => library.persistPlaybackQueue(
+      items: handler.queue.value,
+      currentMediaId: handler.mediaItem.value?.id,
+      positionMs: handler.playbackState.value.updatePosition.inMilliseconds,
     );
-    var lastPositionSave = DateTime.fromMillisecondsSinceEpoch(0);
-    subscriptions.add(
-      AudioService.position.listen(
-        (position) {
-          final now = DateTime.now();
-          if (now.difference(lastPositionSave) < const Duration(seconds: 5)) {
-            return;
-          }
-          lastPositionSave = now;
-          _reportPersistence(library.savePlaybackPosition(position));
-        },
-        onError: (Object error, StackTrace stackTrace) =>
-            _reportStreamError(error, stackTrace, 'playback position'),
-      ),
-    );
+    if (persistPlaybackState) {
+      subscriptions.add(
+        handler.queue.listen(
+          (_) => _reportPersistence(persistPlaybackQueue()),
+          onError: (Object error, StackTrace stackTrace) =>
+              _reportStreamError(error, stackTrace, 'playback queue'),
+        ),
+      );
+      subscriptions.add(
+        handler.mediaItem.listen(
+          (item) {
+            _reportPersistence(library.saveCurrentTrack(item?.id));
+            _reportPersistence(persistPlaybackQueue());
+          },
+          onError: (Object error, StackTrace stackTrace) =>
+              _reportStreamError(error, stackTrace, 'current media item'),
+        ),
+      );
+      var wasPlaying = handler.playbackState.value.playing;
+      subscriptions.add(
+        handler.playbackState.listen(
+          (state) {
+            if (wasPlaying && !state.playing) {
+              _reportPersistence(persistPlaybackQueue());
+            }
+            wasPlaying = state.playing;
+          },
+          onError: (Object error, StackTrace stackTrace) =>
+              _reportStreamError(error, stackTrace, 'playback state'),
+        ),
+      );
+      var lastPositionSave = DateTime.fromMillisecondsSinceEpoch(0);
+      subscriptions.add(
+        AudioService.position.listen(
+          (position) {
+            final now = DateTime.now();
+            if (now.difference(lastPositionSave) < const Duration(seconds: 5)) {
+              return;
+            }
+            lastPositionSave = now;
+            _reportPersistence(library.savePlaybackPosition(position));
+          },
+          onError: (Object error, StackTrace stackTrace) =>
+              _reportStreamError(error, stackTrace, 'playback position'),
+        ),
+      );
+    }
     return ToneServices(
       audioHandler: handler,
+      audioProfileService: audioProfileService,
       musicLibrary: library,
       subscriptions: subscriptions,
     );
@@ -64,7 +123,7 @@ class ToneServices {
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
-    musicLibrary.dispose();
+    await musicLibrary.close();
   }
 
   static void _reportPersistence(Future<void> operation) {

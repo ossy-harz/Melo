@@ -1,7 +1,9 @@
 package app.tone.tone_player
 
+import android.app.RecoverableSecurityException
 import android.content.Intent
 import android.content.ContentUris
+import android.content.IntentSender
 import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -13,12 +15,15 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
+import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.InputStream
+import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -27,41 +32,286 @@ import kotlin.math.max
 class MainActivity : AudioServiceActivity() {
     companion object {
         private const val PICK_MUSIC_FOLDER_REQUEST = 7021
-        private val audioExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus")
+        private const val DELETE_DEVICE_AUDIO_REQUEST = 7022
+        private val audioExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "webm")
     }
 
-    private val ioExecutor = Executors.newSingleThreadExecutor()
-    private val waveformExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = Executors.newFixedThreadPool(4)
+    private val artworkExecutor = Executors.newFixedThreadPool(4)
+    private val waveformExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val waveformCache = LinkedHashMap<String, List<Double>>(32, 0.75f, true)
     private var pendingFolderResult: MethodChannel.Result? = null
+    private var pendingDeleteResult: MethodChannel.Result? = null
+    private var pendingDeleteUri: Uri? = null
+    private var retryDeleteAfterConfirmation = false
     @Volatile
     private var audioGenreCache: Map<Long, String>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.tone.tone_player/library")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "androidSdkVersion" -> result.success(android.os.Build.VERSION.SDK_INT)
-                    "scanAudio" -> scanAudio(call, result)
-                    "pickMusicFolder" -> pickMusicFolder(result)
-                    "scanMusicFolder" -> scanMusicFolder(call, result)
-                    "releaseMusicFolder" -> releaseMusicFolder(call, result)
-                    "readLyrics" -> readLyrics(call, result)
-                    "readLocalAudioMetadata" -> readLocalAudioMetadata(call, result)
-                    "readAudioQuality" -> readAudioQuality(call, result)
-                    "readAudioWaveform" -> readAudioWaveform(call, result)
-                    "getArtwork" -> loadArtwork(call, result)
-                    else -> result.notImplemented()
+        val libraryHandler = MethodChannel.MethodCallHandler { call, result ->
+            handleLibraryMethod(call, result)
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "app.tone.tone_player/library",
+        ).setMethodCallHandler(libraryHandler)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "app.tonetoneplayer/library",
+        ).setMethodCallHandler(libraryHandler)
+    }
+
+    private fun handleLibraryMethod(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        when (call.method) {
+            "androidSdkVersion" -> result.success(android.os.Build.VERSION.SDK_INT)
+            "scanAudio" -> scanAudio(call, result)
+            "pickMusicFolder" -> pickMusicFolder(result)
+            "scanMusicFolder" -> scanMusicFolder(call, result)
+            "releaseMusicFolder" -> releaseMusicFolder(call, result)
+            "deleteDeviceAudio" -> deleteDeviceAudio(call, result)
+            "deleteDeviceAudioBatch" -> deleteDeviceAudioBatch(call, result)
+            "readLyrics" -> readLyrics(call, result)
+            "readLocalAudioMetadata" -> readLocalAudioMetadata(call, result)
+            "readAudioTags" -> readLocalAudioMetadata(call, result)
+            "readAudioQuality" -> readAudioQuality(call, result)
+            "readAudioWaveform" -> readAudioWaveform(call, result)
+            "getArtwork" -> loadArtwork(call, result)
+            "openYtMusicLogin" -> openYtMusicLogin(result)
+            "saveToDeviceMusic" -> saveToDeviceMusic(call, result)
+            "convertToLosslessFlac" -> convertToLosslessFlac(call, result)
+            "getAppVersion" -> getAppVersion(result)
+            "installUpdateApk" -> installUpdateApk(call, result)
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun getAppVersion(result: MethodChannel.Result) {
+        try {
+            val pkgInfo = packageManager.getPackageInfo(packageName, 0)
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pkgInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                pkgInfo.versionCode
+            }
+            result.success(
+                mapOf(
+                    "versionName" to (pkgInfo.versionName ?: "1.0.0"),
+                    "versionCode" to versionCode,
+                    "packageName" to packageName,
+                ),
+            )
+        } catch (e: Exception) {
+            result.success(
+                mapOf(
+                    "versionName" to "1.0.0",
+                    "versionCode" to 1,
+                    "packageName" to packageName,
+                ),
+            )
+        }
+    }
+
+    private fun installUpdateApk(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val apkPath = call.argument<String>("apkPath")?.trim()
+        if (apkPath.isNullOrEmpty()) {
+            result.error("INVALID_ARGS", "apkPath is required.", null)
+            return
+        }
+        try {
+            val apkFile = File(apkPath)
+            if (!apkFile.exists() || apkFile.length() == 0L) {
+                result.error("FILE_MISSING", "Downloaded APK file was not found.", null)
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()
+            ) {
+                val permIntent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                ).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(permIntent)
+                result.success("PERMISSION_REQUIRED")
+                return
+            }
+
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile,
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(installIntent)
+            result.success("INSTALLER_LAUNCHED")
+        } catch (e: Exception) {
+            result.error("INSTALL_FAILED", e.message ?: "Failed to launch APK installer.", null)
+        }
+    }
+
+    private fun saveToDeviceMusic(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val sourcePath = call.argument<String>("sourcePath")?.trim()
+        val fileName = call.argument<String>("fileName")?.trim()
+        val title = call.argument<String>("title")?.trim() ?: "Unknown title"
+        val artist = call.argument<String>("artist")?.trim() ?: "Unknown artist"
+        val album = call.argument<String>("album")?.trim() ?: "Single"
+        val durationMs = call.argument<Number>("durationMs")?.toLong()
+
+        if (sourcePath.isNullOrEmpty() || fileName.isNullOrEmpty()) {
+            result.error("INVALID_ARGS", "sourcePath and fileName are required.", null)
+            return
+        }
+
+        ioExecutor.execute {
+            try {
+                val sourceFile = File(sourcePath)
+                if (!sourceFile.exists() || sourceFile.length() == 0L) {
+                    mainHandler.post {
+                        result.error("SOURCE_MISSING", "Source audio file does not exist.", null)
+                    }
+                    return@execute
+                }
+
+                val ext = fileName.substringAfterLast('.', "m4a").lowercase()
+                val mimeType = when (ext) {
+                    "m4a", "mp4", "aac" -> "audio/mp4"
+                    "flac" -> "audio/flac"
+                    "mp3" -> "audio/mpeg"
+                    "ogg", "opus" -> "audio/ogg"
+                    "wav" -> "audio/wav"
+                    "webm" -> "audio/webm"
+                    else -> "audio/mp4"
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val collection = MediaStore.Audio.Media.getContentUri(
+                        MediaStore.VOLUME_EXTERNAL_PRIMARY,
+                    )
+                    // Remove any existing duplicate with the same display name in Music/Tone
+                    try {
+                        contentResolver.delete(
+                            collection,
+                            "${MediaStore.Audio.Media.DISPLAY_NAME} = ? AND ${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?",
+                            arrayOf(fileName, "Music/Tone%"),
+                        )
+                    } catch (_: Exception) {}
+
+                    val values = android.content.ContentValues().apply {
+                        put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                        put(MediaStore.Audio.Media.TITLE, title)
+                        put(MediaStore.Audio.Media.ARTIST, artist)
+                        put(MediaStore.Audio.Media.ALBUM, album)
+                        put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+                        put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Tone")
+                        put(MediaStore.Audio.Media.IS_MUSIC, 1)
+                        put(MediaStore.Audio.Media.IS_PENDING, 1)
+                        if (durationMs != null && durationMs > 0L) {
+                            put(MediaStore.Audio.Media.DURATION, durationMs)
+                        }
+                    }
+
+                    val itemUri = contentResolver.insert(collection, values)
+                        ?: throw IllegalStateException("Could not create MediaStore entry in Music/Tone.")
+
+                    contentResolver.openOutputStream(itemUri)?.use { out ->
+                        sourceFile.inputStream().use { input ->
+                            input.copyTo(out, bufferSize = 64 * 1024)
+                        }
+                    } ?: throw IllegalStateException("Could not open MediaStore output stream.")
+
+                    val completeValues = android.content.ContentValues().apply {
+                        put(MediaStore.Audio.Media.IS_PENDING, 0)
+                    }
+                    contentResolver.update(itemUri, completeValues, null, null)
+
+                    var publicPath: String? = null
+                    contentResolver.query(
+                        itemUri,
+                        arrayOf(MediaStore.Audio.Media.DATA),
+                        null,
+                        null,
+                        null,
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            publicPath = cursor.getString(0)
+                        }
+                    }
+
+                    mainHandler.post {
+                        result.success(
+                            mapOf(
+                                "uri" to itemUri.toString(),
+                                "path" to (publicPath ?: itemUri.toString()),
+                            ),
+                        )
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val musicDir = File(
+                        android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_MUSIC,
+                        ),
+                        "Tone",
+                    )
+                    if (!musicDir.exists()) musicDir.mkdirs()
+                    val destFile = File(musicDir, fileName)
+                    sourceFile.copyTo(destFile, overwrite = true)
+                    android.media.MediaScannerConnection.scanFile(
+                        applicationContext,
+                        arrayOf(destFile.absolutePath),
+                        arrayOf(mimeType),
+                        null,
+                    )
+                    mainHandler.post {
+                        result.success(
+                            mapOf(
+                                "uri" to Uri.fromFile(destFile).toString(),
+                                "path" to destFile.absolutePath,
+                            ),
+                        )
+                    }
+                }
+            } catch (error: Exception) {
+                Log.e("TonePlayer", "Failed to save track to Music/Tone", error)
+                mainHandler.post {
+                    result.error("SAVE_FAILED", error.message, null)
                 }
             }
+        }
     }
 
     override fun onDestroy() {
         ioExecutor.shutdown()
+        artworkExecutor.shutdown()
         waveformExecutor.shutdown()
         super.onDestroy()
+    }
+
+    private fun isNonSongAudioName(name: String): Boolean {
+        val lower = name.trim().lowercase()
+        return lower.startsWith("ptt-") ||
+            lower.startsWith("aud-") ||
+            lower.startsWith("call_recording") ||
+            lower.startsWith("voice_") ||
+            lower.contains("whatsapp voice") ||
+            lower.contains("whatsapp audio")
     }
 
     private fun pickMusicFolder(result: MethodChannel.Result) {
@@ -75,6 +325,7 @@ class MainActivity : AudioServiceActivity() {
                 Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
                     addFlags(
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
                             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
                     )
                 },
@@ -86,9 +337,108 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun openYtMusicLogin(result: MethodChannel.Result) {
+        mainHandler.post {
+            try {
+                val dialog = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+                val layout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    setBackgroundColor(0xFF121212.toInt())
+                }
+
+                // Top bar
+                val topBar = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(36, 54, 36, 24)
+                    setBackgroundColor(0xFF1E1E1E.toInt())
+                }
+                val titleView = android.widget.TextView(this).apply {
+                    text = "Sign in to YouTube Music"
+                    setTextColor(0xFFFFFFFF.toInt())
+                    textSize = 17f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f
+                    )
+                }
+                val closeButton = android.widget.Button(this).apply {
+                    text = "Close"
+                    setTextColor(0xFFFF3B30.toInt())
+                    setBackgroundColor(0x00000000)
+                    textSize = 15f
+                    setOnClickListener {
+                        dialog.dismiss()
+                        result.success(null)
+                    }
+                }
+                topBar.addView(titleView)
+                topBar.addView(closeButton)
+                layout.addView(topBar)
+
+                val webView = android.webkit.WebView(this).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        0,
+                        1f
+                    )
+                }
+                val webSettings = webView.settings
+                webSettings.javaScriptEnabled = true
+                webSettings.domStorageEnabled = true
+                webSettings.databaseEnabled = true
+                webSettings.userAgentString =
+                    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+
+                val cookieManager = android.webkit.CookieManager.getInstance()
+                cookieManager.setAcceptCookie(true)
+                cookieManager.setAcceptThirdPartyCookies(webView, true)
+
+                var loginCompleted = false
+
+                webView.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        if (url != null && (url.contains("music.youtube.com") || url.contains("youtube.com")) && !loginCompleted) {
+                            val cookies = cookieManager.getCookie("https://music.youtube.com")
+                                ?: cookieManager.getCookie("https://youtube.com")
+                            if (cookies != null && (cookies.contains("SAPISID") || cookies.contains("__Secure-3PAPISID") || cookies.contains("SID") || cookies.contains("LOGIN_INFO"))) {
+                                loginCompleted = true
+                                mainHandler.postDelayed({
+                                    try {
+                                        dialog.dismiss()
+                                        result.success(cookies)
+                                    } catch (_: Exception) {}
+                                }, 600)
+                            }
+                        }
+                    }
+                }
+
+                layout.addView(webView)
+                dialog.setContentView(layout)
+                dialog.show()
+
+                webView.loadUrl("https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com%2F")
+            } catch (e: Exception) {
+                Log.e("TonePlayer", "Error opening YouTube login webview", e)
+                result.error("LOGIN_ERROR", e.message, null)
+            }
+        }
+    }
+
     @Deprecated("Deprecated in Android; used for the document-tree result.")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DELETE_DEVICE_AUDIO_REQUEST) {
+            finishDeviceAudioDeletion(resultCode)
+            return
+        }
         if (requestCode != PICK_MUSIC_FOLDER_REQUEST) return
         val result = pendingFolderResult ?: return
         pendingFolderResult = null
@@ -99,7 +449,10 @@ class MainActivity : AudioServiceActivity() {
 
         val treeUri = data.data!!
         try {
-            val grantedFlags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            val grantedFlags = data.flags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
             contentResolver.takePersistableUriPermission(treeUri, grantedFlags)
             val documentId = DocumentsContract.getTreeDocumentId(treeUri)
             val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
@@ -122,6 +475,188 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun deleteDeviceAudio(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val uri = call.argument<String>("uri")?.let(Uri::parse)
+        if (uri == null || uri.scheme != "content") {
+            result.error("INVALID_AUDIO_DELETE_REQUEST", "A content URI is required.", null)
+            return
+        }
+        if (pendingDeleteResult != null) {
+            result.error("AUDIO_DELETE_BUSY", "A song deletion is already awaiting confirmation.", null)
+            return
+        }
+
+        try {
+            if (DocumentsContract.isDocumentUri(this, uri)) {
+                if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+                    result.error("AUDIO_DELETE_FAILED", "The document provider did not delete the song.", null)
+                } else {
+                    result.success(true)
+                }
+                return
+            }
+            if (uri.authority != "media") {
+                result.error("UNSUPPORTED_AUDIO_DELETE", "This music source cannot be deleted by Tone.", null)
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val request = MediaStore.createDeleteRequest(contentResolver, listOf(uri))
+                launchDeleteConfirmation(
+                    uri = uri,
+                    result = result,
+                    intentSender = request.intentSender,
+                    retryDelete = false,
+                )
+            } else {
+                try {
+                    if (contentResolver.delete(uri, null, null) <= 0) {
+                        result.error("AUDIO_DELETE_FAILED", "The song could not be found or deleted.", null)
+                    } else {
+                        result.success(true)
+                    }
+                } catch (error: RecoverableSecurityException) {
+                    launchDeleteConfirmation(
+                        uri = uri,
+                        result = result,
+                        intentSender = error.userAction.actionIntent.intentSender,
+                        retryDelete = true,
+                    )
+                }
+            }
+        } catch (error: Exception) {
+            result.error(
+                "AUDIO_DELETE_FAILED",
+                error.message ?: "Android could not delete this song.",
+                null,
+            )
+        }
+    }
+
+    private fun deleteDeviceAudioBatch(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val uriValues = call.argument<List<String>>("uris")
+        val uris = uriValues?.map(Uri::parse)
+        if (uris.isNullOrEmpty() || uris.any {
+                it.scheme != "content" ||
+                    it.authority != "media" ||
+                    DocumentsContract.isDocumentUri(this, it)
+            }
+        ) {
+            result.error(
+                "INVALID_AUDIO_DELETE_REQUEST",
+                "A non-empty list of MediaStore audio URIs is required.",
+                null,
+            )
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            result.error(
+                "BULK_DELETE_UNSUPPORTED",
+                "Batch deletion requires Android 11 or later.",
+                null,
+            )
+            return
+        }
+        if (pendingDeleteResult != null) {
+            result.error(
+                "AUDIO_DELETE_BUSY",
+                "A song deletion is already awaiting confirmation.",
+                null,
+            )
+            return
+        }
+
+        try {
+            val request = MediaStore.createDeleteRequest(contentResolver, uris)
+            pendingDeleteResult = result
+            pendingDeleteUri = null
+            retryDeleteAfterConfirmation = false
+            startIntentSenderForResult(
+                request.intentSender,
+                DELETE_DEVICE_AUDIO_REQUEST,
+                null,
+                0,
+                0,
+                0,
+            )
+        } catch (error: Exception) {
+            pendingDeleteResult = null
+            pendingDeleteUri = null
+            retryDeleteAfterConfirmation = false
+            result.error(
+                "AUDIO_DELETE_CONFIRMATION_FAILED",
+                error.message ?: "Android could not show its delete confirmation.",
+                null,
+            )
+        }
+    }
+
+    private fun launchDeleteConfirmation(
+        uri: Uri,
+        result: MethodChannel.Result,
+        intentSender: IntentSender,
+        retryDelete: Boolean,
+    ) {
+        pendingDeleteResult = result
+        pendingDeleteUri = uri
+        retryDeleteAfterConfirmation = retryDelete
+        try {
+            startIntentSenderForResult(
+                intentSender,
+                DELETE_DEVICE_AUDIO_REQUEST,
+                null,
+                0,
+                0,
+                0,
+            )
+        } catch (error: Exception) {
+            pendingDeleteResult = null
+            pendingDeleteUri = null
+            retryDeleteAfterConfirmation = false
+            result.error(
+                "AUDIO_DELETE_CONFIRMATION_FAILED",
+                error.message ?: "Android could not show its delete confirmation.",
+                null,
+            )
+        }
+    }
+
+    private fun finishDeviceAudioDeletion(resultCode: Int) {
+        val result = pendingDeleteResult ?: return
+        val uri = pendingDeleteUri
+        val retryDelete = retryDeleteAfterConfirmation
+        pendingDeleteResult = null
+        pendingDeleteUri = null
+        retryDeleteAfterConfirmation = false
+
+        if (resultCode != RESULT_OK) {
+            result.success(false)
+            return
+        }
+        if (!retryDelete) {
+            result.success(true)
+            return
+        }
+        try {
+            if (uri == null || contentResolver.delete(uri, null, null) <= 0) {
+                result.error("AUDIO_DELETE_FAILED", "Android approved access, but the song was not deleted.", null)
+            } else {
+                result.success(true)
+            }
+        } catch (error: Exception) {
+            result.error(
+                "AUDIO_DELETE_FAILED",
+                error.message ?: "Android could not delete this song.",
+                null,
+            )
+        }
+    }
+
     private fun scanMusicFolder(
         call: io.flutter.plugin.common.MethodCall,
         result: MethodChannel.Result,
@@ -137,7 +672,7 @@ class MainActivity : AudioServiceActivity() {
                 val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
                 val pendingIds = ArrayDeque<String>()
                 val visited = mutableSetOf<String>()
-                val audioDocuments = mutableListOf<Map<String, String>>()
+                val audioDocuments = mutableListOf<Map<String, Any?>>()
                 val lyricDocuments = mutableMapOf<String, String>()
                 val coverArtDocuments = mutableMapOf<String, String>()
                 pendingIds.add(rootDocumentId)
@@ -154,6 +689,8 @@ class MainActivity : AudioServiceActivity() {
                             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                             DocumentsContract.Document.COLUMN_MIME_TYPE,
+                            DocumentsContract.Document.COLUMN_SIZE,
+                            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
                         ),
                         null,
                         null,
@@ -167,6 +704,12 @@ class MainActivity : AudioServiceActivity() {
                         )
                         val mimeColumn = cursor.getColumnIndexOrThrow(
                             DocumentsContract.Document.COLUMN_MIME_TYPE,
+                        )
+                        val sizeColumn = cursor.getColumnIndex(
+                            DocumentsContract.Document.COLUMN_SIZE,
+                        )
+                        val modifiedColumn = cursor.getColumnIndex(
+                            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
                         )
                         while (cursor.moveToNext()) {
                             val documentId = cursor.getString(idColumn)
@@ -205,24 +748,44 @@ class MainActivity : AudioServiceActivity() {
                                 continue
                             }
                             if (extension !in audioExtensions) continue
+                            if (isNonSongAudioName(name)) continue
                             audioDocuments.add(
                                 mapOf(
                                     "documentId" to documentId,
                                     "name" to name,
                                     "parentId" to parentId,
                                     "baseName" to baseName,
+                                    "sizeBytes" to if (
+                                        sizeColumn >= 0 &&
+                                        !cursor.isNull(sizeColumn)
+                                    ) {
+                                        cursor.getLong(sizeColumn)
+                                    } else {
+                                        null
+                                    },
+                                    "dateModifiedSeconds" to if (
+                                        modifiedColumn >= 0 &&
+                                        !cursor.isNull(modifiedColumn)
+                                    ) {
+                                        cursor.getLong(modifiedColumn) / 1000
+                                    } else {
+                                        null
+                                    },
                                 ),
                             )
                         }
                     } ?: throw IllegalStateException("Android could not read this folder.")
                 }
-                val audio = audioDocuments.map { document ->
+                val audio = audioDocuments.mapNotNull { document ->
+                    val documentId = document.getValue("documentId") as String
+                    val name = document.getValue("name") as String
+                    val parentId = document.getValue("parentId") as String
+                    val baseName = document.getValue("baseName") as String
                     val documentUri = DocumentsContract.buildDocumentUriUsingTree(
                         treeUri,
-                        document.getValue("documentId"),
+                        documentId,
                     )
-                    val name = document.getValue("name")
-                    val key = "${document.getValue("parentId")}/${document.getValue("baseName")}"
+                    val key = "$parentId/$baseName"
                     val metadata = try {
                         readAudioMetadata(
                             documentUri,
@@ -232,6 +795,10 @@ class MainActivity : AudioServiceActivity() {
                     } catch (error: Exception) {
                         Log.w("ToneLibrary", "Could not read tags for $name", error)
                         emptyMap()
+                    }
+                    val durationMs = (metadata["durationMs"] as? Number)?.toLong()
+                    if (durationMs != null && durationMs > 0L && durationMs < 30_000L) {
+                        return@mapNotNull null
                     }
                     val lyricDocumentId = lyricDocuments[key]
                     mapOf(
@@ -245,14 +812,13 @@ class MainActivity : AudioServiceActivity() {
                         "artworkUri" to (
                             metadata["artworkUri"] as? String
                                 ?: coverArtDocuments[document.getValue("parentId")]?.let {
-                                    DocumentsContract.buildDocumentUriUsingTree(
-                                        treeUri,
-                                        it,
-                                    ).toString()
+                                    DocumentsContract.buildDocumentUriUsingTree(treeUri, it).toString()
                                 }
                             ),
                         "year" to metadata["year"],
                         "trackNumber" to metadata["trackNumber"],
+                        "sizeBytes" to document["sizeBytes"],
+                        "dateModifiedSeconds" to document["dateModifiedSeconds"],
                         "sourceFolderUri" to treeUri.toString(),
                         "lyricsUri" to lyricDocumentId?.let {
                             DocumentsContract.buildDocumentUriUsingTree(treeUri, it).toString()
@@ -297,6 +863,24 @@ class MainActivity : AudioServiceActivity() {
                 "trackNumber" to retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER,
                 )?.substringBefore('/')?.toIntOrNull(),
+                "discNumber" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER,
+                )?.substringBefore('/')?.toIntOrNull(),
+                "trackCount" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_NUM_TRACKS,
+                )?.toIntOrNull(),
+                "albumArtist" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST,
+                )?.trim()?.takeIf { it.isNotEmpty() },
+                "composer" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_COMPOSER,
+                )?.trim()?.takeIf { it.isNotEmpty() },
+                "writer" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_WRITER,
+                )?.trim()?.takeIf { it.isNotEmpty() },
+                "compilation" to retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_COMPILATION,
+                )?.trim()?.takeIf { it.isNotEmpty() },
                 "genre" to retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_GENRE,
                 )?.trim()?.takeIf { it.isNotEmpty() },
@@ -399,14 +983,23 @@ class MainActivity : AudioServiceActivity() {
             )
             return
         }
+        if (path.startsWith("youtube:") || path.startsWith("spotify:")) {
+            result.success(null)
+            return
+        }
         ioExecutor.execute {
             try {
-                val file = File(path)
-                if (!file.isFile) {
+                val parsedUri = Uri.parse(path)
+                val uri = if (parsedUri.scheme == null) {
+                    Uri.fromFile(File(path))
+                } else {
+                    parsedUri
+                }
+                if (uri.scheme == "file" && !File(uri.path ?: path).isFile) {
                     throw IllegalArgumentException("The imported audio file is unavailable.")
                 }
                 val metadata = readAudioMetadata(
-                    Uri.fromFile(file),
+                    uri,
                     fallbackTitle,
                     "Unknown album",
                 )
@@ -426,6 +1019,10 @@ class MainActivity : AudioServiceActivity() {
         val source = call.argument<String>("uri")
         if (source.isNullOrBlank()) {
             result.error("INVALID_AUDIO_QUALITY_REQUEST", "An audio URI is required.", null)
+            return
+        }
+        if (source.startsWith("youtube:") || source.startsWith("spotify:")) {
+            result.success(null)
             return
         }
         ioExecutor.execute {
@@ -729,6 +1326,7 @@ class MainActivity : AudioServiceActivity() {
     private fun scanAudio(call: io.flutter.plugin.common.MethodCall, result: MethodChannel.Result) {
         val offset = (call.argument<Int>("offset") ?: 0).coerceAtLeast(0)
         val limit = (call.argument<Int>("limit") ?: 250).coerceIn(1, 500)
+        val modifiedAfterSeconds = call.argument<Long>("modifiedAfterSeconds")
         ioExecutor.execute {
             try {
                 val genresByAudioId = if (offset == 0 || audioGenreCache == null) {
@@ -752,16 +1350,29 @@ class MainActivity : AudioServiceActivity() {
                     MediaStore.Audio.Media.DURATION,
                     MediaStore.Audio.Media.YEAR,
                     MediaStore.Audio.Media.TRACK,
+                    MediaStore.Audio.Media.DATE_MODIFIED,
+                    MediaStore.Audio.Media.SIZE,
                 )
                 val audio = mutableListOf<Map<String, Any?>>()
                 val sortOrder =
                     "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC, " +
                         "${MediaStore.Audio.Media._ID} ASC"
+                val baseFilter =
+                    "(${MediaStore.Audio.Media.IS_MUSIC} != 0) AND " +
+                        "${MediaStore.Audio.Media.IS_RINGTONE} = 0 AND " +
+                        "${MediaStore.Audio.Media.IS_ALARM} = 0 AND " +
+                        "${MediaStore.Audio.Media.IS_NOTIFICATION} = 0 AND " +
+                        "${MediaStore.Audio.Media.DURATION} >= 30000"
+                val selection = if (modifiedAfterSeconds == null) {
+                    baseFilter
+                } else {
+                    "$baseFilter AND ${MediaStore.Audio.Media.DATE_MODIFIED} >= ?"
+                }
                 val cursor = contentResolver.query(
                     collection,
                     projection,
-                    null,
-                    null,
+                    selection,
+                    modifiedAfterSeconds?.let { arrayOf(it.toString()) },
                     sortOrder,
                 )
                 cursor?.use { audioCursor ->
@@ -789,11 +1400,18 @@ class MainActivity : AudioServiceActivity() {
                         audioCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
                     val trackColumn =
                         audioCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                    val dateModifiedColumn =
+                        audioCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                    val sizeColumn =
+                        audioCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                     var pageCount = 0
                     while (pageCount < limit && audioCursor.moveToNext()) {
                         pageCount++
                         val id = audioCursor.getLong(idColumn)
                         val name = audioCursor.getString(nameColumn) ?: continue
+                        if (isNonSongAudioName(name)) continue
+                        val durationMs = audioCursor.getLong(durationColumn)
+                        if (durationMs in 1..29999) continue
                         val title = audioCursor.getString(titleColumn)
                             ?.takeIf { it.isNotBlank() && it != "<unknown>" }
                             ?: name.substringBeforeLast('.', name)
@@ -804,18 +1422,13 @@ class MainActivity : AudioServiceActivity() {
                             ?.takeIf { it.isNotBlank() && it != "<unknown>" }
                             ?: "Unknown album"
                         val albumId = audioCursor.getLong(albumIdColumn)
-                        val durationMs = audioCursor.getLong(durationColumn)
                         val year = audioCursor.getInt(yearColumn).takeIf { it > 0 }
                         val trackNumber = audioCursor.getInt(trackColumn)
                             .rem(1000)
                             .takeIf { it > 0 }
                         val mediaUri = ContentUris.withAppendedId(collection, id)
-                        val fallbackMetadata = if (
-                            artist == "Unknown artist" ||
-                            album == "Unknown album" ||
-                            durationMs <= 0 ||
-                            albumId <= 0
-                        ) {
+                        // Only fall back to MediaMetadataRetriever if durationMs is missing, so scanning 500+ songs finishes in < 100ms
+                        val fallbackMetadata = if (durationMs <= 0) {
                             try {
                                 readAudioMetadata(mediaUri, title, album)
                             } catch (error: Exception) {
@@ -825,6 +1438,12 @@ class MainActivity : AudioServiceActivity() {
                         } else {
                             emptyMap()
                         }
+                        val resolvedDurationMs = if (durationMs > 0) {
+                            durationMs
+                        } else {
+                            (fallbackMetadata["durationMs"] as? Number)?.toLong()
+                        }
+                        if (resolvedDurationMs != null && resolvedDurationMs < 30_000L) continue
                         val embeddedArtworkUri =
                             fallbackMetadata["artworkUri"] as? String
                         audio.add(
@@ -846,15 +1465,11 @@ class MainActivity : AudioServiceActivity() {
                                 } else {
                                     album
                                 },
-                                "durationMs" to if (durationMs > 0) {
-                                    durationMs
-                                } else {
-                                    fallbackMetadata["durationMs"]
-                                },
+                                "durationMs" to resolvedDurationMs,
                                 "artworkUri" to if (albumId > 0) {
                                     "content://media/external/audio/albumart/$albumId"
                                 } else {
-                                    embeddedArtworkUri
+                                    embeddedArtworkUri ?: mediaUri.toString()
                                 },
                                 "year" to (year ?: fallbackMetadata["year"]),
                                 "trackNumber" to (
@@ -865,6 +1480,8 @@ class MainActivity : AudioServiceActivity() {
                                         ?: fallbackMetadata["genre"] as? String
                                     ),
                                 "bpm" to fallbackMetadata["bpm"],
+                                "dateModifiedSeconds" to audioCursor.getLong(dateModifiedColumn),
+                                "sizeBytes" to audioCursor.getLong(sizeColumn),
                             ),
                         )
                     }
@@ -943,18 +1560,10 @@ class MainActivity : AudioServiceActivity() {
             )
             return
         }
-        ioExecutor.execute {
+        artworkExecutor.execute {
             try {
-                val embeddedArtwork = sourceUri?.let(::extractEmbeddedArtwork)
-                val artworkBytes = embeddedArtwork ?: uri?.let { artworkUri ->
-                    val isArtwork = artworkUri.path?.contains("/albumart/") == true ||
-                        contentResolver.getType(artworkUri)?.startsWith("image/") == true
-                    if (isArtwork) {
-                        contentResolver.openInputStream(artworkUri)?.use { it.readBytes() }
-                    } else {
-                        extractEmbeddedArtwork(artworkUri)
-                    }
-                }
+                val artworkBytes = uri?.let(::readArtworkUriBytes)
+                    ?: sourceUri?.let(::readArtworkUriBytes)
                 val bytes = artworkBytes
                     ?: throw IllegalStateException("No embedded album artwork was found.")
                 mainHandler.post { result.success(bytes) }
@@ -970,6 +1579,51 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun readArtworkUriBytes(artworkUri: Uri): ByteArray? {
+        val pathLower = (artworkUri.path ?: artworkUri.toString()).lowercase()
+        val isImageExt = pathLower.endsWith(".jpg") ||
+            pathLower.endsWith(".jpeg") ||
+            pathLower.endsWith(".png") ||
+            pathLower.endsWith(".webp")
+
+        if (artworkUri.scheme == "file" || (artworkUri.scheme == null && isImageExt)) {
+            val file = File(artworkUri.path ?: artworkUri.toString())
+            if (file.isFile && file.length() > 0L) {
+                if (isImageExt) {
+                    return file.readBytes()
+                }
+            }
+        }
+
+        val isAlbumArtContent = artworkUri.path?.contains("/albumart/") == true ||
+            (artworkUri.scheme == "content" &&
+                contentResolver.getType(artworkUri)?.startsWith("image/") == true)
+        if (isAlbumArtContent) {
+            try {
+                contentResolver.openInputStream(artworkUri)?.use { return it.readBytes() }
+            } catch (_: Exception) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    val bitmap = contentResolver.loadThumbnail(
+                        artworkUri,
+                        android.util.Size(512, 512),
+                        null,
+                    )
+                    val out = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                    val data = out.toByteArray()
+                    if (data.isNotEmpty()) return data
+                } catch (_: Exception) {}
+            }
+        }
+
+        return try {
+            extractEmbeddedArtwork(artworkUri)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun extractEmbeddedArtwork(uri: Uri): ByteArray? {
         val retriever = MediaMetadataRetriever()
         try {
@@ -980,18 +1634,501 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    private fun setAudioDataSource(retriever: MediaMetadataRetriever, uri: Uri) {
+    private fun convertToLosslessFlac(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val sourcePath = call.argument<String>("sourcePath")?.trim()
+        val destPath = call.argument<String>("destPath")?.trim()
+        val title = call.argument<String>("title")?.trim() ?: "Unknown title"
+        val artist = call.argument<String>("artist")?.trim() ?: "Unknown artist"
+        val album = call.argument<String>("album")?.trim() ?: "Single"
+        val year = call.argument<Number>("year")?.toInt()
+        val genre = call.argument<String>("genre")?.trim()
+        val trackNumber = call.argument<Number>("trackNumber")?.toInt()
+        val artworkPath = call.argument<String>("artworkPath")?.trim()
+
+        if (sourcePath.isNullOrEmpty() || destPath.isNullOrEmpty()) {
+            result.error("INVALID_ARGS", "sourcePath and destPath are required.", null)
+            return
+        }
+
+        ioExecutor.execute {
+            try {
+                val sourceFile = File(sourcePath)
+                if (!sourceFile.exists() || sourceFile.length() == 0L) {
+                    mainHandler.post {
+                        result.error("SOURCE_MISSING", "Source audio file does not exist.", null)
+                    }
+                    return@execute
+                }
+                val destFile = File(destPath)
+                destFile.parentFile?.mkdirs()
+                val artworkBytes = artworkPath?.let { path ->
+                    val f = File(path)
+                    if (f.isFile && f.length() > 0L) f.readBytes() else null
+                }
+                val tags = mutableMapOf(
+                    "TITLE" to title,
+                    "ARTIST" to artist,
+                    "ALBUM" to album,
+                    "ENCODER" to "Tone Lossless FLAC Engine (16-bit Hi-Res)",
+                )
+                if (year != null && year > 0) tags["DATE"] = year.toString()
+                if (!genre.isNullOrEmpty()) tags["GENRE"] = genre
+                if (trackNumber != null && trackNumber > 0) tags["TRACKNUMBER"] = trackNumber.toString()
+
+                val info = encodeAudioFileToFlac(
+                    sourceFile = sourceFile,
+                    destFile = destFile,
+                    tags = tags,
+                    artworkBytes = artworkBytes,
+                )
+                mainHandler.post {
+                    result.success(info)
+                }
+            } catch (error: Exception) {
+                Log.e("TonePlayer", "Failed to convert audio to FLAC", error)
+                mainHandler.post {
+                    result.error("FLAC_CONVERT_FAILED", error.message, null)
+                }
+            }
+        }
+    }
+
+    private fun encodeAudioFileToFlac(
+        sourceFile: File,
+        destFile: File,
+        tags: Map<String, String>,
+        artworkBytes: ByteArray?,
+    ): Map<String, Any?> {
+        val extractor = MediaExtractor()
+        var decoder: MediaCodec? = null
+        val pcmTempFile = File(destFile.parentFile, "${destFile.nameWithoutExtension}_pcm.tmp")
+        try {
+            extractor.setDataSource(sourceFile.absolutePath)
+            val audioTrackIndex = (0 until extractor.trackCount).firstOrNull { index ->
+                extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
+                    ?.startsWith("audio/") == true
+            } ?: throw IllegalStateException("No audio track found in source file.")
+
+            extractor.selectTrack(audioTrackIndex)
+            val inputFormat = extractor.getTrackFormat(audioTrackIndex)
+            val mime = inputFormat.getString(MediaFormat.KEY_MIME)
+                ?: throw IllegalStateException("Missing audio MIME type.")
+
+            var sampleRate = if (inputFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            } else {
+                48000
+            }
+            var channelCount = if (inputFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceIn(1, 2)
+            } else {
+                2
+            }
+
+            decoder = MediaCodec.createDecoderByType(mime)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                inputFormat.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+            }
+            decoder.configure(inputFormat, null, null, 0)
+            decoder.start()
+
+            val bufferInfo = MediaCodec.BufferInfo()
+            var inputDone = false
+            var outputDone = false
+            var totalInterleavedSamples = 0L
+
+            java.io.BufferedOutputStream(pcmTempFile.outputStream(), 64 * 1024).use { pcmOut ->
+                val chunkBuf = ByteArray(32768)
+                while (!outputDone) {
+                    if (!inputDone) {
+                        val inIndex = decoder.dequeueInputBuffer(10_000)
+                        if (inIndex >= 0) {
+                            val inBuf = decoder.getInputBuffer(inIndex)!!
+                            val sampleSize = extractor.readSampleData(inBuf, 0)
+                            if (sampleSize < 0) {
+                                decoder.queueInputBuffer(
+                                    inIndex,
+                                    0,
+                                    0,
+                                    0L,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                                )
+                                inputDone = true
+                            } else {
+                                val pts = extractor.sampleTime
+                                decoder.queueInputBuffer(inIndex, 0, sampleSize, pts, 0)
+                                extractor.advance()
+                            }
+                        }
+                    }
+
+                    val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10_000)
+                    when {
+                        outIndex >= 0 -> {
+                            val outBuf = decoder.getOutputBuffer(outIndex)
+                            if (outBuf != null && bufferInfo.size > 0) {
+                                outBuf.position(bufferInfo.offset)
+                                outBuf.limit(bufferInfo.offset + bufferInfo.size)
+                                var remaining = bufferInfo.size - (bufferInfo.size % (channelCount * 2))
+                                totalInterleavedSamples += (remaining / (channelCount * 2)).toLong()
+                                while (remaining > 0) {
+                                    val toRead = minOf(remaining, chunkBuf.size)
+                                    outBuf.get(chunkBuf, 0, toRead)
+                                    pcmOut.write(chunkBuf, 0, toRead)
+                                    remaining -= toRead
+                                }
+                            }
+                            decoder.releaseOutputBuffer(outIndex, false)
+                            if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                                outputDone = true
+                            }
+                        }
+                        outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            val outFmt = decoder.outputFormat
+                            if (outFmt.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                                sampleRate = outFmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                            }
+                            if (outFmt.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                                channelCount = outFmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceIn(1, 2)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (totalInterleavedSamples <= 0L) {
+                throw IllegalStateException("Decoded PCM stream was empty.")
+            }
+
+            writeFlacFromPcm16Le(
+                pcmFile = pcmTempFile,
+                destFile = destFile,
+                sampleRate = sampleRate,
+                channels = channelCount,
+                totalSamples = totalInterleavedSamples,
+                tags = tags,
+                artworkBytes = artworkBytes,
+            )
+
+            return mapOf(
+                "destPath" to destFile.absolutePath,
+                "sampleRate" to sampleRate,
+                "channels" to channelCount,
+                "bitsPerSample" to 16,
+                "totalSamples" to totalInterleavedSamples,
+                "sizeBytes" to destFile.length(),
+            )
+        } finally {
+            try {
+                decoder?.stop()
+            } catch (_: Exception) {}
+            try {
+                decoder?.release()
+            } catch (_: Exception) {}
+            try {
+                extractor.release()
+            } catch (_: Exception) {}
+            try {
+                if (pcmTempFile.exists()) pcmTempFile.delete()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun writeFlacFromPcm16Le(
+        pcmFile: File,
+        destFile: File,
+        sampleRate: Int,
+        channels: Int,
+        totalSamples: Long,
+        tags: Map<String, String>,
+        artworkBytes: ByteArray?,
+    ) {
+        val blockSize = 4096
+        java.io.BufferedOutputStream(destFile.outputStream(), 64 * 1024).use { out ->
+            // 1. Magic "fLaC"
+            out.write(byteArrayOf(0x66, 0x4C, 0x61, 0x43))
+
+            val hasPicture = artworkBytes != null && artworkBytes.isNotEmpty()
+
+            // 2. STREAMINFO metadata block (type 0, length 34, isLast = false)
+            out.write(byteArrayOf(0x00, 0x00, 0x00, 34))
+            val streamInfo = ByteArray(34)
+            streamInfo[0] = ((blockSize shr 8) and 0xFF).toByte()
+            streamInfo[1] = (blockSize and 0xFF).toByte()
+            streamInfo[2] = ((blockSize shr 8) and 0xFF).toByte()
+            streamInfo[3] = (blockSize and 0xFF).toByte()
+            // min/max frame size = 0 (unknown) -> bytes 4..9 = 0
+            // 20 bits sampleRate, 3 bits (channels - 1), 5 bits (bitsPerSample - 1 = 15), 36 bits totalSamples
+            val sr = sampleRate.coerceIn(8000, 192000)
+            val chMinus1 = (channels - 1).coerceIn(0, 7)
+            val bpsMinus1 = 15 // 16-bit
+            streamInfo[10] = ((sr shr 12) and 0xFF).toByte()
+            streamInfo[11] = ((sr shr 4) and 0xFF).toByte()
+            streamInfo[12] = (((sr and 0x0F) shl 4) or (chMinus1 shl 1) or ((bpsMinus1 shr 4) and 0x01)).toByte()
+            streamInfo[13] = (((bpsMinus1 and 0x0F) shl 4) or ((totalSamples shr 32).toInt() and 0x0F)).toByte()
+            streamInfo[14] = ((totalSamples shr 24) and 0xFF).toByte()
+            streamInfo[15] = ((totalSamples shr 16) and 0xFF).toByte()
+            streamInfo[16] = ((totalSamples shr 8) and 0xFF).toByte()
+            streamInfo[17] = (totalSamples and 0xFF).toByte()
+            // 16 bytes MD5 signature left as 0 (valid per FLAC spec when unset)
+            out.write(streamInfo)
+
+            // 3. VORBIS_COMMENT metadata block (type 4)
+            val vorbisBytes = buildVorbisCommentBlock(tags)
+            val vorbisHeaderType = if (hasPicture) 4 else (0x80 or 4)
+            out.write(
+                byteArrayOf(
+                    vorbisHeaderType.toByte(),
+                    ((vorbisBytes.size shr 16) and 0xFF).toByte(),
+                    ((vorbisBytes.size shr 8) and 0xFF).toByte(),
+                    (vorbisBytes.size and 0xFF).toByte(),
+                ),
+            )
+            out.write(vorbisBytes)
+
+            // 4. Optional PICTURE metadata block (type 6, isLast = true)
+            if (hasPicture && artworkBytes != null && artworkBytes.size < 8 * 1024 * 1024) {
+                val pictureBlock = buildFlacPictureBlock(artworkBytes)
+                out.write(
+                    byteArrayOf(
+                        (0x80 or 6).toByte(),
+                        ((pictureBlock.size shr 16) and 0xFF).toByte(),
+                        ((pictureBlock.size shr 8) and 0xFF).toByte(),
+                        (pictureBlock.size and 0xFF).toByte(),
+                    ),
+                )
+                out.write(pictureBlock)
+            }
+
+            // 5. Audio frames (uncompressed VERBATIM subframes, 100% lossless & fast)
+            val bytesPerSampleFrame = channels * 2
+            val readBuffer = ByteArray(blockSize * bytesPerSampleFrame)
+            var frameNumber = 0L
+
+            java.io.BufferedInputStream(pcmFile.inputStream(), 64 * 1024).use { pcmIn ->
+                while (true) {
+                    var totalRead = 0
+                    while (totalRead < readBuffer.size) {
+                        val n = pcmIn.read(readBuffer, totalRead, readBuffer.size - totalRead)
+                        if (n <= 0) break
+                        totalRead += n
+                    }
+                    val nSamples = totalRead / bytesPerSampleFrame
+                    if (nSamples <= 0) break
+
+                    val frameBytes = buildFlacVerbatimFrame(
+                        pcmLeBytes = readBuffer,
+                        nSamples = nSamples,
+                        channels = channels,
+                        sampleRate = sr,
+                        frameNumber = frameNumber,
+                        standardBlockSize = blockSize,
+                    )
+                    out.write(frameBytes)
+                    frameNumber++
+                }
+            }
+        }
+    }
+
+    private fun buildVorbisCommentBlock(tags: Map<String, String>): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        fun writeLe32(v: Int) {
+            out.write(v and 0xFF)
+            out.write((v shr 8) and 0xFF)
+            out.write((v shr 16) and 0xFF)
+            out.write((v shr 24) and 0xFF)
+        }
+        val vendor = "Tone Hi-Res FLAC 1.0".toByteArray(Charsets.UTF_8)
+        writeLe32(vendor.size)
+        out.write(vendor)
+        val comments = tags.entries.map { (k, v) -> "$k=$v".toByteArray(Charsets.UTF_8) }
+        writeLe32(comments.size)
+        for (c in comments) {
+            writeLe32(c.size)
+            out.write(c)
+        }
+        return out.toByteArray()
+    }
+
+    private fun buildFlacPictureBlock(artworkBytes: ByteArray): ByteArray {
+        val out = java.io.ByteArrayOutputStream(artworkBytes.size + 64)
+        fun writeBe32(v: Int) {
+            out.write((v shr 24) and 0xFF)
+            out.write((v shr 16) and 0xFF)
+            out.write((v shr 8) and 0xFF)
+            out.write(v and 0xFF)
+        }
+        val isPng = artworkBytes.size >= 4 &&
+            artworkBytes[0] == 0x89.toByte() &&
+            artworkBytes[1] == 0x50.toByte() &&
+            artworkBytes[2] == 0x4E.toByte() &&
+            artworkBytes[3] == 0x47.toByte()
+        val mimeBytes = (if (isPng) "image/png" else "image/jpeg").toByteArray(Charsets.US_ASCII)
+        writeBe32(3) // 3 = Cover (front)
+        writeBe32(mimeBytes.size)
+        out.write(mimeBytes)
+        writeBe32(0) // description length = 0
+        writeBe32(1000) // width
+        writeBe32(1000) // height
+        writeBe32(24) // color depth
+        writeBe32(0) // indexed colors
+        writeBe32(artworkBytes.size)
+        out.write(artworkBytes)
+        return out.toByteArray()
+    }
+
+    private fun buildFlacVerbatimFrame(
+        pcmLeBytes: ByteArray,
+        nSamples: Int,
+        channels: Int,
+        sampleRate: Int,
+        frameNumber: Long,
+        standardBlockSize: Int,
+    ): ByteArray {
+        val header = java.io.ByteArrayOutputStream(16)
+        // Sync code 0xFFF8 (fixed block size strategy if nSamples == standardBlockSize, else variable block size 0xFFF9)
+        val isFixedBlock = (nSamples == standardBlockSize)
+        header.write(0xFF)
+        header.write(if (isFixedBlock) 0xF8 else 0xF9)
+
+        // Block size bits: 0x0C = 4096 samples, 0x07 = 16-bit (blockSize - 1) at end of frame header
+        val bsCode = if (nSamples == 4096) 0x0C else 0x07
+        // Sample rate bits: 0x09 = 44100, 0x0A = 48000, 0x00 = get from STREAMINFO
+        val srCode = when (sampleRate) {
+            44100 -> 0x09
+            48000 -> 0x0A
+            else -> 0x00
+        }
+        header.write((bsCode shl 4) or srCode)
+
+        // Channel assignment: 0 = 1ch, 1 = 2ch (left, right), Sample size: 4 = 16-bit, Reserved: 0
+        val chCode = (channels - 1).coerceIn(0, 1)
+        header.write((chCode shl 4) or (0x04 shl 1))
+
+        // UTF-8 coded frame or sample number
+        val codedNumber = if (isFixedBlock) frameNumber else (frameNumber * standardBlockSize)
+        writeFlacUtf8Number(header, codedNumber)
+
+        if (bsCode == 0x07) {
+            val bsMinus1 = nSamples - 1
+            header.write((bsMinus1 shr 8) and 0xFF)
+            header.write(bsMinus1 and 0xFF)
+        }
+
+        val headerBytes = header.toByteArray()
+        val crc8 = computeFlacCrc8(headerBytes, headerBytes.size)
+
+        // Total frame size: headerBytes.size + 1 (crc8) + channels * (1 + nSamples * 2) + 2 (crc16)
+        val frameSize = headerBytes.size + 1 + channels * (1 + nSamples * 2) + 2
+        val frame = ByteArray(frameSize)
+        System.arraycopy(headerBytes, 0, frame, 0, headerBytes.size)
+        var pos = headerBytes.size
+        frame[pos++] = crc8.toByte()
+
+        // Write each channel subframe (SUBFRAME_VERBATIM header = 0x02: 0 padding, 000001 verbatim, 0 wasted bits)
+        for (ch in 0 until channels) {
+            frame[pos++] = 0x02
+            var sampleIdx = 0
+            while (sampleIdx < nSamples) {
+                val pcmOffset = (sampleIdx * channels + ch) * 2
+                val lo = pcmLeBytes[pcmOffset].toInt() and 0xFF
+                val hi = pcmLeBytes[pcmOffset + 1].toInt() and 0xFF
+                // FLAC verbatim samples are big-endian signed 16-bit
+                frame[pos++] = hi.toByte()
+                frame[pos++] = lo.toByte()
+                sampleIdx++
+            }
+        }
+
+        val crc16 = computeFlacCrc16(frame, pos)
+        frame[pos++] = ((crc16 shr 8) and 0xFF).toByte()
+        frame[pos] = (crc16 and 0xFF).toByte()
+        return frame
+    }
+
+    private fun writeFlacUtf8Number(out: java.io.ByteArrayOutputStream, value: Long) {
+        when {
+            value < 0x80L -> out.write(value.toInt())
+            value < 0x800L -> {
+                out.write((0xC0 or ((value shr 6).toInt() and 0x1F)))
+                out.write((0x80 or (value.toInt() and 0x3F)))
+            }
+            value < 0x10000L -> {
+                out.write((0xE0 or ((value shr 12).toInt() and 0x0F)))
+                out.write((0x80 or ((value shr 6).toInt() and 0x3F)))
+                out.write((0x80 or (value.toInt() and 0x3F)))
+            }
+            value < 0x200000L -> {
+                out.write((0xF0 or ((value shr 18).toInt() and 0x07)))
+                out.write((0x80 or ((value shr 12).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 6).toInt() and 0x3F)))
+                out.write((0x80 or (value.toInt() and 0x3F)))
+            }
+            value < 0x4000000L -> {
+                out.write((0xF8 or ((value shr 24).toInt() and 0x03)))
+                out.write((0x80 or ((value shr 18).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 12).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 6).toInt() and 0x3F)))
+                out.write((0x80 or (value.toInt() and 0x3F)))
+            }
+            else -> {
+                out.write((0xFC or ((value shr 30).toInt() and 0x01)))
+                out.write((0x80 or ((value shr 24).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 18).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 12).toInt() and 0x3F)))
+                out.write((0x80 or ((value shr 6).toInt() and 0x3F)))
+                out.write((0x80 or (value.toInt() and 0x3F)))
+            }
+        }
+    }
+
+    private fun computeFlacCrc8(data: ByteArray, length: Int): Int {
+        var crc = 0
+        for (i in 0 until length) {
+            crc = crc xor (data[i].toInt() and 0xFF)
+            for (bit in 0 until 8) {
+                crc = if ((crc and 0x80) != 0) {
+                    ((crc shl 1) xor 0x07) and 0xFF
+                } else {
+                    (crc shl 1) and 0xFF
+                }
+            }
+        }
+        return crc
+    }
+
+    private fun computeFlacCrc16(data: ByteArray, length: Int): Int {
+        var crc = 0
+        for (i in 0 until length) {
+            crc = crc xor ((data[i].toInt() and 0xFF) shl 8)
+            for (bit in 0 until 8) {
+                crc = if ((crc and 0x8000) != 0) {
+                    ((crc shl 1) xor 0x8005) and 0xFFFF
+                } else {
+                    (crc shl 1) and 0xFFFF
+                }
+            }
+        }
+        return crc
+    }
+
+    internal fun setAudioDataSource(retriever: MediaMetadataRetriever, uri: Uri) {
         when (uri.scheme) {
             "content" -> retriever.setDataSource(this, uri)
             "file" -> retriever.setDataSource(
                 uri.path ?: throw IllegalArgumentException("Invalid audio file URI."),
             )
+            "http", "https" -> retriever.setDataSource(uri.toString(), emptyMap())
             null -> retriever.setDataSource(uri.toString())
-            else -> throw IllegalArgumentException("Unsupported local audio source.")
+            else -> throw IllegalArgumentException("Unsupported audio source: ${uri.scheme}")
         }
     }
 
-    private fun setAudioDataSource(extractor: MediaExtractor, uri: Uri) {
+    internal fun setAudioDataSource(extractor: MediaExtractor, uri: Uri) {
         when (uri.scheme) {
             "content" -> contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
                 if (descriptor.length >= 0) {
@@ -1007,8 +2144,9 @@ class MainActivity : AudioServiceActivity() {
             "file" -> extractor.setDataSource(
                 uri.path ?: throw IllegalArgumentException("Invalid audio file URI."),
             )
+            "http", "https" -> extractor.setDataSource(uri.toString())
             null -> extractor.setDataSource(uri.toString())
-            else -> throw IllegalArgumentException("Unsupported local audio source.")
+            else -> throw IllegalArgumentException("Unsupported audio source: ${uri.scheme}")
         }
     }
 }

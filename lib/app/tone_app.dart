@@ -1,40 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:tone_player/app/tone_appearance.dart';
 import 'package:tone_player/app/tone_services.dart';
 import 'package:tone_player/app/tone_theme.dart';
+import 'package:tone_player/features/auto_mix/auto_mix_diagnostic_screen.dart';
 import 'package:tone_player/features/shell/app_shell.dart';
 
 class ToneApp extends StatelessWidget {
-  const ToneApp.preview({super.key}) : services = null, servicesFuture = null;
+  const ToneApp.preview({super.key})
+    : services = null,
+      servicesFuture = null,
+      diagnosticMode = false;
 
-  const ToneApp({super.key, required this.servicesFuture}) : services = null;
+  const ToneApp({
+    super.key,
+    required this.servicesFuture,
+    this.diagnosticMode = false,
+  }) : services = null;
 
   const ToneApp.ready({super.key, required this.services})
-    : servicesFuture = null;
+    : servicesFuture = null,
+      diagnosticMode = false;
 
   final ToneServices? services;
   final Future<ToneServices>? servicesFuture;
+  final bool diagnosticMode;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tone',
-      debugShowCheckedModeBanner: false,
-      theme: ToneTheme.light,
-      darkTheme: ToneTheme.dark,
-      themeMode: ThemeMode.dark,
-      home: services != null
-          ? AppShell(services: services)
-          : servicesFuture != null
-          ? _ServicesLoader(future: servicesFuture!)
-          : const AppShell(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ToneAppearanceController.instance,
+      builder: (context, themeMode, _) => MaterialApp(
+        title: 'Tone',
+        debugShowCheckedModeBanner: false,
+        theme: ToneTheme.light,
+        darkTheme: ToneTheme.dark,
+        themeMode: themeMode,
+        home: services != null
+            ? _home(services!)
+            : servicesFuture != null
+            ? _ServicesLoader(
+                future: servicesFuture!,
+                diagnosticMode: diagnosticMode,
+              )
+            : const AppShell(),
+      ),
     );
   }
+
+  Widget _home(ToneServices services) => diagnosticMode
+      ? AutoMixDiagnosticScreen(services: services)
+      : AppShell(services: services);
 }
 
 class _ServicesLoader extends StatefulWidget {
-  const _ServicesLoader({required this.future});
+  const _ServicesLoader({required this.future, required this.diagnosticMode});
 
   final Future<ToneServices> future;
+  final bool diagnosticMode;
 
   @override
   State<_ServicesLoader> createState() => _ServicesLoaderState();
@@ -76,8 +98,11 @@ class _ServicesLoaderState extends State<_ServicesLoader> {
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
-                    onPressed: () =>
-                        setState(() => _future = ToneServices.initialize()),
+                    onPressed: () => setState(
+                      () => _future = ToneServices.initialize(
+                        persistPlaybackState: !widget.diagnosticMode,
+                      ),
+                    ),
                     child: const Text('Try again'),
                   ),
                 ],
@@ -89,7 +114,10 @@ class _ServicesLoaderState extends State<_ServicesLoader> {
       if (!snapshot.hasData) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      return AppShell(services: snapshot.requireData);
+      final services = snapshot.requireData;
+      return widget.diagnosticMode
+          ? AutoMixDiagnosticScreen(services: services)
+          : AppShell(services: services);
     },
   );
 }

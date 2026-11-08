@@ -23,6 +23,10 @@ class ImportedTrack {
     this.providerTrackId,
     this.licenseUrl,
     this.metadataReviewed = false,
+    this.isAvailable = true,
+    this.dateModifiedAt,
+    this.fileSizeBytes,
+    this.sourceName,
   });
 
   final String id;
@@ -43,6 +47,10 @@ class ImportedTrack {
   final String? providerTrackId;
   final String? licenseUrl;
   final bool metadataReviewed;
+  final bool isAvailable;
+  final DateTime? dateModifiedAt;
+  final int? fileSizeBytes;
+  final String? sourceName;
 
   String get displayArtist {
     final normalized = artist.trim();
@@ -68,6 +76,10 @@ class ImportedTrack {
       if (trackNumber != null) 'trackNumber': trackNumber,
       if (genre != null) 'genre': genre,
       if (bpm != null) 'bpm': bpm,
+      if (dateModifiedAt != null)
+        'dateModifiedAt': dateModifiedAt!.toIso8601String(),
+      if (fileSizeBytes != null) 'fileSizeBytes': fileSizeBytes,
+      if (sourceName != null) 'sourceName': sourceName,
       if (lyricsUri != null) 'lyricsUri': lyricsUri,
     },
   );
@@ -86,6 +98,10 @@ class ImportedTrack {
     String? sourceProvider,
     String? providerTrackId,
     String? licenseUrl,
+    bool? isAvailable,
+    DateTime? dateModifiedAt,
+    int? fileSizeBytes,
+    String? sourceName,
   }) => ImportedTrack(
     id: id,
     path: path,
@@ -105,6 +121,10 @@ class ImportedTrack {
     providerTrackId: providerTrackId ?? this.providerTrackId,
     licenseUrl: licenseUrl ?? this.licenseUrl,
     metadataReviewed: metadataReviewed ?? this.metadataReviewed,
+    isAvailable: isAvailable ?? this.isAvailable,
+    dateModifiedAt: dateModifiedAt ?? this.dateModifiedAt,
+    fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
+    sourceName: sourceName ?? this.sourceName,
   );
 
   Map<String, Object?> toJson() => {
@@ -126,6 +146,10 @@ class ImportedTrack {
     'providerTrackId': providerTrackId,
     'licenseUrl': licenseUrl,
     'metadataReviewed': metadataReviewed,
+    'isAvailable': isAvailable,
+    'dateModifiedAt': dateModifiedAt?.toIso8601String(),
+    'fileSizeBytes': fileSizeBytes,
+    'sourceName': sourceName,
   };
 
   factory ImportedTrack.fromJson(Map<String, Object?> json) => ImportedTrack(
@@ -147,6 +171,12 @@ class ImportedTrack {
     providerTrackId: json['providerTrackId'] as String?,
     licenseUrl: json['licenseUrl'] as String?,
     metadataReviewed: json['metadataReviewed'] as bool? ?? false,
+    isAvailable: json['isAvailable'] as bool? ?? true,
+    dateModifiedAt: json['dateModifiedAt'] == null
+        ? null
+        : DateTime.parse(json['dateModifiedAt']! as String),
+    fileSizeBytes: (json['fileSizeBytes'] as num?)?.toInt(),
+    sourceName: json['sourceName'] as String?,
   );
 
   factory ImportedTrack.fromCopiedFile({
@@ -157,6 +187,7 @@ class ImportedTrack {
     id: id,
     path: path,
     title: p.basenameWithoutExtension(originalName),
+    sourceName: originalName,
   );
 
   factory ImportedTrack.fromDeviceMedia({
@@ -172,6 +203,9 @@ class ImportedTrack {
     double? bpm,
     String? sourceFolderUri,
     String? lyricsUri,
+    DateTime? dateModifiedAt,
+    int? fileSizeBytes,
+    String? sourceName,
   }) => ImportedTrack(
     id: uri,
     path: uri,
@@ -187,6 +221,9 @@ class ImportedTrack {
     isDeviceMedia: true,
     sourceFolderUri: sourceFolderUri,
     lyricsUri: lyricsUri,
+    dateModifiedAt: dateModifiedAt,
+    fileSizeBytes: fileSizeBytes,
+    sourceName: sourceName,
   );
 
   static List<ImportedTrack> decodeList(String value) {

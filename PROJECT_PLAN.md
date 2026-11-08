@@ -1,20 +1,239 @@
-# Personal Music Player — Product and Implementation Plan
+# Tone — Product and Implementation Plan
 
-> Living blueprint for a modern, user-centered Flutter music app. This is a
-> starting point, not a locked specification. Product name, visual identity,
-> and any service integrations remain open decisions.
+> Living implementation plan for Tone, an Android-first local music player
+> with editable personal mixes and ordinary queue playback. Product direction and design foundation
+> are specified in [docs/PRD.md](docs/PRD.md) and
+> [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md). Architecture boundaries and
+> decisions are recorded in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+> [docs/decisions/](docs/decisions/); implementation status and provider/device
+> decisions remain tracked here.
 
 ## 1. Product direction
 
 ### Product promise
 
-**A music player that feels like it knows the listening moment, while keeping
-the listener in control.**
+**A balanced premium music player for everyday listening and local personal
+mixes.**
 
-The app combines the care and polish of mainstream music apps with the
-ownership, flexibility, and playback depth of Mornye. Its signature is a
-personal DJ that makes useful, explainable mixes from music the user is
-actually authorized to play.
+Tone must be excellent when the listener simply wants to find a song and press
+play. Personal mixes turn available music into an intentional, editable queue.
+AutoMix is an approved staged addition; ordinary playback remains the default
+and reliable fallback until a dual-deck backend is qualified.
+
+### Approved product direction (2026-11-06)
+
+- **Positioning:** balanced premium music player.
+- **Primary audience:** everyday music listeners and people managing a local
+  music library.
+- **Priority:** coordinate playback/library reliability, the overall listening
+  experience, and personal-mix usefulness; do not postpone reliability or
+  everyday polish until after mix improvements.
+- **Product hierarchy:** Everyday playback is the dependable default;
+  personal mixes are optional generated queues.
+- **AutoMix:** The two-deck `just_audio` prototype supports independent deck
+  control and a manually triggered, stepped-gain transition. It is not
+  sample-accurate or proven smooth enough for production. Automatic triggering,
+  UI, audible fade quality, and remaining device qualification are outstanding.
+
+See [docs/AUTOMIX_IMPLEMENTATION_PLAN.md](docs/AUTOMIX_IMPLEMENTATION_PLAN.md)
+for repository-specific files, boundaries, and validation gates.
+
+### Delivery roadmap
+
+The phases below set product priority and release gates. They are not a
+rewrite plan or a requirement to finish every feature before starting the next
+phase: interface work and personal-mix improvements can proceed alongside foundation
+qualification, but releases must pass the foundation gates. Existing
+implemented behavior is retained unless validation identifies a defect.
+
+#### Phase 1 — Make everyday playback dependable
+
+**Outcome:** listeners can add, find, play, and resume their music reliably,
+including outside the foreground app.
+
+- Qualify background playback, media controls, audio focus/interruption and
+  route changes, process death, and queue/position restoration on
+  representative real Android devices.
+- Finish scan progress/cancellation, revoked-folder recovery, source
+  availability handling, and safe behavior when files disappear.
+- Verify database upgrade, migration, and corruption recovery without losing
+  user collections or masking failures.
+- Prevent repeated exact-content imports and duplicate queue entries; let
+  listeners add library songs to the queue and remove upcoming songs without
+  disrupting the active track.
+- Add practical library search/source/availability filters and import
+  standard M3U/M3U8 playlists by linking only entries that resolve to
+  available library tracks.
+- Add track sorting and date/size/duration refinement; make file deletion a
+  deliberate action with app confirmation and Android authorization where
+  required. Canceling deletion must preserve the library entry.
+- Make loading, empty, permission, unsupported-file, and recoverable-error
+  states actionable.
+- Establish repeatable analyzer, test, build, and device-validation checks;
+  record startup, scan, search, memory, and long-playback baselines.
+- Refactor oversized files only when needed to safely deliver or test these
+  changes; preserve behavior with regression coverage.
+
+**Exit gate:** critical everyday playback/library journeys pass automated
+regressions and real-device interruption, restart, source-loss, and permission
+recovery checks. Imports do not create repeated exact copies, queue edits
+preserve the active track, and playlist imports preserve matched order while
+clearly reporting unmatched entries. No unresolved critical/high defect
+remains in those journeys.
+
+#### Phase 2 — Make the everyday experience feel premium
+
+**Outcome:** a first-time listener can quickly understand Tone and reach the
+music they want without needing specialized mixing knowledge.
+
+- Refine Home, Search, Library, playlist, mini-player, queue, and Now Playing
+  into one coherent flow aligned to the three-destination architecture
+  (Home, Library, You). Keep personal mix creation easy to reach without
+  making it a prerequisite for everyday use.
+- Use the supplied dark, artwork-led screen concept as visual inspiration,
+  adapting its hierarchy and restraint to Tone's own design system rather than
+  copying its platform-specific mockup.
+- Decompose the oversized player implementation in behavior-preserving slices:
+  queue presentation/management first, followed by transport presentation,
+  player state, audio settings, and audio-engine operations. Keep each seam
+  covered by focused widget or engine regressions before moving the next one.
+- Make the primary paths obvious: add music, find/play a track, resume, manage
+  the queue, and create an optional personal mix.
+- Improve artwork, lyrics, track/album details, playback feedback, and
+  available-format/source information without obscuring transport controls.
+- Resolve product/design documentation inconsistencies as the affected
+  surfaces are updated; do not force a visual rewrite unrelated to a measured
+  usability issue.
+- Audit TalkBack, focus order, touch targets, contrast, text scaling, reduced
+  motion, and narrow/wide layouts; essential controls must not depend on
+  gestures, color, or animation.
+- Run task-based usability checks for first launch, adding music, finding a
+  song, queue control, and recovering a permission/source problem.
+
+**Exit gate:** representative listeners can complete those core tasks without
+help; core screens have complete loading/empty/error states and pass the
+accessibility checklist. No visual effect can block or replace playback
+controls.
+
+#### Phase 3 — Make personal mixes genuinely useful
+
+**Outcome:** personal mixes produce an understandable local running order
+that listeners can preview, adjust, and trust, even without listening history
+or complete tags.
+
+- Refine the simple session-creation path around listener intent and duration;
+  keep advanced tuning optional and make a first usable mix possible with few
+  inputs.
+- Check track eligibility and current source availability before queueing;
+  report missing sources and offer ordinary queue controls.
+- Preserve preview/edit controls and make explanations exactly match the
+  signals used. Clearly distinguish tags, measured analysis, and unavailable
+  evidence; never invent mood, beat, key, or energy claims.
+- Evaluate session usefulness on curated, rights-appropriate libraries and
+  with human listening sessions across genres, sparse metadata, cold starts,
+  short libraries, and exclusions. Tune for coherent, controllable sessions,
+  not time-in-app.
+- Keep generated mixes as regular queues and preserve explicit user ordering.
+- Keep any learning local by default, explain what affects a mix, and provide
+  visible pause/reset controls before using behavioral signals.
+
+**Exit gate:** cold-start and sparse-metadata sessions meet documented
+eligibility, duration, exclusion, source-recovery, and explanation tests;
+human review finds the resulting sessions useful enough to continue testing.
+No ranking score or synthetic fixture alone counts as audio-quality evidence.
+
+#### Phase 4 — Keep playback and sound settings dependable
+
+**Outcome:** ordinary track changes remain predictable and audio settings
+reflect only capabilities available on the active device and route.
+
+- Validate playback across device tiers, codecs, output routes, long playback,
+  rapid controls, and decoder failures; measure continuity, resource use, and
+  battery.
+- Define audio-quality targets after capturing a reproducible baseline, then
+  verify ordinary playback and supported audio-profile settings.
+- Treat EQ, leveling, advanced effects, and audio-route claims as capability-
+  and device-dependent; measure clipping, loudness, CPU, and battery before
+  broad claims or new controls.
+
+**Exit gate:** ordinary playback remains continuous through track changes and
+release/device tests satisfy measured playback and audio-profile targets.
+
+#### Phase 5 — Strengthen ownership, privacy, and offline use
+
+**Outcome:** listeners can manage their personal collection and understand
+what Tone stores or transfers.
+
+- Complete user-facing duplicate review, playlist import/export, and
+  backup/restore with tested migrations and explicit handling of missing
+  sources.
+- Prioritize manual offline controls and transparent storage management before
+  predictive background downloads. Enforce the metered-network policy at the
+  transfer boundary for every foreground/background path.
+- Make local data controls precise: explain, export where supported, clear, or
+  reset the relevant data without unexpectedly deleting audio or playlists.
+- Keep personalization opt-in where it relies on behavioral history; store
+  locally by default and support pause, reset, and understandable reasons.
+- Consider audio-quality inspection or additional sound controls only when
+  their capability and output are verifiable on supported devices.
+
+**Exit gate:** data lifecycle, backup/restore, offline policy, and migration
+tests pass, including interruption, permission loss, low storage, and metered
+network changes; privacy disclosures match actual data flows.
+
+#### Phase 6 — Expand only where evidence and authorization support it
+
+**Outcome:** additional sources or social features add real listener value
+without weakening local playback or trust.
+
+- Select at most one expansion at a time based on user evidence: for example,
+  a supported network library, an authorized content provider, or offline
+  social listening.
+- Before implementation, verify current provider access, terms, attribution,
+  platform policies, credentials, data sent, and supported capabilities.
+- Keep sources explicit and independent. Unsupported play/download/offline
+  actions must not appear as functional; Tone remains useful when a provider
+  is unavailable.
+- For social features, require explicit consent, revocable access, and
+  metadata-only sharing unless separate rights expressly permit more.
+
+**Exit gate:** the feature passes its source-specific rights, privacy,
+security, resilience, and device tests and does not regress local use.
+
+#### Phase 7 — Release, learn, and maintain
+
+**Outcome:** each release has evidence of quality and a responsible path for
+responding to user feedback.
+
+- Complete upgrade, accessibility, performance, audio, privacy, permission,
+  licensing, store, and supported-device checks.
+- Set release-blocking defect criteria; no known critical/high defects in
+  playback, library integrity, data protection, or authorized-source flows.
+- Publish accurate feature/support disclosures and retain a reproducible
+  release build and rollback process.
+- Use opt-in diagnostics only when justified, with sensitive paths, track
+  names, credentials, and identifiers excluded or redacted.
+- Feed real user reports and usability evidence into the next prioritized
+  slice; do not expand scope based only on competitor checklists.
+
+**Exit gate:** release checklist and evidence are complete, known limitations
+are disclosed, and the next work is prioritized from user impact and observed
+quality.
+
+### Sequencing and scope rules
+
+1. Phase 1 is the release foundation; Phase 2 and bounded Phase 3 work may
+   progress in parallel, but their releases cannot bypass reliability gates.
+2. Keep changes vertical and incremental. Do not replace working playback,
+   storage, or analysis systems without a demonstrated defect or a measured
+   benefit and a migration/rollback plan.
+3. Every new capability needs a user problem, acceptance evidence, failure
+   behavior, accessibility coverage, and an owner in the tracking board.
+4. Defer feature breadth (large provider catalogs, social features, prediction,
+   and advanced effects) when everyday playback and personal-mix criteria are
+   not met.
+5. Numeric performance/audio thresholds are set from recorded baselines and
+   supported-device evidence, not guessed in advance.
 
 ### Principles
 
@@ -53,20 +272,20 @@ actually authorized to play.
 
 ### Primary navigation
 
-Use four destinations and a persistent mini-player:
+Use three destinations and a persistent mini-player:
 
-1. **Home** — resume listening, start a listening session, and see a small
+1. **Home** — resume listening, create a personal mix, and see a small
    number of relevant picks.
-2. **Search** — search the user's library and enabled, authorized sources;
-   results identify their source.
-3. **Library** — songs, albums, artists, playlists, downloads, and connected
+2. **Library** — songs, albums, artists, playlists, downloads, and connected
    sources.
-4. **You** — listening preferences, history/recap, audio settings, privacy,
+3. **You** — listening preferences, history/recap, audio settings, privacy,
    and app settings.
 
 The **Now Playing** screen opens from the mini-player and is not a permanent
-navigation destination. Use adaptive navigation rails or wider layouts on
-larger devices without changing the information architecture.
+navigation destination. Search opens globally from Home, while Library filters
+its selected view inline. Search is not a bottom-navigation destination. Use
+adaptive navigation rails or wider layouts on larger devices without changing
+the information architecture.
 
 ### Key screens
 
@@ -100,15 +319,15 @@ many preference settings before the first successful play.
 - Keep the playback hierarchy calm and direct: centered artwork, readable
   title/artist, a seekable waveform, and a compact transport row.
 - Play/pause, previous/next, seek, shuffle/repeat, queue, and output controls.
-- Surface lyrics, queue, track details, artist radio, and DJ mode through
+- Surface lyrics, queue, track details, and artist radio through
   concise actions without crowding the core playback controls.
-- Gesture shortcuts and beat-aware haptics are discoverable, configurable,
+- Gesture shortcuts are discoverable, configurable,
   and never the only way to operate the player.
 - Queue entries show their source and whether they are available offline.
 - Contextual actions include “More like this,” “Less like this,” “Not now,”
   “Never play,” and “Why this pick?”
-- Smooth transitions and optional crossfade are user-controlled, previewable,
-  and never surprising.
+- Track changes use ordinary queue playback and remain controlled by the
+  standard transport and queue actions.
 
 #### Library and source management
 
@@ -158,21 +377,10 @@ planned after the core is stable; **Later** is an intentional extension.
   headphone removal, and interruptions without duplicate or stuck playback.
 - **FR-PLAY-05 (MVP):** Show meaningful loading, unavailable-file, and
   recoverable-error states.
-- **FR-PLAY-06 (Next):** Configurable gentle fade, beat-matched, and echo-out
-  mix styles, plus sleep timer and improved output routing. Each style must
-  have a safe fallback when analysis is unavailable. The current Android slice
-  has user-selectable off, smooth dual-deck blend, and BPM-tagged tempo
-  matching; echo-out, sleep timer, and output routing remain open.
+- **FR-PLAY-06 (Next):** Add a sleep timer and improve output routing after
+  platform capability and device testing.
 - **FR-PLAY-07 (Later):** High-resolution or exclusive output only after a
   platform capability spike and device testing.
-- **FR-PLAY-08 (Next):** Keep transitions musically coherent using beat grid,
-  harmonic-key compatibility, phrase boundaries, and a session energy curve.
-  Treat key/tempo estimates as uncertain; users can disable analysis or
-  choose a simple fade. Current BPM matching only uses compatible embedded
-  tags and otherwise falls back to a smooth blend; key and phrase analysis
-  remain unimplemented.
-- **FR-PLAY-09 (Next):** Optional beat-synced haptics and gesture controls
-  provide equivalent accessible buttons and can be disabled independently.
 
 ### Smart offline
 
@@ -195,14 +403,7 @@ planned after the core is stable; **Later** is an intentional extension.
   size, Wi-Fi-only status, battery conditions, and last successful refresh
   visible and understandable.
 
-### Mixing and sound personalization
-
-- **FR-MIX-01 (Next):** Improve transitions with beat alignment, compatible
-  harmonic key, phrase-aware cue points, and an energy curve that can settle,
-  build, or wind down over the session.
-- **FR-MIX-02 (Next):** Offer gentle fade, beat-matched, and echo-out styles.
-  Explain when analysis is unavailable and fall back without interrupting
-  playback.
+### Sound personalization
 - **FR-SOUND-01 (Next):** Offer optional headphone-model Auto-EQ using
   profiles from a verified, appropriately licensed AutoEQ data source. Match
   device models conservatively, show the selected profile, and let users
@@ -255,24 +456,20 @@ planned after the core is stable; **Later** is an intentional extension.
 - **FR-LIB-07 (Later):** Rich recording/version relationships and optional
   metadata enrichment.
 
-### Personal DJ and discovery
+### Personal mixes and discovery
 
-- **FR-DJ-01 (MVP):** Generate a useful session from locally available,
+- **FR-MIX-01 (MVP):** Generate a useful local mix from available,
   playable tracks with a duration and a small set of explicit intent controls.
-- **FR-DJ-02 (MVP):** Let the user accept, skip, remove, or replace a proposed
-  track before/during a session.
-- **FR-DJ-03 (MVP):** Explain each pick in plain language and provide
+- **FR-MIX-02 (MVP):** Let the user preview, remove, or refresh tracks before
+  starting the mix as a regular playback queue.
+- **FR-MIX-03 (MVP):** Explain each pick in plain language and provide
   immediate positive/negative feedback.
-- **FR-DJ-04 (MVP):** Exclude blocked tracks/artists and respect explicit
+- **FR-MIX-04 (MVP):** Exclude blocked tracks/artists and respect explicit
   content preferences.
-- **FR-DJ-05 (MVP):** Work with a cold-start profile; never require a long
+- **FR-MIX-05 (MVP):** Work with a cold start; never require a long
   listening history to produce a mix.
-- **FR-DJ-06 (Next):** Learn from skips, saves, replay, and explicit feedback,
+- **FR-MIX-06 (Next):** Learn from saves and explicit feedback,
   with a visible pause/reset control and documented local data behavior.
-- **FR-DJ-07 (Next):** Session “arc” controls (settle in, build, wind down)
-  and mix continuation.
-- **FR-DJ-08 (Later):** Multi-source recommendations, subject to source
-  availability and authorized API access.
 
 ### Lyrics, spoken audio, video, and integrations
 
@@ -425,7 +622,13 @@ will occur at an exact time: Android may defer scheduled work. Show the last
 refresh and explain unmet conditions. Keep download authorization and
 provider-specific expiry rules in the source adapter.
 
-## 5. Stage-by-stage delivery
+## 5. Detailed stage-by-stage delivery backlog
+
+The stages below preserve the existing implementation evidence and
+task-level checklist. They are workstreams, not an alternative product
+roadmap: use the approved phases in Section 1 to decide sequencing and release
+readiness. A completed checkbox records implementation, not necessarily
+release qualification; each stage's exit gate still applies.
 
 Each stage is a vertical slice: design the user flow, implement it end to end,
 test it, then mark it done. Do not begin the next major feature while the
@@ -482,6 +685,11 @@ queue, and background controls.
   periodic playback-position persistence.
 - [x] Configure Android foreground media playback service and media-button
   receiver.
+- [x] Keep `just_audio` and `audio_service` after evaluating their existing
+  engine/MediaSession boundary; handle audio focus, interruptions, and noisy
+  output routes without requesting an unnecessary notification permission.
+- [x] Persist live queue changes and flush the current position when playback
+  pauses; restore repeat/shuffle modes without automatically resuming.
 - [x] Build mini-player and Now Playing transport/seek UI.
 - Test file removal, unsupported/corrupt audio, rapid transport actions, and
   app/process lifecycle.
@@ -494,11 +702,13 @@ real-device playback works through backgrounding, screen lock, Bluetooth
 route changes, call/audio-focus interruptions, and restart without duplicate
 playback or corrupted queue.
 
-**Implementation checkpoint (2026-10-30):** audio service, audio session,
-local-file import, queue/current-item/position persistence, mini-player, and
-Now Playing are implemented. Static analysis, widget/library tests, and an
-Android debug APK build pass. Real-device playback/lifecycle validation is
-still outstanding; do not mark this stage done yet.
+**Implementation checkpoint (2026-11-05):** audio service, audio session,
+local-file import, live queue/current-item/position and repeat/shuffle
+persistence, mini-player, and Now Playing are implemented. Static analysis,
+library regression tests, and an Android debug APK build pass. Real-device
+playback, route/focus, and process-lifecycle validation is still outstanding;
+do not mark this stage done yet. See
+[ADR 0003](docs/decisions/0003-retain-audio-service-playback-stack.md).
 
 ### Stage 3 — Personal library
 
@@ -536,16 +746,26 @@ and playlists.
 - [x] Save and remove persistent favorites from the library and Now Playing.
 - [x] Create, rename, and delete playlists; add/remove songs, reorder tracks,
   persist playlists, and play their queues.
-- Add duplicate review rather than destructive automatic merging.
+- [x] Add conservative duplicate grouping and a review filter; never delete
+  or merge source tracks automatically.
+- Prevent exact duplicate copied-file imports while preserving separate
+  recordings with different bytes; keep metadata-similar candidates in the
+  explicit review flow.
+- Add M3U/M3U8 playlist import that links available library tracks in order,
+  skips unmatched entries with a clear count, and never copies playlist audio.
+- Add in-library text, source, and availability filters.
+- Add queue insertion with duplicate protection and removal of upcoming songs;
+  protect the active queue item from accidental removal.
 
-**Exit gate:** large-library scans remain responsive; scan interruption,
-permission revocation, duplicate metadata, deleted files, and database
-migration tests pass.
+**Exit gate:** repository, cache, migration, incremental-scan, availability,
+and duplicate-detection regressions pass. Device-level large-library
+responsiveness, scan interruption, permission revocation/re-selection, schema
+upgrade, and corruption-recovery checks remain release validation.
 
-### Stage 4 — Distinctive personal DJ MVP
+### Stage 4 — Personal mixes
 
-**Deliver:** local-library mixes, intent controls, preview/edit, explanations,
-and explicit feedback.
+**Deliver:** local-library mix generation, preview/edit, explanations, and
+explicit feedback, with each generated mix played as a regular queue.
 
 **Tasks**
 
@@ -640,35 +860,24 @@ changes mid-transfer, retries, and background execution. Cache eviction never
 deletes source files, explicit downloads, or pinned items. The user can see
 and cancel every prepared item.
 
-### Stage 7 — Better mixes and sound personalization
+### Stage 7 — Audio settings
 
-**Deliver:** harmonic/energy-aware transitions, additional mix styles,
-headphone Auto-EQ, normalization, and a carefully bounded comfort limiter.
+**Deliver:** clear, route-aware audio-profile settings that never interfere
+with ordinary queue playback.
 
 **Tasks**
 
-- [x] Add configurable smooth and BPM-matched dual-deck overlaps, a safe
-  smooth fallback when tagged tempos are missing or incompatible, and a
-  short live position ticker.
-- [ ] Add echo-out and cue-point/phrase analysis; do not imply key matching
-  until reliable key metadata or analysis exists.
-- Add cancellable, cached analysis with confidence values for beat, key,
-  phrase/cue points, and energy; cap analysis cost and avoid delaying play.
-- Build gentle fade, beat-matched, and echo-out transitions with clear
-  previews, per-style controls, and reliable fallback.
-- Test short tracks, silence, tempo/key changes, low-confidence analysis,
-  codec/decoder differences, and back-to-back transitions.
-- Verify AutoEQ dataset provenance/license and attribution before bundling or
-  downloading profiles; implement headphone identification with manual
-  selection/override.
-- Add loudness normalization and a configurable, non-medical hearing-comfort
-  limiter; ensure gain staging cannot introduce clipping or abrupt jumps.
-- Keep room/spatial effects off by default and defer until route behavior,
-  processing compatibility, and battery impact are measured.
+- [x] Isolate audio-profile persistence and capability reporting behind
+  `AudioProfileService`.
+- [x] Retain the Sound & playback settings surface for supported equalizer
+  controls.
+- [x] Hide unsupported loudness-normalization and route controls rather than
+  presenting inactive capabilities as available.
+- [ ] Measure equalizer response, clipping, CPU, and battery use across
+  representative Android routes and devices.
 
-**Exit gate:** playback stays uninterrupted when analysis/effects fail or are
-disabled; transitions meet measured timing and loudness targets on supported
-devices; users can identify and override the selected headphone profile.
+**Exit gate:** playback remains controllable when processing is unavailable or
+disabled; settings reflect measured device capability and have safe defaults.
 
 ### Stage 8 — Offline social and recaps
 
@@ -776,19 +985,16 @@ documented.
   behavior.
 - **Performance:** startup, library scan responsiveness, search latency,
   scrolling, memory during artwork loading, battery during long playback,
-  overnight analysis cost, visualizer frame time/thermal behavior, and
-  transition analysis latency.
+  visualizer frame time and thermal behavior.
 - **Accessibility:** TalkBack, font scaling, contrast, focus order, semantics,
-  touch targets, reduced motion, non-gesture control parity, and disabling
-  beat haptics/visual effects.
+  touch targets, reduced motion, and non-gesture control parity.
 - **Resilience:** airplane mode, source removed, malformed tags, unreadable
   files, low disk space, interrupted scans, expired credentials, and database
   upgrade; interrupted cache jobs, changed network type, revoked offline
   rights, low battery, low storage, stale headphone profile, unsupported
   effect route, and expired/forged Jam join requests.
-- **Audio quality:** measure transition timing, peak/clipping, loudness
-  changes, normalization consistency, Auto-EQ profile selection, effect
-  bypass, and no audible interruption on analysis failure.
+- **Audio quality:** measure peak/clipping, loudness changes, supported
+  equalizer behavior, and no audible interruption during ordinary playback.
 
 ### Definition of done
 
@@ -810,23 +1016,27 @@ one main feature per contributor.
 
 | ID | Feature | Stage | Status | Acceptance evidence | Dependencies |
 |---|---|---:|---|---|---|
-| PLAN-01 | Confirm first-use journey and product name | 0 | In progress | Approved journey and working name; Tone is provisional | None |
+| PLAN-01 | Confirm first-use journey and product name | 0 | Done | Product vision, audiences, journeys, experience model, priorities, and working name documented in `docs/PRD.md` | None |
 | SPIKE-01 | Validate Android playback and background controls | 0 | In progress | Audio-service integration and APK build complete; physical lifecycle validation outstanding | None |
 | SPIKE-02 | Validate SAF folder access and persistence | 0 | Not started | Grant/revoke/restart test | None |
 | SPIKE-03 | Verify network metering and Android background scheduling | 0 | Not started | Device proof for metered changes, battery constraints, and deferred jobs | None |
 | SPIKE-04 | Validate playback engine/DSP/visualizer options | 0 | Not started | Playback, processing, shader, and device compatibility report | SPIKE-01 |
 | FOUNDATION-01 | App shell, design tokens, CI, and linting | 1 | In progress | Flutter analysis/tests and Android debug build pass; CI and accessibility audit remain | Stage 0 |
-| PLAYER-01 | Local playback, queue, mini-player, and Now Playing | 2 | In progress | `flutter test`, `flutter analyze`, and APK build pass; a live two-track handoff was smoke-tested on CPH2649; broader interruption and queue-restoration tests remain | FOUNDATION-01, SPIKE-01 |
+| ARCH-02 | Define library repository and migration boundary | 2 | In review | Drift repository, v2 schema, transactional legacy migration, and storage ADR implemented; Android upgrade and corruption-recovery tests remain | LIBRARY-01 |
+| ARCH-03 | Isolate Android platform capabilities | 2 | In review | Library scan/folder/metadata use a tested interface; lyrics, artwork, and waveform channel calls remain coupled | FOUNDATION-01 |
+| ARCH-04 | Decompose oversized player into focused modules | 2 | In progress | Queue sheet presentation is extracted to `player_queue_sheet.dart`; next extract queue coordination, then transport UI, player state, audio settings, and engine operations with behavior-preserving regression coverage | PLAYER-01 |
+| PLAYER-01 | Local playback, queue, mini-player, and Now Playing | 2 | In progress | Audio-service queue and player UI exist; validate ordinary track advancement, interruption handling, and queue restoration | FOUNDATION-01, SPIKE-01 |
 | LIBRARY-IMPORT-01 | Import and persist selected local audio | 3 | In progress | `test/music_library_test.dart` passes; Android picker/device smoke test pending | FOUNDATION-01 |
-| LIBRARY-01 | Local library scan, browse, and search | 3 | In progress | Device/SAF scans, stable MediaStore cursor paging, imported tags, embedded/album/folder cover fallback, local sidecar lyric auto-match/cache, browse/search tests pass; Android 17 / CPH2649 returned a successful scan; scan progress/cancellation and permission-revocation recovery remain | FOUNDATION-01, SPIKE-02 |
-| LIBRARY-02 | Favorites and playlists | 3 | In progress | Favorite persistence, playlist CRUD/membership/reorder/persistence, and playlist-screen tests pass; real-device flow remains | LIBRARY-01 |
-| DJ-01 | Intent-based local mix and editable preview | 4 | In progress | `test/personal_mix_test.dart` covers duration, known-duration eligibility, favorites, exclusions, genre/BPM ordering, and cold-start rules; `test/widget_test.dart` verifies a generated mix starts a real queue; source-availability validation and listening review remain | PLAYER-01, LIBRARY-01 |
-| DJ-02 | Explainable picks and immediate feedback | 4 | In progress | Reasons reflect favorites, library membership, and available genre/tempo matches; favorite, per-session removal, persistent exclusion, and exclusion reset are wired; usability review and feedback tuning remain | DJ-01 |
+| LIBRARY-01 | Local library scan, browse, and search | 3 | In progress | Device/SAF scans, metadata extraction, modified-since MediaStore queries with periodic full reconciliation, FTS5 search, availability retention, browse/search tests pass; Android 17 / CPH2649 returned a successful scan; scan progress/cancellation and permission-revocation recovery remain | FOUNDATION-01, SPIKE-02 |
+| LIBRARY-02 | Favorites and playlists | 3 | In progress | Favorites and ordered playlists persist in Drift; CRUD/membership/reorder and migration tests pass; real-device flow remains | LIBRARY-01 |
+| LIBRARY-03 | Migrate library persistence to Drift | 3 | In review | Versioned relational schema, FTS5, transactional legacy migration, queue restore, recently-played/history queries, and migration/restart tests pass; quick-check failures quarantine the database; automated schema-upgrade/corruption tests and device upgrade validation remain | LIBRARY-IMPORT-01, LIBRARY-02 |
+| LIBRARY-04 | Artwork cache and duplicate management | 3 | In review | Bounded persistent artwork cache and conservative duplicate groups/review filter implemented; cache persistence/eviction and duplicate-group repository tests pass; duplicate-review UI and large-library/device checks remain | LIBRARY-03 |
+| PERSONAL-MIX-01 | Local mix generation and editable preview | 4 | In progress | `test/personal_mix_test.dart` covers duration, eligibility, favorites, exclusions, genre/BPM ordering, and cold-start rules; `test/widget_test.dart` verifies a generated mix starts a regular queue; source-availability validation and listening review remain | PLAYER-01, LIBRARY-01 |
+| PERSONAL-MIX-02 | Explainable picks and immediate feedback | 4 | In progress | Reasons reflect favorites, library membership, and available genre/tempo matches; favorite, per-session removal, persistent exclusion, and exclusion reset are wired; usability review and feedback tuning remain | PERSONAL-MIX-01 |
 | PLAYER-02 | Art-led Now Playing, lyrics, gestures, and haptics | 5 | In progress | Album art in library/search rows; live position ticker; sidecar and opt-in LRCLIB lyrics; enhanced-LRC word timing; Android source codec/sample-rate/channel/bitrate details; source-level cover extraction fallback; smooth page transitions. Accessibility, reduced-motion, gestures, and haptics remain | PLAYER-01, SPIKE-04 |
-| TRUST-01 | Privacy controls, local profile export, and reset | 5 | In progress | Privacy screen controls optional LRCLIB lookup and clears cached lyrics/favorites/mix exclusions; portable profile export and data-flow review remain | DJ-02 |
+| TRUST-01 | Privacy controls, local profile export, and reset | 5 | In progress | Privacy screen controls optional LRCLIB lookup and clears cached lyrics/favorites/mix exclusions; portable profile export and data-flow review remain | PERSONAL-MIX-02 |
 | OFFLINE-01 | Wi-Fi-only policy and protected manual downloads | 6 | Not started | Prove no mobile transfer across foreground/background and network changes | LIBRARY-01, SPIKE-03 |
-| OFFLINE-02 | Opt-in overnight prediction and cache eviction | 6 | Not started | Battery/network/storage constraints and protected-item tests | OFFLINE-01, DJ-02 |
-| MIX-01 | Harmonic/energy-aware transitions and three mix styles | 7 | Not started | Audio quality measurements and fallback tests | PLAYER-01, SPIKE-04 |
+| OFFLINE-02 | Opt-in overnight prediction and cache eviction | 6 | Not started | Battery/network/storage constraints and protected-item tests | OFFLINE-01, PERSONAL-MIX-02 |
 | SOUND-01 | Auto-EQ, normalization, and comfort limiter | 7 | Not started | License review, route tests, loudness/clipping measurements | SPIKE-04 |
 | SOCIAL-01 | Local Jam with QR/local-network queue sync | 8 | Not started | Offline security, disconnect, and no-audio-transfer tests | PLAYER-01, LIBRARY-02 |
 | RECAP-01 | Exportable monthly/yearly recap | 8 | Not started | Time-range, consent, deletion, and export tests | TRUST-01 |
@@ -841,10 +1051,7 @@ marking any card Done.
 
 ## 8. Open decisions to resolve before implementation
 
-- Product name and original brand identity.
 - Minimum Android version and device support policy.
-- First-use persona and whether the first release is strictly personal/local
-  or includes a validated network source.
 - Which audio formats/codecs and playback-quality goals are essential.
 - Which devices/headphone models need Auto-EQ support first, and whether
   profile data may be bundled or must be fetched.
@@ -872,14 +1079,13 @@ marking any card Done.
 | Risk | Mitigation |
 |---|---|
 | Streaming services do not permit the desired integration | Verify terms/API access in Stage 0; make source handoff a first-class option |
-| Scope balloons into a clone of several products | Protect the “personal DJ + great personal library” core; defer connectors until validated |
+| Scope balloons into a clone of several products | Protect the “personal mixes + great personal library” core; defer connectors until validated |
 | Audio playback works in foreground but fails in real life | Spike early and test on physical devices, interruptions, and process lifecycle |
 | Storage permissions are fragile across Android versions/providers | Use SAF grants, test revocation/recovery, preserve indexed data |
 | Recommendations feel random or opaque | Start with explicit intent, constrained candidates, explanations, and user feedback |
 | Personalization harms trust | Keep it local by default, disclose signals, allow pause/reset/export |
 | “Never use mobile data” fails during a network switch or background retry | Enforce the policy at the transfer boundary, re-check during jobs, and test with real metered/unmetered transitions |
 | Smart caching consumes battery/storage or evicts something valuable | Make prediction opt-in, bound jobs/storage, protect explicit downloads and pins, and expose every eviction |
-| Beat/key analysis makes transitions worse or interrupts playback | Use confidence-gated analysis, conservative fallbacks, cancellation, and measured device tests |
 | Audio processing is mistaken for medical hearing protection | Use non-medical language, clear limits, conservative defaults, and no safety guarantee claims |
 | Jam becomes an unauthorized audio redistribution mechanism | Sync metadata only by default; require each device to resolve a playable authorized source |
 | Social cards violate rights or expose private history | Gate fields/previews by rights, show an export preview, and make sharing opt-in |

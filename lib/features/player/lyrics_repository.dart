@@ -19,11 +19,30 @@ class LyricsServiceUnavailableException implements Exception {
 }
 
 class LyricLine {
-  const LyricLine({required this.text, this.time, this.words = const []});
+  const LyricLine({
+    required this.text,
+    this.time,
+    this.words = const [],
+    this.hasExplicitWords = false,
+  });
 
   final String text;
   final Duration? time;
   final List<LyricWord> words;
+  final bool hasExplicitWords;
+
+  int activeWordAt(Duration position) {
+    if (words.isEmpty) return -1;
+    var active = -1;
+    for (var i = 0; i < words.length; i++) {
+      if (words[i].time <= position) {
+        active = i;
+      } else {
+        break;
+      }
+    }
+    return active;
+  }
 }
 
 class LyricWord {
@@ -39,7 +58,7 @@ class SongLyrics {
   final List<LyricLine> lines;
 
   bool get isSynchronized => lines.any((line) => line.time != null);
-  bool get hasWordTiming => lines.any((line) => line.words.isNotEmpty);
+  bool get hasWordTiming => lines.any((line) => line.hasExplicitWords);
 
   int activeLineAt(Duration position) {
     var low = 0;
@@ -114,17 +133,20 @@ class SongLyrics {
                 time: _timeFromMatch(wordMatches.first, offset),
                 text: text,
                 words: _parseWords(body, wordTimestamp, offset),
+                hasExplicitWords: true,
               ),
             );
           }
           continue;
         }
         for (final match in matches) {
+          final words = _parseWords(body, wordTimestamp, offset);
           syncedLines.add(
             LyricLine(
               time: _timeFromMatch(match, offset),
               text: text,
-              words: _parseWords(body, wordTimestamp, offset),
+              words: words,
+              hasExplicitWords: words.isNotEmpty,
             ),
           );
         }
@@ -132,7 +154,62 @@ class SongLyrics {
     }
     if (syncedLines.isNotEmpty) {
       syncedLines.sort((a, b) => a.time!.compareTo(b.time!));
-      return SongLyrics(lines: List.unmodifiable(syncedLines));
+
+      // Auto-interpolate word timings for Mornye-style karaoke sing-along
+      final enrichedLines = <LyricLine>[];
+      for (var i = 0; i < syncedLines.length; i++) {
+        final current = syncedLines[i];
+        if (current.words.isNotEmpty || current.time == null) {
+          enrichedLines.add(current);
+          continue;
+        }
+
+        final wordsList = current.text
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
+        if (wordsList.isEmpty) {
+          enrichedLines.add(current);
+          continue;
+        }
+
+        final nextTime =
+            (i + 1 < syncedLines.length && syncedLines[i + 1].time != null)
+                ? syncedLines[i + 1].time!
+                : current.time! + const Duration(seconds: 4);
+
+        final totalDurationMs =
+            (nextTime - current.time!).inMilliseconds.clamp(1000, 8000);
+        final totalChars = wordsList.fold<int>(
+          0,
+          (sum, w) => sum + w.length,
+        ).clamp(1, 9999);
+
+        final generatedWords = <LyricWord>[];
+        var accumulatedChars = 0;
+        for (final word in wordsList) {
+          final wordStartMs =
+              (totalDurationMs * (accumulatedChars / totalChars)).round();
+          generatedWords.add(
+            LyricWord(
+              text: word,
+              time: current.time! + Duration(milliseconds: wordStartMs),
+            ),
+          );
+          accumulatedChars += word.length;
+        }
+
+        enrichedLines.add(
+          LyricLine(
+            text: current.text,
+            time: current.time,
+            words: List.unmodifiable(generatedWords),
+            hasExplicitWords: false,
+          ),
+        );
+      }
+
+      return SongLyrics(lines: List.unmodifiable(enrichedLines));
     }
 
     if (plainLines.isEmpty && plain != null) {
@@ -186,7 +263,40 @@ class SongLyrics {
 
 class LyricsRepository {
   static const _cachePrefix = 'tone_lyrics_v1_';
+  static const _songCachePrefix = 'tone_lyrics_song_v1_';
+  static const _offsetPrefix = 'tone_lyrics_offset_v1_';
   static const _onlineLyricsKey = 'tone_online_lyrics_enabled';
+
+  static String _canonicalSongKey(String title, String? artist) {
+    final cleanT = _cleanTitleForMatch(title);
+    final cleanA = _cleanTitleForMatch(artist ?? '');
+    return '$_songCachePrefix${Uri.encodeComponent('$cleanT|$cleanA')}';
+  }
+
+  static Future<int> getSyncOffsetMs(String itemId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('$_offsetPrefix${Uri.encodeComponent(itemId)}') ?? 0;
+  }
+
+  static Future<void> setSyncOffsetMs(String itemId, int offsetMs) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = '$_offsetPrefix${Uri.encodeComponent(itemId)}';
+    if (offsetMs == 0) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setInt(key, offsetMs);
+    }
+  }
+
+  static Future<void> cacheLyricsForSong({
+    required String title,
+    required String? artist,
+    required String rawLrc,
+  }) async {
+    if (title.trim().isEmpty || rawLrc.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_canonicalSongKey(title, artist), rawLrc);
+  }
 
   static Future<bool> get onlineLookupEnabled async =>
       (await SharedPreferences.getInstance()).getBool(_onlineLyricsKey) ??
@@ -219,6 +329,21 @@ class LyricsRepository {
     if (cached != null) {
       return SongLyrics.parse(synchronized: cached, plain: cached);
     }
+    if (onlineLookup == null && item.title.trim().isNotEmpty) {
+      final songCached = preferences.getString(
+        _canonicalSongKey(item.title, item.artist),
+      );
+      if (songCached != null && songCached.trim().isNotEmpty) {
+        final lyrics = SongLyrics.parse(
+          synchronized: songCached,
+          plain: songCached,
+        );
+        if (lyrics != null) {
+          await preferences.setString(cacheKey, songCached);
+          return lyrics;
+        }
+      }
+    }
 
     final lyricsUri = item.extras?['lyricsUri'] as String?;
     if (lyricsUri != null) {
@@ -238,15 +363,62 @@ class LyricsRepository {
       }
     }
 
-    if (!await onlineLookupEnabled) return null;
-    return findOnlineFor(item, onlineLookup: onlineLookup);
+    // Check if an offline .lrc file exists alongside the track on disk
+    if ((item.id.contains('/') || item.id.contains(r'\')) &&
+        !item.id.startsWith('http://') &&
+        !item.id.startsWith('https://') &&
+        !item.id.startsWith('youtube:') &&
+        !item.id.startsWith('spotify:')) {
+      final lastDot = item.id.lastIndexOf('.');
+      final localLrcPath = lastDot > 0
+          ? '${item.id.substring(0, lastDot)}.lrc'
+          : '${item.id}.lrc';
+      try {
+        final localFile = File(localLrcPath);
+        if (localFile.existsSync()) {
+          final text = localFile.readAsStringSync();
+          if (text.trim().isNotEmpty) {
+            final lyrics = SongLyrics.parse(synchronized: text, plain: text);
+            if (lyrics != null) {
+              await preferences.setString(cacheKey, text);
+              return lyrics;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    final isOnlineStream = _isOnlineStreamItem(item);
+    if (!isOnlineStream && !await onlineLookupEnabled) return null;
+    return findOnlineFor(
+      item,
+      onlineLookup: onlineLookup,
+      forceOnline: isOnlineStream,
+    );
+  }
+
+  static bool _isOnlineStreamItem(MediaItem item) {
+    final source = item.extras?['source'] as String?;
+    return item.id.startsWith('youtube:') ||
+        item.id.startsWith('spotify:') ||
+        item.id.startsWith('http://') ||
+        item.id.startsWith('https://') ||
+        source == 'youtube' ||
+        source == 'spotify';
+  }
+
+  static Future<void> cacheLyricsForId(String id, String lyricsText) async {
+    final cacheKey = '$_cachePrefix${Uri.encodeComponent(id)}';
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(cacheKey, lyricsText);
   }
 
   static Future<SongLyrics?> findOnlineFor(
     MediaItem item, {
     OnlineLyricsLookup? onlineLookup,
+    bool forceOnline = false,
   }) async {
-    if (!await onlineLookupEnabled) return null;
+    if (!forceOnline && !await onlineLookupEnabled) return null;
     final uri = buildLookupUri(item);
     if (uri == null) return null;
     final lookup = onlineLookup ?? _requestLyrics;
@@ -261,11 +433,18 @@ class LyricsRepository {
     final searchResults = await lookup(searchUri);
     if (searchResults is! List) return null;
 
-    final candidates = searchResults
+    var candidates = searchResults
         .whereType<Map>()
         .map((candidate) => Map<String, Object?>.from(candidate))
         .where((candidate) => _matchesTrack(item, candidate))
         .toList(growable: true);
+    if (candidates.isEmpty && onlineLookup == null) {
+      candidates = searchResults
+          .whereType<Map>()
+          .map((candidate) => Map<String, Object?>.from(candidate))
+          .where((candidate) => _matchesTrackRelaxed(item, candidate))
+          .toList(growable: true);
+    }
     if (candidates.isEmpty) return null;
 
     candidates.sort((first, second) {
@@ -284,7 +463,66 @@ class LyricsRepository {
       final lyrics = await _cacheResponse(item, candidate);
       if (lyrics != null) return lyrics;
     }
+
+    // Fallback with cleaned title/artist (stripping Official Video, Lyrics, Topic, etc.) in live runtime
+    if (onlineLookup == null) {
+      final cleaned = _cleanedMediaItemForLyrics(item);
+      if (cleaned != null) {
+        final cleanedSearch = buildSearchLookupUri(cleaned);
+        if (cleanedSearch != null) {
+          final cleanedResults = await lookup(cleanedSearch);
+          if (cleanedResults is List) {
+            final cleanedCandidates = cleanedResults
+                .whereType<Map>()
+                .map((c) => Map<String, Object?>.from(c))
+                .where((c) => _matchesTrackRelaxed(cleaned, c))
+                .toList(growable: true);
+            cleanedCandidates.sort(
+              (a, b) => _durationDifference(
+                cleaned,
+                a['duration'],
+              ).compareTo(_durationDifference(cleaned, b['duration'])),
+            );
+            for (final candidate in cleanedCandidates) {
+              final lyrics = await _cacheResponse(item, candidate);
+              if (lyrics != null) return lyrics;
+            }
+          }
+        }
+      }
+    }
     return null;
+  }
+
+  static MediaItem? _cleanedMediaItemForLyrics(MediaItem item) {
+    final cleanedTitle = item.title
+        .replaceAll(
+          RegExp(
+            r'\s*[\(\[](?:official|music|lyric|lyrics|audio|video|hd|hq|4k|visualizer|remaster|live).*?[\)\]]',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\s+(?:feat\.?|ft\.?)\s+.*$', caseSensitive: false),
+          '',
+        )
+        .trim();
+    final cleanedArtist = (item.artist ?? '')
+        .replaceFirst(RegExp(r'\s*-\s*Topic$', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'VEVO$', caseSensitive: false), '')
+        .split(RegExp(r'\s*(?:,|&|feat\.?|ft\.?|x)\s*', caseSensitive: false))
+        .first
+        .trim();
+    if (cleanedTitle == item.title.trim() &&
+        cleanedArtist == (item.artist ?? '').trim()) {
+      return null;
+    }
+    if (cleanedTitle.isEmpty) return null;
+    return item.copyWith(
+      title: cleanedTitle,
+      artist: cleanedArtist.isEmpty ? item.artist : cleanedArtist,
+    );
   }
 
   static Uri? buildLookupUri(MediaItem item) {
@@ -342,10 +580,14 @@ class LyricsRepository {
         ? synchronized!
         : plain!;
     final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
-    await (await SharedPreferences.getInstance()).setString(
-      cacheKey,
-      cacheValue,
-    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(cacheKey, cacheValue);
+    if (item.title.trim().isNotEmpty) {
+      await prefs.setString(
+        _canonicalSongKey(item.title, item.artist),
+        cacheValue,
+      );
+    }
     return lyrics;
   }
 
@@ -362,6 +604,31 @@ class LyricsRepository {
     final difference = _durationDifference(item, candidate['duration']);
     return difference == 0 || difference <= 12;
   }
+
+  static bool _matchesTrackRelaxed(
+    MediaItem item,
+    Map<String, Object?> candidate,
+  ) {
+    final title = candidate['trackName'];
+    final artist = candidate['artistName'];
+    if (title is! String || artist is! String) return false;
+    final cleanCandidateTitle = _cleanTitleForMatch(title);
+    final cleanItemTitle = _cleanTitleForMatch(item.title);
+    if (cleanCandidateTitle.isEmpty || cleanItemTitle.isEmpty) return false;
+    final titleMatches = cleanCandidateTitle == cleanItemTitle ||
+        cleanCandidateTitle.contains(cleanItemTitle) ||
+        cleanItemTitle.contains(cleanCandidateTitle);
+    if (!titleMatches) return false;
+    final difference = _durationDifference(item, candidate['duration']);
+    return difference == 0 || difference <= 25;
+  }
+
+  static String _cleanTitleForMatch(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '')
+      .replaceAll(RegExp(r'[^\w\s]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   static String _normalizeMatchText(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

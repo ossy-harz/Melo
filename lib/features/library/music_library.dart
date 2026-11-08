@@ -4,29 +4,53 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tone_player/features/library/imported_track.dart';
+import 'package:tone_player/features/library/library_platform_data_source.dart';
+import 'package:tone_player/features/library/data/library_repository.dart';
+import 'package:tone_player/features/library/data/tone_database.dart';
 import 'package:tone_player/features/library/music_playlist.dart';
 import 'package:tone_player/features/mix/personal_mix.dart';
 import 'package:tone_player/features/mix/local_discovery.dart';
 
-class MusicLibrary extends ChangeNotifier {
-  static const _platform = MethodChannel('app.tone.tone_player/library');
+export 'package:tone_player/features/library/library_platform_data_source.dart'
+    show
+        DeviceAudio,
+        LibraryPlatformDataSource,
+        MusicFolder,
+        MusicPermissionDeniedException,
+        MethodChannelLibraryPlatformDataSource;
 
+class BulkTrackRemovalResult {
+  const BulkTrackRemovalResult({
+    required this.removed,
+    required this.failures,
+    this.cancelled = false,
+  });
+
+  final List<ImportedTrack> removed;
+  final Map<ImportedTrack, Object> failures;
+  final bool cancelled;
+}
+
+class MusicLibrary extends ChangeNotifier {
   MusicLibrary._({
     required this._musicDirectory,
     required this._preferences,
+    required this._repository,
     required this._pickAudio,
     required this._scanDeviceAudio,
     required this._pickMusicFolder,
     required this._scanMusicFolder,
     required this._releaseMusicFolder,
+    required this._deleteDeviceAudio,
+    required this._deleteDeviceAudioBatch,
     required this._metadataReader,
     required this._isAndroid,
   });
@@ -37,21 +61,40 @@ class MusicLibrary extends ChangeNotifier {
     required SharedPreferences preferences,
     required Future<List<PickedAudio>> Function() pickAudio,
     Future<List<DeviceAudio>> Function()? scanDeviceAudio,
+    Future<List<DeviceAudio>> Function({DateTime? modifiedSince})?
+    scanDeviceAudioSince,
     Future<MusicFolder?> Function()? pickMusicFolder,
     Future<List<DeviceAudio>> Function(String uri)? scanMusicFolder,
     Future<void> Function(String uri)? releaseMusicFolder,
+    Future<bool> Function(String uri)? deleteDeviceAudio,
+    Future<bool> Function(List<String> uris)? deleteDeviceAudioBatch,
     Future<Map<Object?, Object?>?> Function(String path, String fallbackTitle)?
     readImportedMetadata,
     bool Function()? isAndroid,
+    LibraryRepository? repository,
   }) => MusicLibrary._(
     musicDirectory: musicDirectory,
     preferences: preferences,
+    repository: repository,
     pickAudio: pickAudio,
-    scanDeviceAudio: scanDeviceAudio ?? _emptyDeviceScan,
+    scanDeviceAudio:
+        scanDeviceAudioSince ??
+        ({DateTime? modifiedSince}) =>
+            scanDeviceAudio?.call() ?? _emptyDeviceScan(),
     pickMusicFolder: pickMusicFolder ?? _emptyFolderPicker,
     scanMusicFolder: scanMusicFolder ?? _emptyFolderScan,
     releaseMusicFolder: releaseMusicFolder ?? _emptyFolderRelease,
-    metadataReader: readImportedMetadata ?? _readImportedMetadata,
+    deleteDeviceAudio: deleteDeviceAudio ?? _unsupportedTrackDeletion,
+    deleteDeviceAudioBatch:
+        deleteDeviceAudioBatch ??
+        ((uris) async {
+          final delete = deleteDeviceAudio ?? _unsupportedTrackDeletion;
+          for (final uri in uris) {
+            if (!await delete(uri)) return false;
+          }
+          return true;
+        }),
+    metadataReader: readImportedMetadata ?? _emptyMetadataReader,
     isAndroid: isAndroid ?? (() => Platform.isAndroid),
   );
 
@@ -71,42 +114,57 @@ class MusicLibrary extends ChangeNotifier {
     'wav',
     'ogg',
     'opus',
+    'webm',
   ];
 
   final Directory _musicDirectory;
+  Directory get musicDirectory => _musicDirectory;
   final SharedPreferences _preferences;
+  final LibraryRepository? _repository;
+  LibraryRepository get analysisRepository =>
+      _repository ??
+      (throw StateError(
+        'Persistent music analysis requires a database-backed library.',
+      ));
   final Future<List<PickedAudio>> Function() _pickAudio;
-  final Future<List<DeviceAudio>> Function() _scanDeviceAudio;
+  final Future<List<DeviceAudio>> Function({DateTime? modifiedSince})
+  _scanDeviceAudio;
   final Future<MusicFolder?> Function() _pickMusicFolder;
   final Future<List<DeviceAudio>> Function(String uri) _scanMusicFolder;
   final Future<void> Function(String uri) _releaseMusicFolder;
+  final Future<bool> Function(String uri) _deleteDeviceAudio;
+  final Future<bool> Function(List<String> uris) _deleteDeviceAudioBatch;
   final Future<Map<Object?, Object?>?> Function(
     String path,
     String fallbackTitle,
   )
   _metadataReader;
   final bool Function() _isAndroid;
+  final ValueNotifier<int> _playbackHistoryRevision = ValueNotifier(0);
   List<ImportedTrack> _tracks = const [];
   List<MusicPlaylist> _playlists = const [];
   List<MusicFolder> _musicFolders = const [];
+  String? _currentTrackId;
   Set<String> _favoriteTrackIds = {};
   Set<String> _mixExcludedTrackIds = {};
   Map<String, int> _trackIndexById = const {};
-  Map<String, int> _queueIndexes = const {};
   List<String> _queuedTrackOrder = const [];
+  final Map<String, int> _artistRadioRotations = {};
   bool _isImporting = false;
+  int _lastImportSkippedDuplicates = 0;
   int _importSequence = 0;
 
   List<ImportedTrack> get tracks => UnmodifiableListView(_tracks);
+  ValueListenable<int> get playbackHistoryRevision => _playbackHistoryRevision;
   List<MusicPlaylist> get playlists => UnmodifiableListView(_playlists);
   List<MusicFolder> get musicFolders => UnmodifiableListView(_musicFolders);
   List<ImportedTrack> get favoriteTracks => _tracks
       .where((track) => _favoriteTrackIds.contains(track.id))
       .toList(growable: false);
-  List<ImportedTrack> get discoveryTracks => _tracks;
   List<PlaylistSuggestion> get playlistSuggestions =>
       LocalDiscovery.suggestions(_tracks, favoriteTrackIds: _favoriteTrackIds);
   bool get isImporting => _isImporting;
+  int get lastImportSkippedDuplicates => _lastImportSkippedDuplicates;
   bool get isEmpty => _tracks.isEmpty;
   bool get hasMixExclusions => _mixExcludedTrackIds.isNotEmpty;
   int get mixExclusionCount => _mixExcludedTrackIds.length;
@@ -130,52 +188,35 @@ class MusicLibrary extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  List<ImportedTrack> artistRadioTracks(String artist) =>
-      LocalDiscovery.artistRadio(_tracks, artist);
+  List<ImportedTrack> artistRadioTracks(
+    String artist, {
+    Map<String, int> playCounts = const {},
+    int rotation = 0,
+  }) => LocalDiscovery.artistRadio(
+    _tracks,
+    artist,
+    favoriteTrackIds: _favoriteTrackIds,
+    playCounts: playCounts,
+    rotation: rotation,
+  );
 
   Future<void> playArtistRadio(AudioHandler handler, String artist) async {
-    final station = artistRadioTracks(artist);
+    final key = artist.trim().toLowerCase();
+    final rotation = _artistRadioRotations[key] ?? 0;
+    _artistRadioRotations[key] = rotation + 1;
+    final playCounts = {
+      for (final item in await mostPlayedTracks(limit: _tracks.length))
+        item.track.id: item.playCount,
+    };
+    final station = artistRadioTracks(
+      artist,
+      playCounts: playCounts,
+      rotation: rotation,
+    ).where((track) => track.isAvailable).toList(growable: false);
     if (station.isEmpty) {
       throw StateError('There are no playable songs for $artist radio.');
     }
     await playMix(handler, station);
-  }
-
-  static Future<MusicFolder?> _pickMusicFolderFromDevice() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      throw UnsupportedError(
-        'Folder access is currently available on Android.',
-      );
-    }
-    final result = await _platform.invokeMapMethod<String, Object?>(
-      'pickMusicFolder',
-    );
-    if (result == null) return null;
-    return MusicFolder(
-      uri: result['uri']! as String,
-      name: result['name']! as String,
-    );
-  }
-
-  static Future<List<DeviceAudio>> _scanFolderFromDevice(String uri) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      throw UnsupportedError(
-        'Folder access is currently available on Android.',
-      );
-    }
-    final result = await _platform.invokeListMethod<Map<Object?, Object?>>(
-      'scanMusicFolder',
-      {'uri': uri},
-    );
-    if (result == null) {
-      throw StateError('Android did not return the selected folder contents.');
-    }
-    return result.map(DeviceAudio.fromPlatformMap).toList(growable: false);
-  }
-
-  static Future<void> _releaseFolderOnDevice(String uri) async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-    await _platform.invokeMethod<void>('releaseMusicFolder', {'uri': uri});
   }
 
   List<ImportedTrack> searchTracks(String query) {
@@ -191,22 +232,169 @@ class MusicLibrary extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  int indexOfTrack(String id) => _trackIndexById[id] ?? -1;
+  static bool _isStreamPath(String path) =>
+      path.startsWith('youtube:') ||
+      path.startsWith('spotify:') ||
+      path.startsWith('http://') ||
+      path.startsWith('https://');
 
-  static Future<MusicLibrary> open() async {
+  static bool _isLocalOnDeviceTrack(ImportedTrack track) {
+    if (!track.isAvailable) return false;
+    if (_isStreamPath(track.path)) return false;
+    if (track.isDeviceMedia) return true;
+    return File(track.path).existsSync();
+  }
+
+  static String _normalizeSongText(String value) => value
+      .toLowerCase()
+      .replaceAll(
+        RegExp(
+          r'[\(\[](?:official\s*(?:music\s*)?(?:video|audio|lyric\s*video|visualizer)|lyrics?|audio|hd|hq|4k|remastered.*?)[\)\]]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceFirst(RegExp(r'\s*-\s*topic$', caseSensitive: false), '')
+      .replaceAll(RegExp(r'[^\w\s]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  /// Locates an existing track in the local device library by provider ID, path, or title/artist.
+  ImportedTrack? findMatchingLocalTrack({
+    String? providerTrackId,
+    String? title,
+    String? artist,
+    String? path,
+  }) {
+    if (path != null && path.isNotEmpty) {
+      for (final track in _tracks) {
+        if (track.path == path && _isLocalOnDeviceTrack(track)) return track;
+      }
+    }
+
+    if (providerTrackId != null && providerTrackId.isNotEmpty) {
+      for (final track in _tracks) {
+        if (track.providerTrackId == providerTrackId &&
+            _isLocalOnDeviceTrack(track)) {
+          return track;
+        }
+      }
+    }
+
+    if (title != null && title.trim().isNotEmpty) {
+      final cleanTitle = _normalizeSongText(title);
+      final cleanArtist = _normalizeSongText(artist ?? '');
+      if (cleanTitle.isEmpty) return null;
+      for (final track in _tracks) {
+        if (!_isLocalOnDeviceTrack(track)) continue;
+        final trackTitle = _normalizeSongText(track.title);
+        final trackArtist = _normalizeSongText(track.artist);
+        if (trackTitle.isEmpty) continue;
+
+        final titleMatch = trackTitle == cleanTitle ||
+            trackTitle.contains(cleanTitle) ||
+            cleanTitle.contains(trackTitle);
+
+        if (titleMatch) {
+          if (cleanArtist.isEmpty ||
+              trackArtist.isEmpty ||
+              cleanArtist == 'unknown artist' ||
+              trackArtist == 'unknown artist' ||
+              cleanArtist == 'ondevice audio' ||
+              trackArtist == 'ondevice audio') {
+            return track;
+          }
+          if (trackArtist == cleanArtist ||
+              trackArtist.contains(cleanArtist) ||
+              cleanArtist.contains(trackArtist)) {
+            return track;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Checks whether a track is already stored on the device (MediaStore or downloaded file).
+  bool isTrackDownloaded({
+    String? providerTrackId,
+    String? title,
+    String? artist,
+    String? path,
+  }) {
+    final match = findMatchingLocalTrack(
+      providerTrackId: providerTrackId,
+      title: title,
+      artist: artist,
+      path: path,
+    );
+    return match != null;
+  }
+
+  Future<List<ImportedTrack>> searchTracksIndexed(String query) =>
+      _repository?.searchTracks(query) ?? Future.value(searchTracks(query));
+
+  Future<List<List<ImportedTrack>>> possibleDuplicateGroups() =>
+      _repository?.possibleDuplicateGroups() ??
+      Future.value(const <List<ImportedTrack>>[]);
+
+  int indexOfTrack(String id) => _trackIndexById[id] ?? -1;
+  ImportedTrack? trackForId(String id) => _trackById(id);
+
+  static Future<MusicLibrary> open({
+    LibraryPlatformDataSource? platformDataSource,
+  }) async {
     final support = await getApplicationSupportDirectory();
     final directory = Directory(p.join(support.path, 'music'));
     await directory.create(recursive: true);
     final preferences = await SharedPreferences.getInstance();
+    final databaseFile = File(p.join(support.path, 'tone_library.sqlite'));
+    final database = ToneDatabase.open(databaseFile);
+    var repository = DriftLibraryRepository(
+      database: database,
+      legacyPreferences: preferences,
+    );
+    try {
+      await repository.initialize();
+    } on LibraryDatabaseCorruptionException catch (error, stackTrace) {
+      await repository.close();
+      final quarantined = File(
+        '${databaseFile.path}.corrupt-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await databaseFile.rename(quarantined.path);
+      repository = DriftLibraryRepository(
+        database: ToneDatabase.open(databaseFile),
+        legacyPreferences: preferences,
+      );
+      await repository.initialize();
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'tone library',
+          context: ErrorDescription(
+            'while recovering the corrupt database; the original was preserved at ${quarantined.path}',
+          ),
+        ),
+      );
+    } on Object {
+      await repository.close();
+      rethrow;
+    }
+    final dataSource =
+        platformDataSource ?? const MethodChannelLibraryPlatformDataSource();
     final library = MusicLibrary._(
       musicDirectory: directory,
       preferences: preferences,
+      repository: repository,
       pickAudio: _pickFromDevice,
-      scanDeviceAudio: _scanFromDevice,
-      pickMusicFolder: _pickMusicFolderFromDevice,
-      scanMusicFolder: _scanFolderFromDevice,
-      releaseMusicFolder: _releaseFolderOnDevice,
-      metadataReader: _readImportedMetadata,
+      scanDeviceAudio: dataSource.scanDeviceAudio,
+      pickMusicFolder: dataSource.pickMusicFolder,
+      scanMusicFolder: dataSource.scanMusicFolder,
+      releaseMusicFolder: dataSource.releaseMusicFolder,
+      deleteDeviceAudio: dataSource.deleteDeviceAudio,
+      deleteDeviceAudioBatch: dataSource.deleteDeviceAudioBatch,
+      metadataReader: dataSource.readImportedMetadata,
       isAndroid: () => Platform.isAndroid,
     );
     await library.load();
@@ -229,32 +417,122 @@ class MusicLibrary extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    _favoriteTrackIds = (_preferences.getStringList(_favoritesKey) ?? const [])
-        .toSet();
-    _mixExcludedTrackIds =
-        (_preferences.getStringList(_mixExclusionsKey) ?? const []).toSet();
-    final storedPlaylists = _preferences.getString(_playlistsKey);
-    if (storedPlaylists != null) {
-      _playlists = MusicPlaylist.decodeList(storedPlaylists);
+    List<ImportedTrack> decoded;
+    if (_repository case final repository?) {
+      final snapshot = await repository.load();
+      _favoriteTrackIds = snapshot.favoriteTrackIds;
+      _mixExcludedTrackIds = snapshot.excludedTrackIds;
+      _playlists = snapshot.playlists;
+      _musicFolders = snapshot.folders;
+      _queuedTrackOrder = snapshot.queueTrackIds;
+      _currentTrackId = snapshot.currentTrackId;
+      decoded = snapshot.tracks;
+    } else {
+      _favoriteTrackIds =
+          (_preferences.getStringList(_favoritesKey) ?? const []).toSet();
+      _mixExcludedTrackIds =
+          (_preferences.getStringList(_mixExclusionsKey) ?? const []).toSet();
+      final storedPlaylists = _preferences.getString(_playlistsKey);
+      if (storedPlaylists != null) {
+        _playlists = MusicPlaylist.decodeList(storedPlaylists);
+      }
+      final storedFolders = _preferences.getString(_foldersKey);
+      if (storedFolders != null) {
+        _musicFolders = MusicFolder.decodeList(storedFolders);
+      }
+      _currentTrackId = _preferences.getString(_currentTrackKey);
+      final stored = _preferences.getString(_tracksKey);
+      decoded = stored == null ? const [] : ImportedTrack.decodeList(stored);
     }
-    final storedFolders = _preferences.getString(_foldersKey);
-    if (storedFolders != null) {
-      _musicFolders = MusicFolder.decodeList(storedFolders);
-    }
-    final stored = _preferences.getString(_tracksKey);
-    if (stored == null) return;
 
-    final decoded = ImportedTrack.decodeList(stored);
-    final available = <ImportedTrack>[];
+    if (_isAndroid()) {
+      final filtered = decoded
+          .where((track) => !_isNonSongAudioTrack(track))
+          .toList(growable: false);
+      _setTracks(filtered);
+      unawaited(_verifyTrackFilesAsync(filtered));
+      return;
+    }
+
+    final loadedTracks = <ImportedTrack>[];
+    var trackMetadataChanged = false;
     for (final track in decoded) {
-      if (track.isDeviceMedia || await File(track.path).exists()) {
-        available.add(track);
+      final file = track.isDeviceMedia ? null : File(track.path);
+      final available = file == null || await file.exists();
+      final modifiedAt =
+          track.dateModifiedAt ??
+          (available ? await file?.lastModified() : null);
+      final fileSizeBytes =
+          track.fileSizeBytes ?? (available ? await file?.length() : null);
+      if (track.isAvailable != available ||
+          track.dateModifiedAt != modifiedAt ||
+          track.fileSizeBytes != fileSizeBytes) {
+        trackMetadataChanged = true;
+      }
+      loadedTracks.add(
+        track.withMetadata(
+          isAvailable: available,
+          dateModifiedAt: modifiedAt,
+          fileSizeBytes: fileSizeBytes,
+        ),
+      );
+    }
+    _setTracks(loadedTracks);
+    if (trackMetadataChanged) {
+      await _saveTracks(loadedTracks);
+    }
+  }
+
+  static bool _isNonSongAudioTrack(ImportedTrack track) {
+    final durationMs = track.durationMs;
+    if (durationMs != null && durationMs > 0 && durationMs < 30000) {
+      return true;
+    }
+    final lowerName =
+        (track.sourceName ?? p.basename(track.path)).trim().toLowerCase();
+    final lowerTitle = track.title.trim().toLowerCase();
+    for (final candidate in [lowerName, lowerTitle]) {
+      if (candidate.startsWith('ptt-') ||
+          candidate.startsWith('aud-') ||
+          candidate.startsWith('call_recording') ||
+          candidate.startsWith('voice_') ||
+          candidate.contains('whatsapp voice') ||
+          candidate.contains('whatsapp audio')) {
+        return true;
       }
     }
-    _setTracks(available);
-    if (available.length != decoded.length) {
-      await _saveTracks(available);
+    return false;
+  }
+
+  Future<void> _verifyTrackFilesAsync(List<ImportedTrack> initialTracks) async {
+    var changed = false;
+    final verifiedById = <String, ImportedTrack>{};
+    for (final track in initialTracks) {
+      if (track.isDeviceMedia) continue;
+      final file = File(track.path);
+      final available = await file.exists();
+      final modifiedAt =
+          track.dateModifiedAt ?? (available ? await file.lastModified() : null);
+      final fileSizeBytes =
+          track.fileSizeBytes ?? (available ? await file.length() : null);
+      if (track.isAvailable != available ||
+          track.dateModifiedAt != modifiedAt ||
+          track.fileSizeBytes != fileSizeBytes) {
+        changed = true;
+        verifiedById[track.id] = track.withMetadata(
+          isAvailable: available,
+          dateModifiedAt: modifiedAt,
+          fileSizeBytes: fileSizeBytes,
+        );
+      }
     }
+    if (!changed) return;
+    final updated = _tracks
+        .map((t) => verifiedById[t.id] ?? t)
+        .toList(growable: false);
+    _setTracks(updated);
+    await _saveTracks(updated);
+    notifyListeners();
   }
 
   Future<void> refreshImportedMetadata() async {
@@ -318,10 +596,7 @@ class MusicLibrary extends ChangeNotifier {
           .toList(growable: false);
       final folderTracks = _tracksFromDeviceAudio(discovered);
       final updatedFolders = [..._musicFolders, folder];
-      await _preferences.setString(
-        _foldersKey,
-        jsonEncode(updatedFolders.map((item) => item.toJson()).toList()),
-      );
+      await _saveFolders(updatedFolders);
       await _saveTracks([...tracks, ...folderTracks]);
       _musicFolders = updatedFolders;
       _setTracks([...tracks, ...folderTracks]);
@@ -357,13 +632,10 @@ class MusicLibrary extends ChangeNotifier {
         .toList(growable: false);
     final updatedFavorites = Set<String>.from(_favoriteTrackIds)
       ..removeAll(removedTrackIds);
-    await _preferences.setString(
-      _foldersKey,
-      jsonEncode(updatedFolders.map((item) => item.toJson()).toList()),
-    );
+    await _saveFolders(updatedFolders);
     await _saveTracks(updatedTracks);
     await _savePlaylists(updatedPlaylists);
-    await _preferences.setStringList(_favoritesKey, updatedFavorites.toList());
+    await _saveFavorites(updatedFavorites);
     _musicFolders = updatedFolders;
     _playlists = updatedPlaylists;
     _favoriteTrackIds = updatedFavorites;
@@ -383,6 +655,7 @@ class MusicLibrary extends ChangeNotifier {
       .map(
         (item) => ImportedTrack.fromDeviceMedia(
           uri: item.uri,
+          sourceName: item.name,
           title: item.title,
           artist: item.artist,
           album: item.album,
@@ -394,6 +667,12 @@ class MusicLibrary extends ChangeNotifier {
           bpm: item.bpm,
           sourceFolderUri: item.sourceFolderUri,
           lyricsUri: item.lyricsUri,
+          dateModifiedAt: item.dateModifiedSeconds == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(
+                  item.dateModifiedSeconds! * 1000,
+                ),
+          fileSizeBytes: item.sizeBytes,
         ),
       )
       .toList(growable: false);
@@ -405,7 +684,7 @@ class MusicLibrary extends ChangeNotifier {
     final updated = Set<String>.from(_favoriteTrackIds);
     final isFavorite = !updated.remove(trackId);
     if (isFavorite) updated.add(trackId);
-    await _preferences.setStringList(_favoritesKey, updated.toList());
+    await _saveFavorites(updated);
     _favoriteTrackIds = updated;
     notifyListeners();
     return isFavorite;
@@ -530,6 +809,11 @@ class MusicLibrary extends ChangeNotifier {
     if (tracks.isEmpty) {
       throw StateError('Add songs to this playlist before playing it.');
     }
+    if (tracks.any((track) => !track.isAvailable)) {
+      throw StateError(
+        'This playlist contains unavailable songs. Rescan your library and review the missing tracks.',
+      );
+    }
     final requestedIndex = startTrackId == null
         ? 0
         : tracks.indexWhere((track) => track.id == startTrackId);
@@ -546,15 +830,9 @@ class MusicLibrary extends ChangeNotifier {
     _queuedTrackOrder = orderedTracks
         .map((track) => track.id)
         .toList(growable: false);
-    _queueIndexes = {
-      for (var index = 0; index < _queuedTrackOrder.length; index++)
-        _queuedTrackOrder[index]: index,
-    };
     final selectedTrack = orderedTracks.first;
     await handler.play();
-    await _preferences.setString(_queueKey, jsonEncode(_queuedTrackOrder));
-    await _preferences.setString(_currentTrackKey, selectedTrack.id);
-    await _preferences.setInt(_positionKey, 0);
+    await _saveQueueState(currentTrackId: selectedTrack.id, positionMs: 0);
   }
 
   List<MixPick> generatePersonalMix({
@@ -570,6 +848,11 @@ class MusicLibrary extends ChangeNotifier {
     randomSeed: randomSeed,
   );
 
+  ImportedTrack? _trackById(String trackId) {
+    final index = _trackIndexById[trackId];
+    return index == null ? null : _tracks[index];
+  }
+
   Future<void> setMixExcluded(String trackId, bool excluded) async {
     if (!_trackIndexById.containsKey(trackId)) {
       throw StateError('This song is no longer in the library.');
@@ -580,20 +863,20 @@ class MusicLibrary extends ChangeNotifier {
     } else {
       updated.remove(trackId);
     }
-    await _preferences.setStringList(_mixExclusionsKey, updated.toList());
+    await _saveExclusions(updated);
     _mixExcludedTrackIds = updated;
     notifyListeners();
   }
 
   Future<void> resetMixExclusions() async {
-    await _preferences.remove(_mixExclusionsKey);
+    await _saveExclusions({});
     _mixExcludedTrackIds = {};
     notifyListeners();
   }
 
   Future<void> clearPersonalPreferences() async {
-    await _preferences.remove(_favoritesKey);
-    await _preferences.remove(_mixExclusionsKey);
+    await _saveFavorites({});
+    await _saveExclusions({});
     _favoriteTrackIds = {};
     _mixExcludedTrackIds = {};
     notifyListeners();
@@ -611,7 +894,13 @@ class MusicLibrary extends ChangeNotifier {
               'A selected mix song is no longer in the library.',
             );
           }
-          return _tracks[index];
+          final track = _tracks[index];
+          if (!track.isAvailable) {
+            throw StateError(
+              'A selected mix song is currently unavailable. Rescan your music library and try again.',
+            );
+          }
+          return track;
         })
         .toList(growable: false);
     if (orderedTracks.isEmpty) {
@@ -627,35 +916,46 @@ class MusicLibrary extends ChangeNotifier {
     _queuedTrackOrder = orderedTracks
         .map((track) => track.id)
         .toList(growable: false);
-    _queueIndexes = {
-      for (var index = 0; index < _queuedTrackOrder.length; index++)
-        _queuedTrackOrder[index]: index,
-    };
     await handler.play();
-    await _preferences.setString(_queueKey, jsonEncode(_queuedTrackOrder));
-    await _preferences.setString(_currentTrackKey, orderedTracks.first.id);
-    await _preferences.setInt(_positionKey, 0);
+    await _saveQueueState(
+      currentTrackId: orderedTracks.first.id,
+      positionMs: 0,
+    );
   }
 
   Future<int> pickAndImport() async {
     if (_isImporting) return 0;
+    _lastImportSkippedDuplicates = 0;
     _setImporting(true);
     try {
       final files = await _pickAudio();
       final added = <ImportedTrack>[];
+      var skippedDuplicates = 0;
       try {
         for (final file in files) {
           final extension = p.extension(file.name).toLowerCase();
           if (!supportedExtensions.contains(extension.replaceFirst('.', ''))) {
             continue;
           }
-          added.add(await _copyPickedFile(file));
+          final copied = await _copyPickedFile(file);
+          try {
+            if (await _isExactDuplicateImport(copied, [..._tracks, ...added])) {
+              await _deleteCopies([copied]);
+              skippedDuplicates++;
+            } else {
+              added.add(copied);
+            }
+          } on Object {
+            await _deleteCopies([copied]);
+            rethrow;
+          }
         }
       } on Object {
         await _deleteCopies(added);
         rethrow;
       }
 
+      _lastImportSkippedDuplicates = skippedDuplicates;
       if (added.isEmpty) return 0;
       final updated = [..._tracks, ...added];
       try {
@@ -685,6 +985,9 @@ class MusicLibrary extends ChangeNotifier {
     required String? artworkUri,
     required int? year,
     required String? licenseUrl,
+    String? genre,
+    int? trackNumber,
+    bool convertToFlac = false,
   }) async {
     final normalizedProvider = provider.trim();
     final normalizedTrackId = providerTrackId.trim();
@@ -702,7 +1005,8 @@ class MusicLibrary extends ChangeNotifier {
     }
     for (final track in _tracks) {
       if (track.sourceProvider == normalizedProvider &&
-          track.providerTrackId == normalizedTrackId) {
+          track.providerTrackId == normalizedTrackId &&
+          !_isStreamPath(track.path)) {
         return track;
       }
     }
@@ -711,11 +1015,72 @@ class MusicLibrary extends ChangeNotifier {
     }
 
     _setImporting(true);
-    ImportedTrack? copiedTrack;
     try {
-      copiedTrack = await _copyPickedFile(
+      var copiedTrack = await _copyPickedFile(
         PickedAudio(name: fileName, bytes: bytes),
       );
+      var exportFileName = fileName;
+      if (_isAndroid()) {
+        if (convertToFlac && !copiedTrack.path.toLowerCase().endsWith('.flac')) {
+          try {
+            final flacPath = '${p.withoutExtension(copiedTrack.path)}.flac';
+            final flacFileName = '${p.withoutExtension(fileName)}.flac';
+            String? localArtworkPath;
+            if (artworkUri != null && artworkUri.startsWith('file:')) {
+              localArtworkPath = Uri.parse(artworkUri).toFilePath();
+            }
+            await const MethodChannel('app.tone.tone_player/library')
+                .invokeMethod<Map<Object?, Object?>>(
+              'convertToLosslessFlac',
+              <String, Object?>{
+                'sourcePath': copiedTrack.path,
+                'destPath': flacPath,
+                'title': title,
+                'artist': artist,
+                'album': album,
+                'year': year,
+                'genre': genre,
+                'trackNumber': trackNumber,
+                'artworkPath': localArtworkPath,
+              },
+            );
+            final flacFile = File(flacPath);
+            if (await flacFile.exists() && await flacFile.length() > 0) {
+              final oldFile = File(copiedTrack.path);
+              if (await oldFile.exists()) {
+                await oldFile.delete();
+              }
+              copiedTrack = ImportedTrack.fromCopiedFile(
+                id: copiedTrack.id,
+                path: flacFile.path,
+                originalName: flacFileName,
+              ).withMetadata(
+                fileSizeBytes: await flacFile.length(),
+                dateModifiedAt: await flacFile.lastModified(),
+              );
+              exportFileName = flacFileName;
+            }
+          } catch (error) {
+            debugPrint('FLAC conversion fallback to original stream container: $error');
+          }
+        }
+        try {
+          await const MethodChannel('app.tone.tone_player/library')
+              .invokeMethod<Map<Object?, Object?>>(
+            'saveToDeviceMusic',
+            <String, Object?>{
+              'sourcePath': copiedTrack.path,
+              'fileName': exportFileName,
+              'title': title,
+              'artist': artist,
+              'album': album,
+              'durationMs': durationMs,
+            },
+          );
+        } catch (error) {
+          debugPrint('Could not export download to MediaStore Music/Tone: $error');
+        }
+      }
       final imported = copiedTrack.withMetadata(
         title: title,
         artist: artist,
@@ -723,12 +1088,21 @@ class MusicLibrary extends ChangeNotifier {
         durationMs: durationMs,
         artworkUri: artworkUri,
         year: year,
+        genre: genre,
+        trackNumber: trackNumber,
         sourceProvider: normalizedProvider,
         providerTrackId: normalizedTrackId,
         licenseUrl: licenseUrl,
         metadataReviewed: true,
       );
-      final updated = [..._tracks, imported];
+      // Remove any temporary stream reference for this track before adding the local file
+      final filteredExisting = _tracks.where((t) {
+        if (!_isStreamPath(t.path)) return true;
+        if (t.providerTrackId == normalizedTrackId) return false;
+        return _normalizeSongText(t.title) != _normalizeSongText(title) ||
+            _normalizeSongText(t.artist) != _normalizeSongText(artist);
+      }).toList();
+      final updated = [...filteredExisting, imported];
       try {
         await _saveTracks(updated);
       } on Object {
@@ -744,20 +1118,127 @@ class MusicLibrary extends ChangeNotifier {
     }
   }
 
+  Future<ImportedTrack?> updateTrackEnrichedMetadata(
+    String trackId, {
+    String? title,
+    String? artist,
+    String? album,
+    int? year,
+    String? genre,
+    int? trackNumber,
+    String? artworkUri,
+  }) async {
+    final index = _trackIndexById[trackId];
+    if (index == null || index < 0 || index >= _tracks.length) return null;
+    final current = _tracks[index];
+    final updatedTrack = current.withMetadata(
+      title: title,
+      artist: artist,
+      album: album,
+      year: year,
+      genre: genre,
+      trackNumber: trackNumber,
+      artworkUri: artworkUri,
+      metadataReviewed: true,
+    );
+    final updated = [..._tracks];
+    updated[index] = updatedTrack;
+    await _saveTracks(updated);
+    _setTracks(updated);
+    notifyListeners();
+    return updatedTrack;
+  }
+
+  Future<List<ImportedTrack>> importExternalTracks(
+    Iterable<ImportedTrack> externalTracks,
+  ) async {
+    final existingIds = _tracks.map((t) => t.id).toSet();
+    final newTracks = <ImportedTrack>[];
+    for (final track in externalTracks) {
+      if (!existingIds.contains(track.id)) {
+        newTracks.add(track);
+        existingIds.add(track.id);
+      }
+    }
+    if (newTracks.isEmpty) return const [];
+    final updated = [..._tracks, ...newTracks];
+    await _saveTracks(updated);
+    _setTracks(updated);
+    _invalidatePlaybackQueue();
+    notifyListeners();
+    return newTracks;
+  }
+
   Future<int> scanDeviceMusic() async {
     if (_isImporting) return 0;
     _setImporting(true);
     try {
-      final discovered = [...await _scanDeviceAudio()];
+      final now = DateTime.now();
+      final lastFullScan = await _repository?.lastFullDeviceScanAt();
+      final needsFullScan =
+          lastFullScan == null ||
+          now.difference(lastFullScan) >= const Duration(hours: 24) ||
+          _repository == null;
+      final discovered = [
+        ...await _scanDeviceAudio(
+          modifiedSince: needsFullScan ? null : lastFullScan,
+        ),
+      ];
       for (final folder in _musicFolders) {
         discovered.addAll(await _scanMusicFolder(folder.uri));
       }
-      final deviceTracks = _tracksFromDeviceAudio(discovered);
       final importedTracks = _tracks
           .where((track) => !track.isDeviceMedia)
           .toList(growable: false);
-      final updated = [...importedTracks, ...deviceTracks];
-      await _saveTracks(updated);
+      final downloadedSignatures = <String>{
+        for (final track in importedTracks)
+          if (track.sourceProvider != null)
+            '${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}',
+      };
+      final deviceTracks = _tracksFromDeviceAudio(discovered)
+          .where(
+            (track) =>
+                (!_isAndroid() || !_isNonSongAudioTrack(track)) &&
+                !downloadedSignatures.contains(
+                  '${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}',
+                ),
+          )
+          .toList(growable: false);
+      final discoveredById = {
+        for (final track in deviceTracks) track.id: track,
+      };
+      final previousDeviceTracks = _tracks.where(
+        (track) =>
+            track.isDeviceMedia &&
+            (!_isAndroid() || !_isNonSongAudioTrack(track)),
+      );
+      final retainedDeviceTracks = <ImportedTrack>[];
+      final unavailableTrackIds = <String>{};
+      for (final previous in previousDeviceTracks) {
+        final update = discoveredById.remove(previous.id);
+        if (update != null) {
+          retainedDeviceTracks.add(update);
+        } else if (needsFullScan) {
+          retainedDeviceTracks.add(previous.withMetadata(isAvailable: false));
+          unavailableTrackIds.add(previous.id);
+        } else {
+          retainedDeviceTracks.add(previous);
+        }
+      }
+      final updated = [
+        ...importedTracks,
+        ...retainedDeviceTracks,
+        ...discoveredById.values,
+      ];
+      if (_repository case final repository?) {
+        await repository.saveDeviceScan(
+          changedTracks: deviceTracks,
+          unavailableTrackIds: unavailableTrackIds,
+        );
+      } else {
+        await _saveTracks(updated);
+      }
+      if (needsFullScan) await _repository?.recordFullDeviceScan(now);
       _setTracks(updated);
       _invalidatePlaybackQueue();
       notifyListeners();
@@ -781,45 +1262,12 @@ class MusicLibrary extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  static Future<List<DeviceAudio>> _scanFromDevice() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      throw UnsupportedError(
-        'Device music scanning is currently available on Android.',
-      );
-    }
-    final sdkVersion = await _platform.invokeMethod<int>('androidSdkVersion');
-    final permission = sdkVersion != null && sdkVersion >= 33
-        ? Permission.audio
-        : Permission.storage;
-    final status = await permission.request();
-    if (!status.isGranted) {
-      throw StateError(
-        'Tone needs music access permission to scan your device.',
-      );
-    }
-    const pageSize = 250;
-    final audio = <DeviceAudio>[];
-    var offset = 0;
-    while (true) {
-      final page = await _platform.invokeListMethod<Map<Object?, Object?>>(
-        'scanAudio',
-        {'offset': offset, 'limit': pageSize},
-      );
-      if (page == null) {
-        throw StateError('Android did not return a page of scanned music.');
-      }
-      audio.addAll(page.map(DeviceAudio.fromPlatformMap));
-      if (page.length < pageSize) break;
-      offset += pageSize;
-      await Future<void>.delayed(Duration.zero);
-    }
-    return audio;
-  }
-
   static Future<List<DeviceAudio>> _emptyDeviceScan() async => const [];
   static Future<MusicFolder?> _emptyFolderPicker() async => null;
   static Future<List<DeviceAudio>> _emptyFolderScan(String _) async => const [];
   static Future<void> _emptyFolderRelease(String _) async {}
+  static Future<bool> _unsupportedTrackDeletion(String _) =>
+      Future.error(UnsupportedError('Track-file deletion is not configured.'));
 
   Future<ImportedTrack> _copyPickedFile(PickedAudio picked) async {
     final extension = p.extension(picked.name).toLowerCase();
@@ -827,6 +1275,7 @@ class MusicLibrary extends ChangeNotifier {
     while (await File(p.join(_musicDirectory.path, '$id$extension')).exists()) {
       id = '${DateTime.now().microsecondsSinceEpoch}_${_importSequence++}';
     }
+
     final fileName = '$id$extension';
     final partial = File(p.join(_musicDirectory.path, '$fileName.partial'));
     final destination = File(p.join(_musicDirectory.path, fileName));
@@ -841,15 +1290,19 @@ class MusicLibrary extends ChangeNotifier {
         throw FileSystemException('The selected audio file is empty.');
       }
       await partial.rename(destination.path);
-      final track = ImportedTrack.fromCopiedFile(
-        id: id,
-        path: destination.path,
-        originalName: picked.name,
-      );
+      final track =
+          ImportedTrack.fromCopiedFile(
+            id: id,
+            path: destination.path,
+            originalName: picked.name,
+          ).withMetadata(
+            fileSizeBytes: await destination.length(),
+            dateModifiedAt: await destination.lastModified(),
+          );
       Map<Object?, Object?>? metadata;
       try {
         metadata = await _metadataReader(destination.path, track.title);
-      } on PlatformException catch (error, stackTrace) {
+      } catch (error, stackTrace) {
         FlutterError.reportError(
           FlutterErrorDetails(
             exception: error,
@@ -891,16 +1344,37 @@ class MusicLibrary extends ChangeNotifier {
     }
   }
 
-  static Future<Map<Object?, Object?>?> _readImportedMetadata(
-    String path,
-    String fallbackTitle,
+  Future<bool> _isExactDuplicateImport(
+    ImportedTrack candidate,
+    Iterable<ImportedTrack> existingTracks,
   ) async {
-    if (!Platform.isAndroid) return null;
-    return _platform.invokeMapMethod<Object?, Object?>(
-      'readLocalAudioMetadata',
-      {'path': path, 'fallbackTitle': fallbackTitle},
-    );
+    final candidateFile = File(candidate.path);
+    final candidateLength =
+        candidate.fileSizeBytes ?? await candidateFile.length();
+    final candidateDigest = await _fileDigest(candidateFile);
+    for (final existing in existingTracks) {
+      if (existing.isDeviceMedia) continue;
+      if (existing.fileSizeBytes != null &&
+          existing.fileSizeBytes != candidateLength) {
+        continue;
+      }
+      final existingFile = File(existing.path);
+      if (!await existingFile.exists() ||
+          await existingFile.length() != candidateLength) {
+        continue;
+      }
+      if (await _fileDigest(existingFile) == candidateDigest) return true;
+    }
+    return false;
   }
+
+  Future<String> _fileDigest(File file) async =>
+      (await sha256.bind(file.openRead()).first).toString();
+
+  static Future<Map<Object?, Object?>?> _emptyMetadataReader(
+    String _,
+    String _,
+  ) async => null;
 
   Future<void> _deleteCopies(Iterable<ImportedTrack> tracks) async {
     for (final track in tracks) {
@@ -914,13 +1388,24 @@ class MusicLibrary extends ChangeNotifier {
       throw RangeError.index(index, _tracks, 'index');
     }
     final selectedTrack = _tracks[index];
+    if (!selectedTrack.isAvailable) {
+      throw StateError(
+        'This song is currently unavailable. Rescan your music library and try again.',
+      );
+    }
     final currentQueue = handler.queue.value;
-    final queuedIndex = _queueIndexes[selectedTrack.id];
-    if (_queuedTrackOrder.length == _tracks.length && queuedIndex != null) {
-      if (currentQueue.length != _queuedTrackOrder.length ||
-          currentQueue[queuedIndex].extras?['libraryId'] != selectedTrack.id) {
-        throw StateError('The current playback queue is out of sync.');
-      }
+    final queuedIndex = currentQueue.indexWhere(
+      (item) => _trackIdForMediaItem(item) == selectedTrack.id,
+    );
+    final queueMatchesStoredOrder =
+        currentQueue.length == _queuedTrackOrder.length &&
+        currentQueue.asMap().entries.every(
+          (entry) =>
+              _trackIdForMediaItem(entry.value) == _queuedTrackOrder[entry.key],
+        );
+    if (_queuedTrackOrder.length == _tracks.length &&
+        queueMatchesStoredOrder &&
+        queuedIndex >= 0) {
       await handler.skipToQueueItem(queuedIndex);
     } else {
       final orderedTracks = [..._tracks.skip(index), ..._tracks.take(index)];
@@ -932,104 +1417,321 @@ class MusicLibrary extends ChangeNotifier {
       _queuedTrackOrder = orderedTracks
           .map((track) => track.id)
           .toList(growable: false);
-      _queueIndexes = {
-        for (var index = 0; index < _queuedTrackOrder.length; index++)
-          _queuedTrackOrder[index]: index,
-      };
     }
     await handler.play();
-    await _preferences.setString(_queueKey, jsonEncode(_queuedTrackOrder));
-    await _preferences.setString(_currentTrackKey, selectedTrack.id);
-    await _preferences.setInt(_positionKey, 0);
+    await _saveQueueState(currentTrackId: selectedTrack.id, positionMs: 0);
+  }
+
+  String? _trackIdForMediaItem(MediaItem item) {
+    final libraryId = item.extras?['libraryId'];
+    if (libraryId is String && _trackIndexById.containsKey(libraryId)) {
+      return libraryId;
+    }
+    for (final track in _tracks) {
+      if (track.path == item.id) return track.id;
+    }
+    return null;
   }
 
   Future<void> restoreQueue(AudioHandler handler) async {
-    final encodedQueue = _preferences.getString(_queueKey);
-    if (encodedQueue == null || _tracks.isEmpty) return;
+    final snapshot = _repository == null ? null : await _repository.load();
+    final storedIds =
+        snapshot?.queueTrackIds ??
+        (() {
+          final encodedQueue = _preferences.getString(_queueKey);
+          if (encodedQueue == null) return const <String>[];
+          final decoded = jsonDecode(encodedQueue);
+          if (decoded is! List || decoded.any((item) => item is! String)) {
+            throw const FormatException('Stored playback queue is invalid.');
+          }
+          return decoded.cast<String>();
+        })();
+    if (storedIds.isEmpty || _tracks.isEmpty) return;
 
-    final storedIds = (jsonDecode(encodedQueue) as List).cast<String>();
     final byId = {for (final track in _tracks) track.id: track};
-    final restored = storedIds.map((id) => byId[id]).whereType<ImportedTrack>();
+    final restored = storedIds
+        .map((id) => byId[id])
+        .whereType<ImportedTrack>()
+        .where((track) => track.isAvailable);
     final queue = restored.toList(growable: false);
     if (queue.isEmpty) return;
 
-    final currentId = _preferences.getString(_currentTrackKey);
+    final currentId =
+        snapshot?.currentTrackId ?? _preferences.getString(_currentTrackKey);
     final restoredIndex = queue.indexWhere((track) => track.id == currentId);
     await handler.updateQueue(
       queue.map((track) => track.toMediaItem()).toList(growable: false),
     );
     _queuedTrackOrder = queue.map((track) => track.id).toList(growable: false);
-    _queueIndexes = {
-      for (var index = 0; index < queue.length; index++) queue[index].id: index,
-    };
     await handler.skipToQueueItem(restoredIndex < 0 ? 0 : restoredIndex);
-    final position = _preferences.getInt(_positionKey) ?? 0;
+    final position =
+        snapshot?.positionMs ?? _preferences.getInt(_positionKey) ?? 0;
     if (position > 0) {
       await handler.seek(Duration(milliseconds: position));
     }
   }
 
+  Future<void> persistPlaybackQueue({
+    required List<MediaItem> items,
+    required String? currentMediaId,
+    required int positionMs,
+  }) async {
+    final tracksById = {for (final track in _tracks) track.id: track};
+    final tracksByPath = {for (final track in _tracks) track.path: track};
+    final idsByMediaId = <String, String>{};
+    final trackIds = <String>[];
+    for (final item in items) {
+      final libraryId = item.extras?['libraryId'];
+      final track =
+          (libraryId is String ? tracksById[libraryId] : null) ??
+          tracksByPath[item.id];
+      if (track == null) {
+        _queuedTrackOrder = const [];
+        await _saveQueueState(currentTrackId: null, positionMs: 0);
+        return;
+      }
+      trackIds.add(track.id);
+      idsByMediaId[item.id] = track.id;
+    }
+
+    _queuedTrackOrder = List.unmodifiable(trackIds);
+    await _saveQueueState(
+      currentTrackId:
+          idsByMediaId[currentMediaId] ??
+          (trackIds.isEmpty ? null : trackIds.first),
+      positionMs: positionMs < 0 ? 0 : positionMs,
+    );
+  }
+
   Future<void> saveCurrentTrack(String? mediaId) async {
-    if (mediaId == null) {
+    String? trackId;
+    if (mediaId != null) {
+      final matches = _tracks.where((item) => item.path == mediaId);
+      if (matches.isEmpty) return;
+      trackId = matches.first.id;
+    }
+    if (_currentTrackId == trackId) return;
+    if (_repository case final repository?) {
+      await repository.saveCurrentTrack(trackId);
+    } else if (trackId == null) {
       await _preferences.remove(_currentTrackKey);
       await _preferences.remove(_positionKey);
-      return;
+    } else {
+      await _preferences.setString(_currentTrackKey, trackId);
+      await _preferences.setInt(_positionKey, 0);
     }
-    final track = _tracks.where((item) => item.path == mediaId);
-    if (track.isEmpty) return;
-    if (_preferences.getString(_currentTrackKey) == track.first.id) return;
-    await _preferences.setString(_currentTrackKey, track.first.id);
-    await _preferences.setInt(_positionKey, 0);
+    _currentTrackId = trackId;
+    _playbackHistoryRevision.value++;
   }
 
   Future<void> savePlaybackPosition(Duration position) =>
+      _repository?.savePlaybackPosition(position.inMilliseconds) ??
       _preferences.setInt(_positionKey, position.inMilliseconds);
 
-  Future<void> removeTrack(ImportedTrack track) async {
-    if (!_tracks.any((item) => item.id == track.id)) return;
-    final updated = _tracks.where((item) => item.id != track.id).toList();
-    await _saveTracks(updated);
-    final updatedPlaylists = _playlists
-        .map(
-          (playlist) => _copyPlaylist(
-            playlist,
-            trackIds: playlist.trackIds
-                .where((id) => id != track.id)
-                .toList(growable: false),
-          ),
+  Future<List<ImportedTrack>> recentlyPlayed({int limit = 20}) async {
+    if (_repository == null) return const [];
+    return _repository.recentlyPlayed(limit: limit);
+  }
+
+  Future<List<MostPlayedTrack>> mostPlayedTracks({int limit = 20}) async {
+    if (_repository == null) return const [];
+    return _repository.mostPlayedTracks(limit: limit);
+  }
+
+  Future<List<PlaybackHistoryEntry>> listeningHistory({int limit = 100}) async {
+    if (_repository == null) return const [];
+    return _repository.listeningHistory(limit: limit);
+  }
+
+  Future<bool> removeTrack(ImportedTrack track) async {
+    if (!_tracks.any((item) => item.id == track.id)) return true;
+    if (track.isDeviceMedia) {
+      if (!await _deleteDeviceAudio(track.path)) return false;
+    } else {
+      final musicDirectory = p.normalize(p.absolute(_musicDirectory.path));
+      final trackPath = p.normalize(p.absolute(track.path));
+      if (!p.isWithin(musicDirectory, trackPath)) {
+        throw StateError('Tone can only delete files stored in its library.');
+      }
+      final file = File(track.path);
+      if (await file.exists()) await file.delete();
+    }
+
+    await _removeTracksFromLibrary({track.id});
+    return true;
+  }
+
+  Future<BulkTrackRemovalResult> removeTracks(
+    Iterable<ImportedTrack> tracks,
+  ) async {
+    final selectedById = {for (final track in tracks) track.id: track};
+    final selected = selectedById.values
+        .where((track) => _tracks.any((item) => item.id == track.id))
+        .toList(growable: false);
+    final mediaStoreTracks = selected
+        .where(
+          (track) =>
+              track.isDeviceMedia &&
+              Uri.tryParse(track.path)?.authority == 'media',
         )
         .toList(growable: false);
-    if (_playlists.any((playlist) => playlist.trackIds.contains(track.id))) {
+    final removed = <ImportedTrack>[];
+    final failures = <ImportedTrack, Object>{};
+
+    if (mediaStoreTracks.isNotEmpty) {
+      try {
+        final approved = await _deleteDeviceAudioBatch(
+          mediaStoreTracks.map((track) => track.path).toList(growable: false),
+        );
+        if (!approved) {
+          return const BulkTrackRemovalResult(
+            removed: [],
+            failures: {},
+            cancelled: true,
+          );
+        }
+        await _removeTracksFromLibrary({
+          for (final track in mediaStoreTracks) track.id,
+        });
+        removed.addAll(mediaStoreTracks);
+      } on Object catch (error) {
+        for (final track in mediaStoreTracks) {
+          failures[track] = error;
+        }
+      }
+    }
+
+    for (final track in selected) {
+      if (mediaStoreTracks.any((mediaTrack) => mediaTrack.id == track.id)) {
+        continue;
+      }
+      try {
+        if (await removeTrack(track)) {
+          removed.add(track);
+        } else {
+          failures[track] = StateError('Deletion was not approved.');
+        }
+      } on Object catch (error) {
+        failures[track] = error;
+      }
+    }
+
+    return BulkTrackRemovalResult(
+      removed: List.unmodifiable(removed),
+      failures: Map.unmodifiable(failures),
+    );
+  }
+
+  Future<void> _removeTracksFromLibrary(Set<String> trackIds) async {
+    if (trackIds.isEmpty) return;
+    final existingIds = trackIds
+        .where((id) => _tracks.any((track) => track.id == id))
+        .toSet();
+    if (existingIds.isEmpty) return;
+    final updated = _tracks
+        .where((item) => !existingIds.contains(item.id))
+        .toList(growable: false);
+    await _saveTracks(updated);
+    final hasPlaylistReferences = _playlists.any(
+      (playlist) => playlist.trackIds.any(existingIds.contains),
+    );
+    if (hasPlaylistReferences) {
+      final updatedPlaylists = _playlists
+          .map(
+            (playlist) => _copyPlaylist(
+              playlist,
+              trackIds: playlist.trackIds
+                  .where((id) => !existingIds.contains(id))
+                  .toList(growable: false),
+            ),
+          )
+          .toList(growable: false);
       await _savePlaylists(updatedPlaylists);
       _playlists = updatedPlaylists;
     }
     _setTracks(updated);
     _invalidatePlaybackQueue();
-    if (_favoriteTrackIds.remove(track.id)) {
-      await _preferences.setStringList(
-        _favoritesKey,
-        _favoriteTrackIds.toList(),
-      );
-    }
-    if (!track.isDeviceMedia) {
-      final file = File(track.path);
-      if (await file.exists()) {
-        await file.delete();
-      }
+    final removedFavorite = _favoriteTrackIds.any(existingIds.contains);
+    _favoriteTrackIds.removeAll(existingIds);
+    if (removedFavorite) {
+      await _saveFavorites(_favoriteTrackIds);
     }
     notifyListeners();
   }
 
   Future<void> _saveTracks(List<ImportedTrack> tracks) async {
+    if (_repository case final repository?) {
+      await repository.saveTracks(tracks);
+      return;
+    }
     final json = tracks.map((track) => track.toJson()).toList(growable: false);
     await _preferences.setString(_tracksKey, jsonEncode(json));
   }
 
-  Future<void> _savePlaylists(List<MusicPlaylist> playlists) =>
-      _preferences.setString(
-        _playlistsKey,
-        jsonEncode(playlists.map((playlist) => playlist.toJson()).toList()),
+  Future<void> _savePlaylists(List<MusicPlaylist> playlists) {
+    if (_repository case final repository?) {
+      return repository.savePlaylists(playlists);
+    }
+    return _preferences.setString(
+      _playlistsKey,
+      jsonEncode(playlists.map((playlist) => playlist.toJson()).toList()),
+    );
+  }
+
+  Future<void> _saveFolders(List<MusicFolder> folders) {
+    if (_repository case final repository?) {
+      return repository.saveFolders(folders);
+    }
+    return _preferences.setString(
+      _foldersKey,
+      jsonEncode(folders.map((folder) => folder.toJson()).toList()),
+    );
+  }
+
+  Future<void> _saveFavorites(Set<String> trackIds) {
+    if (_repository case final repository?) {
+      return repository.saveFavorites(trackIds);
+    }
+    return trackIds.isEmpty
+        ? _preferences.remove(_favoritesKey)
+        : _preferences.setStringList(_favoritesKey, trackIds.toList());
+  }
+
+  Future<void> _saveExclusions(Set<String> trackIds) {
+    if (_repository case final repository?) {
+      return repository.saveExclusions(trackIds);
+    }
+    return trackIds.isEmpty
+        ? _preferences.remove(_mixExclusionsKey)
+        : _preferences.setStringList(_mixExclusionsKey, trackIds.toList());
+  }
+
+  Future<void> _saveQueueState({
+    required String? currentTrackId,
+    required int positionMs,
+  }) {
+    if (_repository case final repository?) {
+      return repository.saveQueue(
+        _queuedTrackOrder,
+        currentTrackId: currentTrackId,
+        positionMs: positionMs,
       );
+    }
+    return Future.wait([
+      _preferences.setString(_queueKey, jsonEncode(_queuedTrackOrder)),
+      if (currentTrackId == null)
+        _preferences.remove(_currentTrackKey)
+      else
+        _preferences.setString(_currentTrackKey, currentTrackId),
+      _preferences.setInt(_positionKey, positionMs),
+    ]).then((_) {});
+  }
+
+  Future<void> close() async {
+    await _repository?.close();
+    _playbackHistoryRevision.dispose();
+    dispose();
+  }
 
   MusicPlaylist _playlistById(String playlistId) {
     for (final playlist in _playlists) {
@@ -1073,7 +1775,6 @@ class MusicLibrary extends ChangeNotifier {
   }
 
   void _invalidatePlaybackQueue() {
-    _queueIndexes = const {};
     _queuedTrackOrder = const [];
   }
 
@@ -1091,82 +1792,4 @@ class PickedAudio {
 
   final String name;
   final Stream<List<int>> bytes;
-}
-
-class DeviceAudio {
-  const DeviceAudio({
-    required this.uri,
-    required this.name,
-    required this.title,
-    required this.artist,
-    this.album = 'Unknown album',
-    this.durationMs,
-    this.artworkUri,
-    this.year,
-    this.trackNumber,
-    this.genre,
-    this.bpm,
-    this.sourceFolderUri,
-    this.lyricsUri,
-  });
-
-  final String uri;
-  final String name;
-  final String title;
-  final String artist;
-  final String album;
-  final int? durationMs;
-  final String? artworkUri;
-  final int? year;
-  final int? trackNumber;
-  final String? genre;
-  final double? bpm;
-  final String? sourceFolderUri;
-  final String? lyricsUri;
-
-  factory DeviceAudio.fromPlatformMap(Map<Object?, Object?> item) =>
-      DeviceAudio(
-        uri: item['uri']! as String,
-        name: item['name']! as String,
-        title: item['title']! as String,
-        artist: item['artist']! as String,
-        album: item['album'] as String? ?? 'Unknown album',
-        durationMs: (item['durationMs'] as num?)?.toInt(),
-        artworkUri: item['artworkUri'] as String?,
-        year: (item['year'] as num?)?.toInt(),
-        trackNumber: (item['trackNumber'] as num?)?.toInt(),
-        genre: item['genre'] as String?,
-        bpm: (item['bpm'] as num?)?.toDouble(),
-        sourceFolderUri: item['sourceFolderUri'] as String?,
-        lyricsUri: item['lyricsUri'] as String?,
-      );
-}
-
-class MusicFolder {
-  const MusicFolder({required this.uri, required this.name});
-
-  final String uri;
-  final String name;
-
-  Map<String, String> toJson() => {'uri': uri, 'name': name};
-
-  factory MusicFolder.fromJson(Map<String, Object?> json) =>
-      MusicFolder(uri: json['uri']! as String, name: json['name']! as String);
-
-  static List<MusicFolder> decodeList(String value) {
-    final decoded = jsonDecode(value);
-    if (decoded is! List) {
-      throw const FormatException('Stored music folders are not a list.');
-    }
-    return decoded
-        .map((item) {
-          if (item is! Map) {
-            throw const FormatException(
-              'Stored music folder is not an object.',
-            );
-          }
-          return MusicFolder.fromJson(Map<String, Object?>.from(item));
-        })
-        .toList(growable: false);
-  }
 }

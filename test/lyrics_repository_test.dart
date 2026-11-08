@@ -17,6 +17,7 @@ void main() {
 
     expect(lyrics, isNotNull);
     expect(lyrics!.isSynchronized, isTrue);
+    expect(lyrics.hasWordTiming, isFalse);
     expect(lyrics.lines.map((line) => line.text), [
       'First line',
       'First line',
