@@ -43,6 +43,7 @@ class MeloServices {
         androidNotificationChannelName: 'Melo music playback',
         androidNotificationChannelDescription:
             'Playback controls for music playing in Melo.',
+        androidNotificationIcon: 'drawable/ic_stat_music',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
       ),
