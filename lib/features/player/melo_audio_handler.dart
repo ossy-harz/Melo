@@ -80,7 +80,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _transitionCancelRequested = false;
   String? _transitionCancellationReason;
   int? _preloadedQueueIndex;
-  Future<void>? _preloadOperation;
+  int? _loadingQueueIndex;
   Future<void>? _activeTransitionOperation;
   TransitionDiagnostic? _activeDiagnostic;
   bool _audioSessionActive = false;
@@ -484,21 +484,22 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (nextIndex == null) {
       throw StateError('There is no upcoming track to preload.');
     }
-    final existing = _preloadOperation;
-    if (existing != null) {
-      await existing;
-      final incomingState = _audioEngine.stateFor(AudioDeck.b);
-      if (_preloadedQueueIndex == nextIndex && incomingState.loaded) return;
-    }
-    final operation = _performPreloadNextTrack(
-      nextIndex,
-      fromTransition: fromTransition,
-    );
-    _preloadOperation = operation;
+    if (_loadingQueueIndex == nextIndex) return;
+    final incomingState = _audioEngine.stateFor(AudioDeck.b);
+    if (_preloadedQueueIndex == nextIndex && incomingState.loaded) return;
+
+    _loadingQueueIndex = nextIndex;
     try {
-      await operation;
+      await _performPreloadNextTrack(
+        nextIndex,
+        fromTransition: fromTransition,
+      );
+    } on PlayerInterruptedException {
+      // Expected when playback advances or changes mid-preload.
     } finally {
-      if (identical(_preloadOperation, operation)) _preloadOperation = null;
+      if (_loadingQueueIndex == nextIndex) {
+        _loadingQueueIndex = null;
+      }
     }
   }
 
@@ -536,23 +537,27 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void _scheduleNextTrackPreload() {
-    if (_nextQueueIndex() == null && _autoplayContinuous && _items.isNotEmpty) {
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null && _autoplayContinuous && _items.isNotEmpty) {
       unawaited(_ensureUpcomingAutoplayTracks().then((extended) {
         if (extended) _scheduleNextTrackPreload();
       }));
     }
-    if (_nextQueueIndex() == null ||
+    if (nextIndex == null ||
         _activeTransitionOperation != null ||
-        _preloadOperation != null) {
+        _loadingQueueIndex != null ||
+        _preloadedQueueIndex == nextIndex) {
       return;
     }
     unawaited(
       _preloadNextTrack().catchError((Object error, StackTrace stackTrace) {
-        _reportPlaybackError(
-          error,
-          stackTrace,
-          'while preloading the upcoming track for AutoMix',
-        );
+        if (error is! PlayerInterruptedException) {
+          _reportPlaybackError(
+            error,
+            stackTrace,
+            'while preloading the upcoming track for AutoMix',
+          );
+        }
       }),
     );
   }
@@ -1848,7 +1853,13 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 /// Applies the user's equalizer profile when the platform supports it.
 class _PlayerFilter {
   _PlayerFilter(this._equalizer) {
-    if (_equalizer != null) unawaited(_prime());
+    if (_equalizer != null) {
+      // Seed enabled state upfront before the player platform becomes active.
+      // In just_audio, setting enabled while inactive safely updates the internal
+      // subject so that the initial InitRequest enables effects without an IPC race.
+      unawaited(_equalizer.setEnabled(true));
+      unawaited(_prime());
+    }
   }
 
   final AndroidEqualizer? _equalizer;
@@ -1856,6 +1867,9 @@ class _PlayerFilter {
   AndroidEqualizerParameters? _parameters;
   final Map<int, double> _applied = {};
   AudioProfile _profile = const AudioProfile();
+  bool _isPriming = false;
+  bool _isShaping = false;
+
   bool get isAvailable => _parameters != null;
 
   Map<String, Object> get diagnostics => {
@@ -1871,13 +1885,15 @@ class _PlayerFilter {
       : AudioPipeline(androidAudioEffects: [_equalizer]);
 
   Future<void> _prime() async {
+    if (_isPriming || _parameters != null) return;
+    _isPriming = true;
     try {
       final resolved = await _equalizer!.parameters;
-      await _equalizer.setEnabled(true);
       _parameters = resolved;
       unawaited(_shape());
+    } on PlayerInterruptedException {
+      // Expected if player source was superseded during priming.
     } on Object catch (error, stackTrace) {
-      if (error is PlayerInterruptedException) return;
       FlutterError.reportError(
         FlutterErrorDetails(
           exception: error,
@@ -1886,6 +1902,8 @@ class _PlayerFilter {
           context: ErrorDescription('while initializing the player equalizer'),
         ),
       );
+    } finally {
+      _isPriming = false;
     }
   }
 
@@ -1896,7 +1914,8 @@ class _PlayerFilter {
 
   Future<void> _shape() async {
     final parameters = _parameters;
-    if (parameters == null) return;
+    if (parameters == null || _isShaping) return;
+    _isShaping = true;
     try {
       for (final band in parameters.bands) {
         final gain = _profile
@@ -1907,6 +1926,8 @@ class _PlayerFilter {
         await band.setGain(gain);
         _applied[band.index] = gain;
       }
+    } on PlayerInterruptedException {
+      // Ignore cancellation during track switch
     } on Object catch (error, stackTrace) {
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -1918,6 +1939,8 @@ class _PlayerFilter {
           ),
         ),
       );
+    } finally {
+      _isShaping = false;
     }
   }
 }

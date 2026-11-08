@@ -419,12 +419,13 @@ class AboutToneScreen extends StatefulWidget {
   State<AboutToneScreen> createState() => _AboutToneScreenState();
 }
 
-class _AboutToneScreenState extends State<AboutToneScreen> {
+class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingObserver {
   final AppUpdateService _updater = AppUpdateService.instance;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _updater.addListener(_onUpdaterChanged);
     unawaited(_updater.initialize(runStartupCheck: false));
     if (_updater.lastResult == null) {
@@ -433,7 +434,15 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _updater.removeListener(_onUpdaterChanged);
     super.dispose();
   }

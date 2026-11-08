@@ -137,36 +137,48 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     final handler = widget.audioHandler;
     if (handler == null || _tracks.isEmpty) return;
 
-    final ordered = [..._tracks];
-    if (shuffle) {
-      ordered.shuffle();
-    } else if (startIndex > 0 && startIndex < ordered.length) {
-      final lead = ordered.removeAt(startIndex);
-      ordered.insert(0, lead);
+    try {
+      final ordered = [..._tracks];
+      if (shuffle) {
+        ordered.shuffle();
+      } else if (startIndex > 0 && startIndex < ordered.length) {
+        final lead = ordered.removeAt(startIndex);
+        ordered.insert(0, lead);
+      }
+
+      final items = ordered.map((t) {
+        final local = widget.library?.findMatchingLocalTrack(
+          providerTrackId: t.id,
+          title: t.title,
+          artist: t.author,
+        );
+        return local != null ? local.toMediaItem() : t.toMediaItem();
+      }).toList(growable: false);
+
+      await handler.updateQueue(items);
+      await handler.play();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Playing "${widget.preset.title}"'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not play playlist: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
     }
-
-    final items = ordered.map((t) {
-      final local = widget.library?.findMatchingLocalTrack(
-        providerTrackId: t.id,
-        title: t.title,
-        artist: t.author,
-      );
-      return local != null ? local.toMediaItem() : t.toMediaItem();
-    }).toList(growable: false);
-
-    await handler.updateQueue(items);
-    await handler.play();
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Playing "${widget.preset.title}"'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
   }
 
   Future<void> _downloadSingleTrack(YoutubeTrack track) async {

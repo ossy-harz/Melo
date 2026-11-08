@@ -162,9 +162,11 @@ class JustAudioDualDeckEngine implements AudioEngine {
     try {
       await operation();
     } on Object catch (error, stackTrace) {
-      _errors.add(
-        AudioEngineError(deck: deck, error: error, stackTrace: stackTrace),
-      );
+      if (error is! PlayerInterruptedException) {
+        _errors.add(
+          AudioEngineError(deck: deck, error: error, stackTrace: stackTrace),
+        );
+      }
       rethrow;
     }
   }
@@ -271,6 +273,25 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   String? _error;
   double _gain = 1;
   bool _disposed = false;
+  int _operationGeneration = 0;
+  Future<void> _sequentialQueue = Future<void>.value();
+
+  Future<T> _coordinate<T>(Future<T> Function(int generation) action) {
+    final generation = ++_operationGeneration;
+    final completer = Completer<T>();
+    _sequentialQueue = _sequentialQueue.then((_) async {
+      if (generation != _operationGeneration) {
+        return;
+      }
+      try {
+        final result = await action(generation);
+        if (!completer.isCompleted) completer.complete(result);
+      } catch (e, st) {
+        if (!completer.isCompleted) completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
 
   @override
   Stream<AudioDeckState> get states => _states.stream;
@@ -306,7 +327,7 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   }
 
   @override
-  Future<void> load(AudioDeckSource source) async {
+  Future<void> load(AudioDeckSource source) => _coordinate((generation) async {
     _ensureNotDisposed();
     if (!source.uri.hasScheme) {
       throw ArgumentError.value(source.uri, 'source.uri', 'Must be absolute.');
@@ -322,24 +343,40 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
           tag: source.tag,
         ),
       );
-      _loaded = true;
-      _publishState();
+      if (generation == _operationGeneration) {
+        _loaded = true;
+        _publishState();
+      }
+    } on PlayerInterruptedException {
+      // Loading interrupted because operation was superseded or cancelled.
+      if (generation == _operationGeneration) {
+        _loaded = false;
+        _publishState();
+      }
     } on Object catch (error) {
-      _error = error.toString();
-      _publishState();
+      if (generation == _operationGeneration) {
+        _error = error.toString();
+        _publishState();
+      }
       rethrow;
     }
-  }
+  });
 
   @override
-  Future<void> unload() async {
+  Future<void> unload() => _coordinate((generation) async {
     _ensureNotDisposed();
-    await _player.stop();
-    await _player.clearAudioSources();
-    _loaded = false;
-    _error = null;
-    _publishState();
-  }
+    try {
+      await _player.stop();
+      await _player.clearAudioSources();
+    } on PlayerInterruptedException {
+      // Interruption during stop/clear is safe to ignore
+    }
+    if (generation == _operationGeneration) {
+      _loaded = false;
+      _error = null;
+      _publishState();
+    }
+  });
 
   @override
   Future<void> play() async {
@@ -347,11 +384,13 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     if (!_loaded) throw StateError('Deck ${_deck.name} has no loaded source.');
     unawaited(
       _player.play().catchError((Object error, StackTrace stackTrace) {
-        _error = error.toString();
-        _publishState();
-        _errors.add(
-          AudioEngineError(deck: _deck, error: error, stackTrace: stackTrace),
-        );
+        if (error is! PlayerInterruptedException) {
+          _error = error.toString();
+          _publishState();
+          _errors.add(
+            AudioEngineError(deck: _deck, error: error, stackTrace: stackTrace),
+          );
+        }
       }),
     );
   }
@@ -364,21 +403,33 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   }
 
   @override
-  Future<void> stop() async {
+  Future<void> stop() => _coordinate((generation) async {
     _ensureNotDisposed();
-    await _player.stop();
-    _publishState();
-  }
+    try {
+      await _player.stop();
+    } on PlayerInterruptedException {
+      // Ignored
+    }
+    if (generation == _operationGeneration) {
+      _publishState();
+    }
+  });
 
   @override
-  Future<void> seek(Duration position) async {
+  Future<void> seek(Duration position) => _coordinate((generation) async {
     _ensureNotDisposed();
     if (position < Duration.zero) {
       throw ArgumentError.value(position, 'position', 'Must not be negative.');
     }
-    await _player.seek(position);
-    _publishState();
-  }
+    try {
+      await _player.seek(position);
+    } on PlayerInterruptedException {
+      // Ignored
+    }
+    if (generation == _operationGeneration) {
+      _publishState();
+    }
+  });
 
   @override
   Future<void> setGain(double gain) async {

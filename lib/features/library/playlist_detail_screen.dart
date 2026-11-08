@@ -1218,9 +1218,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                       }
                                       if (val == 'queue') _queueTrack(track);
                                       if (val == 'details') {
-                                        TrackDetailsSheet.show(
+                                        SongDetailsSheet.show(
                                           context,
-                                          track.toMediaItem(),
+                                          track: track,
+                                          audioHandler: widget.audioHandler,
+                                          library: widget.library,
                                         );
                                       }
                                       if (val == 'remove') _removeTrack(track);

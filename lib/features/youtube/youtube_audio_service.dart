@@ -281,14 +281,8 @@ class YoutubeAudioService {
     if (cleanQuery.isEmpty) return const [];
     unawaited(_getVisitorData());
 
-    // If user explicitly queried for a mix or set, do not filter mixtapes.
-    final queryLower = cleanQuery.toLowerCase();
-    final shouldFilter = filterMixtapes &&
-        !queryLower.contains('mix') &&
-        !queryLower.contains('dj') &&
-        !queryLower.contains('set') &&
-        !queryLower.contains('album') &&
-        !queryLower.contains('nonstop');
+    // When filterMixtapes is requested, strictly filter long sets and nonstop compilations.
+    final shouldFilter = filterMixtapes;
 
     try {
       final resultsPair = await Future.wait([

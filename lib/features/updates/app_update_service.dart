@@ -105,8 +105,8 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.3.0';
-  int _currentBuildNumber = 4;
+  String _currentVersion = '1.3.2';
+  int _currentBuildNumber = 6;
 
   /// Opens an external web URL using the Android platform channel or intent.
   static Future<bool> openExternalUrl(String url) async {
@@ -396,9 +396,15 @@ class AppUpdateService extends ChangeNotifier {
       final tempDir = await getTemporaryDirectory();
       final safeTag = release.cleanVersion.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       
+      final prefs = await SharedPreferences.getInstance();
+      final savedPath = prefs.getString('melo_downloaded_apk_path');
+
       final candidates = [
+        if (savedPath != null) File(savedPath),
+        if (_downloadedApkPath != null) File(_downloadedApkPath!),
         File('${tempDir.path}/melo_update_$safeTag.apk'),
         File('${tempDir.path}/tone_update_$safeTag.apk'),
+        File('${tempDir.path}/melo_update.apk'),
       ];
 
       for (final file in candidates) {
@@ -473,6 +479,8 @@ class AppUpdateService extends ChangeNotifier {
 
       _downloadedApkPath = outFile.path;
       _downloadProgress = 1.0;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('melo_downloaded_apk_path', outFile.path);
       notifyListeners();
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
