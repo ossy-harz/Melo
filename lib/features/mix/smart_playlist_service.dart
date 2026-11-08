@@ -2,12 +2,12 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 enum SmartVibe {
   dailyFlow,

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Tone's palette: cherry red on a deep, warm ink. The app shell stays dark
 /// so the product always feels like the same place, while light mode offers a
 /// warm cherry-tinted paper alternative.
-abstract final class ToneColors {
+abstract final class MeloColors {
   // Light theme ink and paper.
   static const ink = Color(0xFF1A1114);
   static const mutedInk = Color(0xFF6F5F66);
@@ -37,7 +37,7 @@ abstract final class ToneColors {
 }
 
 /// Corner radii used across the product so surfaces stay consistent.
-abstract final class ToneRadii {
+abstract final class MeloRadii {
   static const sm = 12.0;
   static const md = 16.0;
   static const lg = 22.0;
@@ -46,7 +46,7 @@ abstract final class ToneRadii {
 }
 
 /// Motion tokens: durations and curves for a calm, premium feel.
-abstract final class ToneMotion {
+abstract final class MeloMotion {
   static const fast = Duration(milliseconds: 180);
   static const slow = Duration(milliseconds: 520);
 
@@ -65,7 +65,7 @@ abstract final class ToneMotion {
 
 /// Reusable shadow recipes. Dark surfaces lean on glow, light surfaces on a
 /// soft, wide drop shadow.
-abstract final class ToneShadows {
+abstract final class MeloShadows {
   static List<BoxShadow> soft(Color color, {double opacity = 0.16}) => [
     BoxShadow(
       color: color.withValues(alpha: opacity),
@@ -92,7 +92,7 @@ abstract final class ToneShadows {
 
 /// Tone's type scale: a single, characterful family (Plus Jakarta Sans) with
 /// discipline in weight and tracking instead of shouting on every heading.
-abstract final class ToneTypography {
+abstract final class MeloTypography {
   static const fontFamily = 'Plus Jakarta Sans';
 
   static TextTheme textTheme(Color onSurface, Color onSurfaceVariant) {
@@ -142,8 +142,8 @@ abstract final class ToneTypography {
 }
 
 /// A calm, premium page transition: fade with a gentle rise and settle.
-class TonePageTransitionsBuilder extends PageTransitionsBuilder {
-  const TonePageTransitionsBuilder();
+class MeloPageTransitionsBuilder extends PageTransitionsBuilder {
+  const MeloPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
@@ -153,10 +153,10 @@ class TonePageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    if (ToneMotion.reduced(context)) return child;
+    if (MeloMotion.reduced(context)) return child;
     final curved = CurvedAnimation(
       parent: animation,
-      curve: ToneMotion.emphasized,
+      curve: MeloMotion.emphasized,
       reverseCurve: Curves.easeInCubic,
     );
     return FadeTransition(
@@ -172,7 +172,7 @@ class TonePageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-abstract final class ToneTheme {
+abstract final class MeloTheme {
   static ThemeData get light => _theme(Brightness.light);
   static ThemeData get dark => _theme(Brightness.dark);
 
@@ -180,10 +180,10 @@ abstract final class ToneTheme {
     final isLight = brightness == Brightness.light;
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: ToneColors.cherry,
+          seedColor: MeloColors.cherry,
           brightness: brightness,
         ).copyWith(
-          primary: isLight ? ToneColors.plum : ToneColors.ember,
+          primary: isLight ? MeloColors.plum : MeloColors.ember,
           onPrimary: isLight ? Colors.white : const Color(0xFF2A0008),
           primaryContainer: isLight
               ? const Color(0xFFFFDDE3)
@@ -203,13 +203,13 @@ abstract final class ToneTheme {
               : const Color(0xFFFFD9E0),
           tertiary: isLight ? const Color(0xFF9A4439) : const Color(0xFFFFB09E),
           onTertiary: isLight ? Colors.white : const Color(0xFF3A0A02),
-          surface: isLight ? ToneColors.paper : ToneColors.shell,
-          onSurface: isLight ? ToneColors.ink : ToneColors.playerText,
+          surface: isLight ? MeloColors.paper : MeloColors.shell,
+          onSurface: isLight ? MeloColors.ink : MeloColors.playerText,
           onSurfaceVariant: isLight
-              ? ToneColors.mutedInk
-              : ToneColors.playerMuted,
+              ? MeloColors.mutedInk
+              : MeloColors.playerMuted,
           surfaceContainerLowest: isLight
-              ? ToneColors.card
+              ? MeloColors.card
               : const Color(0xFF0B0B0B),
           surfaceContainerLow: isLight
               ? const Color(0xFFF6EDF0)
@@ -224,7 +224,7 @@ abstract final class ToneTheme {
               ? const Color(0xFFE3D3D8)
               : const Color(0xFF292929),
           outline: isLight ? const Color(0xFFC9B2B9) : const Color(0xFF5A5A5A),
-          outlineVariant: isLight ? ToneColors.line : const Color(0xFF2D2D2D),
+          outlineVariant: isLight ? MeloColors.line : const Color(0xFF2D2D2D),
           shadow: Colors.black,
           scrim: Colors.black,
           inverseSurface: isLight
@@ -235,7 +235,7 @@ abstract final class ToneTheme {
               : const Color(0xFF1A1114),
         );
 
-    final textTheme = ToneTypography.textTheme(
+    final textTheme = MeloTypography.textTheme(
       scheme.onSurface,
       scheme.onSurfaceVariant,
     );
@@ -244,7 +244,7 @@ abstract final class ToneTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      fontFamily: ToneTypography.fontFamily,
+      fontFamily: MeloTypography.fontFamily,
       scaffoldBackgroundColor: scheme.surface,
       canvasColor: scheme.surface,
       textTheme: textTheme,
@@ -264,7 +264,7 @@ abstract final class ToneTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.xl),
+          borderRadius: BorderRadius.circular(MeloRadii.xl),
           side: BorderSide(
             color: scheme.outlineVariant.withValues(alpha: isLight ? 1 : 0.7),
           ),
@@ -285,7 +285,7 @@ abstract final class ToneTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
-            fontFamily: ToneTypography.fontFamily,
+            fontFamily: MeloTypography.fontFamily,
             fontSize: 11.5,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: 0.1,
@@ -295,11 +295,11 @@ abstract final class ToneTheme {
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: TonePageTransitionsBuilder(),
-          TargetPlatform.iOS: TonePageTransitionsBuilder(),
-          TargetPlatform.macOS: TonePageTransitionsBuilder(),
-          TargetPlatform.windows: TonePageTransitionsBuilder(),
-          TargetPlatform.linux: TonePageTransitionsBuilder(),
+          TargetPlatform.android: MeloPageTransitionsBuilder(),
+          TargetPlatform.iOS: MeloPageTransitionsBuilder(),
+          TargetPlatform.macOS: MeloPageTransitionsBuilder(),
+          TargetPlatform.windows: MeloPageTransitionsBuilder(),
+          TargetPlatform.linux: MeloPageTransitionsBuilder(),
         },
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -311,15 +311,15 @@ abstract final class ToneTheme {
           vertical: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.lg),
+          borderRadius: BorderRadius.circular(MeloRadii.lg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.lg),
+          borderRadius: BorderRadius.circular(MeloRadii.lg),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.lg),
+          borderRadius: BorderRadius.circular(MeloRadii.lg),
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
       ),
@@ -328,10 +328,10 @@ abstract final class ToneTheme {
           minimumSize: const Size(48, 52),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ToneRadii.lg),
+            borderRadius: BorderRadius.circular(MeloRadii.lg),
           ),
           textStyle: const TextStyle(
-            fontFamily: ToneTypography.fontFamily,
+            fontFamily: MeloTypography.fontFamily,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -340,11 +340,11 @@ abstract final class ToneTheme {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ToneRadii.md),
+            borderRadius: BorderRadius.circular(MeloRadii.md),
           ),
           side: BorderSide(color: scheme.outlineVariant),
           textStyle: const TextStyle(
-            fontFamily: ToneTypography.fontFamily,
+            fontFamily: MeloTypography.fontFamily,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -353,7 +353,7 @@ abstract final class ToneTheme {
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
           textStyle: const TextStyle(
-            fontFamily: ToneTypography.fontFamily,
+            fontFamily: MeloTypography.fontFamily,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -375,7 +375,7 @@ abstract final class ToneTheme {
         surfaceTintColor: Colors.transparent,
         titleTextStyle: textTheme.titleLarge,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.xl),
+          borderRadius: BorderRadius.circular(MeloRadii.xl),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
@@ -392,10 +392,10 @@ abstract final class ToneTheme {
             ? const Color(0xFF2A1A1F)
             : const Color(0xFF1C1116),
         contentTextStyle: textTheme.bodyMedium?.copyWith(
-          color: isLight ? Colors.white : ToneColors.playerText,
+          color: isLight ? Colors.white : MeloColors.playerText,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.md),
+          borderRadius: BorderRadius.circular(MeloRadii.md),
         ),
       ),
       sliderTheme: SliderThemeData(
@@ -411,7 +411,7 @@ abstract final class ToneTheme {
         side: BorderSide(color: scheme.outlineVariant),
         labelStyle: textTheme.labelLarge?.copyWith(color: scheme.onSurface),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ToneRadii.pill),
+          borderRadius: BorderRadius.circular(MeloRadii.pill),
         ),
       ),
     );

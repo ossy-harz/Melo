@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:audio_service/audio_service.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
 
 class UniversalLinkSheet extends StatefulWidget {
   const UniversalLinkSheet({
@@ -219,7 +219,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                const Icon(Icons.link_rounded, color: ToneColors.cherry),
+                const Icon(Icons.link_rounded, color: MeloColors.cherry),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
@@ -295,12 +295,12 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
               margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: ToneColors.cherry.withValues(alpha: 0.15),
+                color: MeloColors.cherry.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: ToneColors.cherry)),
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: MeloColors.cherry)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(_batchProgressMessage!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -356,7 +356,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
                             icon: const Icon(Icons.download_rounded, size: 16),
                             label: const Text('Download All'),
                             style: FilledButton.styleFrom(
-                              backgroundColor: ToneColors.cherry,
+                              backgroundColor: MeloColors.cherry,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             ),

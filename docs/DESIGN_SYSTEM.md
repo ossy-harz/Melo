@@ -3,7 +3,7 @@
 **Direction:** Dark-first, artwork-led, precise and calm.  
 **Platform:** Android first; follow platform accessibility and navigation
 conventions.  
-**Source of truth for current Flutter tokens:** `lib/app/tone_theme.dart`,
+**Source of truth for current Flutter tokens:** `lib/app/melo_theme.dart`,
 `tone_palette.dart`, `tone_glass.dart`, and `tone_appearance.dart`.
 
 This document records current values and product intent. A value marked
@@ -34,7 +34,7 @@ component already exists in code. Product scope and screen behavior are in
 ## 2. Color tokens
 
 Values below are the current constants or theme values in
-`lib/app/tone_theme.dart` unless labeled proposed.
+`lib/app/melo_theme.dart` unless labeled proposed.
 
 ### Brand and player
 
@@ -95,11 +95,11 @@ Use uppercase/tracked labels sparingly; never use them for long instructions.
 
 | Token | Value |
 |---|---:|
-| `ToneRadii.sm` | 12 px |
-| `ToneRadii.md` | 16 px |
-| `ToneRadii.lg` | 22 px |
-| `ToneRadii.xl` | 28 px |
-| `ToneRadii.pill` | 999 px |
+| `MeloRadii.sm` | 12 px |
+| `MeloRadii.md` | 16 px |
+| `MeloRadii.lg` | 22 px |
+| `MeloRadii.xl` | 28 px |
+| `MeloRadii.pill` | 999 px |
 
 ### Spacing standard
 
@@ -117,14 +117,14 @@ Minimum interactive target is 48 logical pixels where practical.
 ## 5. Elevation, artwork, and materials
 
 - Prefer tonal surface separation and borders over heavy shadows.
-- Current `ToneShadows.soft` and `ToneShadows.glow` are optional recipes;
+- Current `MeloShadows.soft` and `MeloShadows.glow` are optional recipes;
   reserve glow for an active hero/play state, not every card.
-- `ToneGlass` is an optional translucent/blurred surface. Use it selectively
+- `MeloGlass` is an optional translucent/blurred surface. Use it selectively
   for player overlays or floating controls with an opaque/tinted fallback.
   Do not use blur as the only contrast treatment or on dense scrolling lists.
-- `ToneGrain` is decorative and must be omitted or reduced when motion,
+- `MeloGrain` is decorative and must be omitted or reduced when motion,
   rendering cost, or accessibility preferences require a simpler surface.
-- `TonePalette` derives a contained palette from album art and provides a
+- `MeloPalette` derives a contained palette from album art and provides a
   deterministic fallback. Never make controls depend on extracted colors.
 - Artwork loading must handle absent, malformed, or inaccessible art with a
   consistent placeholder and no layout shift that obscures transport.
@@ -157,10 +157,10 @@ Reference: [OPPO ColorOS 17](https://www.oppo.com/en/coloros17/) (accessed
 
 ### Existing motion tokens
 
-- `ToneMotion.fast`: 180 ms.
-- `ToneMotion.slow`: 520 ms.
-- `ToneMotion.emphasized`: cubic `(0.2, 0.9, 0.2, 1)`.
-- `ToneMotion.respecting(context, duration)` reduces duration to zero when
+- `MeloMotion.fast`: 180 ms.
+- `MeloMotion.slow`: 520 ms.
+- `MeloMotion.emphasized`: cubic `(0.2, 0.9, 0.2, 1)`.
+- `MeloMotion.respecting(context, duration)` reduces duration to zero when
   the OS requests reduced motion.
 
 Use short, purposeful transitions for navigation, selection, reveal, and
@@ -184,7 +184,7 @@ formal, independently tested component package.
 | Album/artist tile | Artwork-led browse item with readable metadata | Existing Home/Library cards; support variable text scale. |
 | Primary/secondary action | High-contrast action with consistent size and state | Material 3 themed `FilledButton`, `OutlinedButton`, and `TextButton`. |
 | Icon action | Accessible compact action | `IconButton` with tooltip/semantic label and visible state. |
-| Surface/card | Group related content without visual nesting | Material `Card`; use `ToneGlass` only for intentional overlays. |
+| Surface/card | Group related content without visual nesting | Material `Card`; use `MeloGlass` only for intentional overlays. |
 | Mini player | Active item and compact transport/entry | `MiniPlayer` in `features/player/mini_player.dart`; persistent when a media item exists. |
 | Playback seek control | Seek with waveform when available; conventional slider fallback | `_PlaybackSeekBar` in `features/player/mini_player.dart`; never make seeking waveform-only. |
 | Queue sheet | Current queue, selected item, track selection | `PlayerQueueSheet` in `features/player/player_queue_sheet.dart`; stream/state orchestration remains in Now Playing for this first extraction. |

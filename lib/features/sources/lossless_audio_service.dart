@@ -5,13 +5,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/song_metadata_enricher.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
-import 'package:tone_player/features/spotify/spotify_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 enum LosslessAudioQuality {
   flacHiRes, // Lossless FLAC (16/24-bit 1411kbps+)
@@ -699,12 +699,12 @@ class _DownloadQualityPickerSheetState
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: ToneColors.cherry.withValues(alpha: 0.14),
+                        color: MeloColors.cherry.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Icon(
                         Icons.high_quality_rounded,
-                        color: ToneColors.cherry,
+                        color: MeloColors.cherry,
                         size: 24,
                       ),
                     ),
@@ -755,11 +755,11 @@ class _DownloadQualityPickerSheetState
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(18),
                           color: _selected == q
-                              ? ToneColors.cherry.withValues(alpha: 0.13)
+                              ? MeloColors.cherry.withValues(alpha: 0.13)
                               : colors.surfaceContainerLow,
                           border: Border.all(
                             color: _selected == q
-                                ? ToneColors.cherry
+                                ? MeloColors.cherry
                                 : colors.outlineVariant.withValues(alpha: 0.35),
                             width: _selected == q ? 1.6 : 1.0,
                           ),
@@ -771,7 +771,7 @@ class _DownloadQualityPickerSheetState
                                   ? Icons.radio_button_checked_rounded
                                   : Icons.radio_button_off_rounded,
                               color: _selected == q
-                                  ? ToneColors.cherry
+                                  ? MeloColors.cherry
                                   : colors.onSurfaceVariant,
                               size: 22,
                             ),
@@ -798,7 +798,7 @@ class _DownloadQualityPickerSheetState
                                         ),
                                         decoration: BoxDecoration(
                                           color: _selected == q
-                                              ? ToneColors.cherry
+                                              ? MeloColors.cherry
                                               : colors.surfaceContainerHighest,
                                           borderRadius:
                                               BorderRadius.circular(6),

@@ -4,20 +4,20 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/data/library_repository.dart'
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/data/library_repository.dart'
     show MostPlayedTrack;
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/playlist_detail_screen.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
-import 'package:tone_player/features/mix/smart_playlist_service.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
-import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_search_screen.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/playlist_detail_screen.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 /// Tone's home is a discovery surface; playback and destinations stay in the
 /// persistent player and app navigation.
@@ -40,25 +40,20 @@ class HomeScreen extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 32),
-          sliver: SliverList.list(
-            children: [
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+              // Apple Music Style Home Header (Reference Screenshot 3)
               Row(
                 children: [
                   Text(
-                    'melo',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1,
-                    ),
-                  ),
-                  Text(
-                    '.',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: ToneColors.cherry,
-                      fontSize: 27,
-                      fontWeight: FontWeight.w800,
+                    'Home',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.0,
                     ),
                   ),
                   const Spacer(),
@@ -68,47 +63,90 @@ class HomeScreen extends StatelessWidget {
                       onPressed: onSearch,
                       icon: const Icon(Icons.search_rounded),
                     ),
+                  PopupMenuButton<String>(
+                    tooltip: 'More options',
+                    icon: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                      child: const Icon(Icons.more_horiz_rounded, size: 20),
+                    ),
+                    onSelected: (val) {
+                      if (val == 'cloud') {
+                        SpotifyImportSheet.show(
+                          context,
+                          library: library,
+                          audioHandler: audioHandler,
+                        );
+                      }
+                      if (val == 'stream') {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => YoutubeSearchScreen(
+                              audioHandler: audioHandler,
+                              library: library,
+                            ),
+                          ),
+                        );
+                      }
+                      if (val == 'library') onOpenLibrary();
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'cloud',
+                        child: Row(
+                          children: [
+                            Icon(Icons.cloud_download_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Import Online Playlist'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'stream',
+                        child: Row(
+                          children: [
+                            Icon(Icons.stream_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Search Streaming Music'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'library',
+                        child: Row(
+                          children: [
+                            Icon(Icons.library_music_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Device Library'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              _SourceHubRow(
-                onOpenYoutube: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => YoutubeSearchScreen(
-                      audioHandler: audioHandler,
-                      library: library,
-                    ),
-                  ),
+              const SizedBox(height: 16),
+
+              // Shelf 1: Listening Pulse (Your listening: FAVORITES, MOST PLAYED, YOUR SOUND)
+              if (library != null && audioHandler != null && library!.tracks.isNotEmpty) ...[
+                _ListeningPulse(
+                  library: library!,
+                  onPlayFavorites: () => _playFavorites(context),
+                  onPlayTrack: (track) => _playTrack(context, track),
+                  onPlayMix: (tracks) => _playTracks(context, tracks),
                 ),
-                onOpenSpotify: () => SpotifyImportSheet.show(
-                  context,
-                  library: library,
-                  audioHandler: audioHandler,
-                ),
-                onPlayDailyFlow: () => _playSmartVibe(context, SmartVibe.dailyFlow),
-                onOpenLibrary: onOpenLibrary,
-              ),
-              const SizedBox(height: 10),
-              _SmartStationsSection(
-                onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
-              ),
-              const SizedBox(height: 12),
-              if (library != null && audioHandler != null) ...[
-                if (library!.tracks.isNotEmpty) ...[
-                  _ListeningPulse(
-                    library: library!,
-                    onPlayFavorites: () => _playFavorites(context),
-                    onPlayTrack: (track) => _playTrack(context, track),
-                    onPlayMix: (tracks) => _playTracks(context, tracks),
-                  ),
-                  if (library!.playlists.isNotEmpty) const SizedBox(height: 12),
+                if (library!.playlists.isNotEmpty) ...[
+                  const SizedBox(height: 14),
                   _SavedPlaylists(
                     library: library!,
                     audioHandler: audioHandler,
                     onPlay: (playlistId) => _playPlaylist(context, playlistId),
                   ),
-                  const SizedBox(height: 18),
                 ],
+                const SizedBox(height: 14),
                 _LibraryPicks(
                   library: library!,
                   onPlay: (suggestion) =>
@@ -116,39 +154,64 @@ class HomeScreen extends StatelessWidget {
                   onSaveSuggestion: (suggestion) =>
                       _saveSuggestedPlaylist(context, suggestion),
                 ),
-              ],
-              if (library != null) ...[
                 const SizedBox(height: 24),
-                _RecentlyAdded(
+              ],
+
+              // Shelf 2: Top Picks for You (Hero Showcase Carousel)
+              _TopPicksShelf(
+                onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
+                onPlayPreset: (preset) => _openCuratedPreset(context, preset),
+              ),
+              const SizedBox(height: 24),
+
+              // Shelf 3: Recently Played >
+              if (library != null && library!.tracks.isNotEmpty) ...[
+                _RecentlyPlayedShelf(
                   library: library!,
                   onPlay: (track) => _playTrack(context, track),
+                  onOpenLibrary: onOpenLibrary,
                 ),
-              ],
-              if (library?.isEmpty != false) ...[
                 const SizedBox(height: 24),
-                _LibraryCard(onTap: onOpenLibrary),
               ],
+
+              // Shelf 4: Stations for You (Reimagined Endless Radio)
+              _StationsForYouShelf(
+                onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
+              ),
+              const SizedBox(height: 24),
+
+              // Shelf 5: Recommended Editorial Playlists
               if (!kIsWeb && Platform.isAndroid) ...[
-                const SizedBox(height: 24),
                 _RecommendedPlaylistsSection(
                   audioHandler: audioHandler,
                   library: library,
                 ),
                 const SizedBox(height: 24),
-                _LiveDiscoverySection(
-                  audioHandler: audioHandler,
-                  library: library,
-                ),
+              ],
+
+              if (library?.isEmpty != false) ...[
                 const SizedBox(height: 24),
-                _DjMixShowcaseSection(
-                  audioHandler: audioHandler,
-                  library: library,
-                ),
+                _LibraryCard(onTap: onOpenLibrary),
               ],
             ],
           ),
         ),
+      ),
       ],
+    );
+  }
+
+  void _openCuratedPreset(BuildContext context, _CuratedPlaylistPreset preset) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CuratedPlaylistSheet(
+        preset: preset,
+        audioHandler: audioHandler,
+        library: library,
+      ),
     );
   }
 
@@ -586,13 +649,13 @@ class _ListeningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return ToneGlass(
-      borderRadius: ToneRadii.md,
+    return MeloGlass(
+      borderRadius: MeloRadii.md,
       shadow: false,
       padding: EdgeInsets.zero,
       child: Material(
         color: colors.surfaceContainerLow.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(ToneRadii.md),
+        borderRadius: BorderRadius.circular(MeloRadii.md),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -603,7 +666,7 @@ class _ListeningCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(icon, size: 15, color: ToneColors.cherry),
+                    Icon(icon, size: 15, color: MeloColors.cherry),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -749,7 +812,7 @@ class _SavedPlaylists extends StatelessWidget {
                                   right: 8,
                                   bottom: 8,
                                   child: Material(
-                                    color: ToneColors.cherry,
+                                    color: MeloColors.cherry,
                                     shape: const CircleBorder(),
                                     elevation: 4,
                                     child: InkWell(
@@ -931,7 +994,7 @@ class _DiscoveryPickCard extends StatelessWidget {
         Icons.auto_awesome_rounded,
       ),
     };
-    final radius = BorderRadius.circular(ToneRadii.lg);
+    final radius = BorderRadius.circular(MeloRadii.lg);
     return Tooltip(
       message:
           'Play ${suggestion.name} · ${suggestion.tracks.length} songs from your library',
@@ -980,7 +1043,7 @@ class _DiscoveryPickCard extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.52),
-                      borderRadius: BorderRadius.circular(ToneRadii.pill),
+                      borderRadius: BorderRadius.circular(MeloRadii.pill),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -990,7 +1053,7 @@ class _DiscoveryPickCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(icon, size: 12, color: ToneColors.cherrySoft),
+                          Icon(icon, size: 12, color: MeloColors.cherrySoft),
                           const SizedBox(width: 5),
                           Text(
                             label,
@@ -1066,7 +1129,7 @@ class _DiscoveryPickCard extends StatelessWidget {
                               : 'Play mix',
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: ToneColors.cherry,
+                          backgroundColor: MeloColors.cherry,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -1082,94 +1145,6 @@ class _DiscoveryPickCard extends StatelessWidget {
   }
 }
 
-class _RecentlyAdded extends StatelessWidget {
-  const _RecentlyAdded({required this.library, required this.onPlay});
-
-  final MusicLibrary library;
-  final ValueChanged<ImportedTrack> onPlay;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: library,
-    builder: (context, _) {
-      final allTracks = library.tracks;
-      if (allTracks.isEmpty) return const SizedBox.shrink();
-      final colors = Theme.of(context).colorScheme;
-      // Imports append to the library, so the newest tracks are last. Walk
-      // backwards to surface the most recently added albums first.
-      final albums = <String, ImportedTrack>{};
-      for (final track in allTracks.reversed) {
-        final key = track.album == 'Unknown album'
-            ? track.id
-            : '${track.album}\u001f${track.artist}';
-        albums.putIfAbsent(key, () => track);
-      }
-      final recent = albums.values.take(8).toList(growable: false);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(
-            title: 'Recently added',
-            subtitle: 'The newest albums in your library.',
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 188,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: recent.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final track = recent[index];
-                return SizedBox(
-                  width: 136,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => onPlay(track),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AlbumArtwork(
-                            size: 132,
-                            title: track.album,
-                            artworkUri: track.artworkUri == null
-                                ? null
-                                : Uri.tryParse(track.artworkUri!),
-                            sourceUri: Uri.tryParse(track.path),
-                            borderRadius: 18,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            track.album == 'Unknown album'
-                                ? track.title
-                                : track.album,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            displayArtistName(track.artist),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: colors.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
 
 class _LibraryCard extends StatelessWidget {
   const _LibraryCard({required this.onTap});
@@ -1179,12 +1154,12 @@ class _LibraryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return ToneGlass(
-      borderRadius: ToneRadii.lg,
+    return MeloGlass(
+      borderRadius: MeloRadii.lg,
       padding: EdgeInsets.zero,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(ToneRadii.lg),
+        borderRadius: BorderRadius.circular(MeloRadii.lg),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -1199,7 +1174,7 @@ class _LibraryCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [colors.primary, ToneColors.cherryDeep],
+                      colors: [colors.primary, MeloColors.cherryDeep],
                     ),
                     borderRadius: BorderRadius.circular(17),
                     boxShadow: [
@@ -1247,107 +1222,182 @@ class _LibraryCard extends StatelessWidget {
   }
 }
 
-class _SourceHubRow extends StatelessWidget {
-  const _SourceHubRow({
-    required this.onOpenYoutube,
-    required this.onOpenSpotify,
-    required this.onPlayDailyFlow,
-    required this.onOpenLibrary,
+
+class _TopPicksShelf extends StatelessWidget {
+  const _TopPicksShelf({
+    required this.onPlayVibe,
+    required this.onPlayPreset,
   });
 
-  final VoidCallback onOpenYoutube;
-  final VoidCallback onOpenSpotify;
-  final VoidCallback onPlayDailyFlow;
-  final VoidCallback onOpenLibrary;
+  final ValueChanged<SmartVibe> onPlayVibe;
+  final ValueChanged<_CuratedPlaylistPreset> onPlayPreset;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          _SourceHubPill(
-            icon: Icons.graphic_eq_rounded,
-            iconColor: ToneColors.cherry,
-            label: 'Browse Catalog',
-            onTap: onOpenYoutube,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Top Picks for You',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                letterSpacing: -0.5,
+              ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 195,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            children: [
+              _TopPickCard(
+                categoryBadge: 'WE RECOMMEND',
+                title: 'Rap Life: Best of 2026',
+                description: 'Heavyweight bars and modern street anthems.',
+                gradient: const [Color(0xFF2C3E50), Color(0xFF000000)],
+                icon: Icons.local_fire_department_rounded,
+                onTap: () =>
+                    onPlayPreset(_RecommendedPlaylistsSection._playlists[4]),
+              ),
+              const SizedBox(width: 14),
+              _TopPickCard(
+                categoryBadge: 'MADE FOR YOU',
+                title: "Personal Station",
+                description:
+                    'Continuous flow tailored to your favorites & library.',
+                gradient: const [
+                  Color(0xFFD31027),
+                  Color(0xFFEA384D),
+                  Color(0xFF2B0A12),
+                ],
+                icon: Icons.graphic_eq_rounded,
+                onTap: () => onPlayVibe(SmartVibe.dailyFlow),
+              ),
+              const SizedBox(width: 14),
+              _TopPickCard(
+                categoryBadge: 'TRENDING',
+                title: 'Afrobeats Essentials',
+                description: 'Global heat: Burna, Rema, Tems, Asake & more.',
+                gradient: const [Color(0xFFF37335), Color(0xFFFDC830)],
+                icon: Icons.bolt_rounded,
+                onTap: () =>
+                    onPlayPreset(_RecommendedPlaylistsSection._playlists[1]),
+              ),
+              const SizedBox(width: 14),
+              _TopPickCard(
+                categoryBadge: 'INSTRUMENTAL',
+                title: 'Deep Focus & Study',
+                description: 'Ambient lofi and calm instrumental grooves.',
+                gradient: const [Color(0xFF0B486B), Color(0xFFF56217)],
+                icon: Icons.headphones_rounded,
+                onTap: () => onPlayVibe(SmartVibe.deepFocus),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          _SourceHubPill(
-            icon: Icons.auto_awesome_rounded,
-            iconColor: const Color(0xFFFF7A70),
-            label: 'Listen Now',
-            onTap: onPlayDailyFlow,
-          ),
-          const SizedBox(width: 8),
-          _SourceHubPill(
-            icon: Icons.playlist_add_rounded,
-            iconColor: const Color(0xFF1DB954),
-            label: 'Import Playlist',
-            onTap: onOpenSpotify,
-          ),
-          const SizedBox(width: 8),
-          _SourceHubPill(
-            icon: Icons.folder_open_rounded,
-            iconColor: Colors.amberAccent,
-            label: 'On Device',
-            onTap: onOpenLibrary,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _SourceHubPill extends StatelessWidget {
-  const _SourceHubPill({
+class _TopPickCard extends StatelessWidget {
+  const _TopPickCard({
+    required this.categoryBadge,
+    required this.title,
+    required this.description,
+    required this.gradient,
     required this.icon,
-    required this.iconColor,
-    required this.label,
     required this.onTap,
   });
 
+  final String categoryBadge;
+  final String title;
+  final String description;
+  final List<Color> gradient;
   final IconData icon;
-  final Color iconColor;
-  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(ToneRadii.pill),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(ToneRadii.pill),
-              border: Border.all(
-                color: colors.outlineVariant.withValues(alpha: 0.35),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 250,
+          height: 195,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradient,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.first.withValues(alpha: 0.32),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 17, color: iconColor),
-                const SizedBox(width: 7),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onSurface,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    categoryBadge,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white.withValues(alpha: 0.72),
+                      letterSpacing: 0.8,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  Icon(
+                    icon,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 20,
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      height: 1.15,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.7),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1355,8 +1405,128 @@ class _SourceHubPill extends StatelessWidget {
   }
 }
 
-class _SmartStationsSection extends StatelessWidget {
-  const _SmartStationsSection({required this.onPlayVibe});
+class _RecentlyPlayedShelf extends StatelessWidget {
+  const _RecentlyPlayedShelf({
+    required this.library,
+    required this.onPlay,
+    required this.onOpenLibrary,
+  });
+
+  final MusicLibrary library;
+  final ValueChanged<ImportedTrack> onPlay;
+  final VoidCallback onOpenLibrary;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: library,
+      builder: (context, _) {
+        final allTracks = library.tracks;
+        if (allTracks.isEmpty) return const SizedBox.shrink();
+
+        final recents = allTracks.reversed.take(10).toList(growable: false);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: onOpenLibrary,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Recently Played',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            letterSpacing: -0.5,
+                          ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 24,
+                      color: Colors.white70,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 182,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: recents.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  final track = recents[index];
+                  return SizedBox(
+                    width: 128,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => onPlay(track),
+                        onLongPress: () => TrackDetailsSheet.show(
+                          context,
+                          track.toMediaItem(),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AlbumArtwork(
+                              size: 128,
+                              title: track.title,
+                              artworkUri: track.artworkUri != null
+                                  ? Uri.tryParse(track.artworkUri!)
+                                  : null,
+                              sourceUri: Uri.tryParse(track.path),
+                              borderRadius: 14,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              displayArtistName(track.artist),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.55),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StationsForYouShelf extends StatelessWidget {
+  const _StationsForYouShelf({required this.onPlayVibe});
 
   final ValueChanged<SmartVibe> onPlayVibe;
 
@@ -1367,15 +1537,13 @@ class _SmartStationsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.all_inclusive_rounded, size: 18, color: ToneColors.cherry),
-            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Continuous Smart Stations',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
+                'Stations for You',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                      letterSpacing: -0.5,
                     ),
               ),
             ),
@@ -1383,56 +1551,81 @@ class _SmartStationsSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: ToneColors.cherry.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(ToneRadii.pill),
+                color: MeloColors.cherry.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                'Endless',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: ToneColors.cherry,
-                ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sensors_rounded,
+                      size: 13, color: MeloColors.cherry),
+                  SizedBox(width: 4),
+                  Text(
+                    'LIVE RADIO',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: MeloColors.cherry,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         SizedBox(
-          height: 108,
+          height: 194,
           child: ListView(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
             children: [
-              _SmartStationCard(
-                title: 'Daily Mix',
-                subtitle: 'Endless personal mix',
-                icon: Icons.all_inclusive_rounded,
-                gradient: const [Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121)],
+              _StationTile(
+                title: "Personal Station",
+                subtitle: 'Radio Station · Personal flow',
+                gradient: const [
+                  Color(0xFFE52D27),
+                  Color(0xFFB31217),
+                  Color(0xFF1E0608),
+                ],
+                icon: Icons.graphic_eq_rounded,
                 onTap: () => onPlayVibe(SmartVibe.dailyFlow),
               ),
-              const SizedBox(width: 12),
-              _SmartStationCard(
-                title: 'High Energy',
-                subtitle: 'Driving beats & tempo',
-                icon: Icons.bolt_rounded,
-                gradient: const [Color(0xFFFF512F), Color(0xFFDD2476)],
+              const SizedBox(width: 14),
+              _StationTile(
+                title: 'Discovery Station',
+                subtitle: 'Radio Station · Exploration',
+                gradient: const [
+                  Color(0xFF4A00E0),
+                  Color(0xFF8E2DE2),
+                  Color(0xFF0F051D),
+                ],
+                icon: Icons.radar_rounded,
                 onTap: () => onPlayVibe(SmartVibe.highEnergy),
               ),
-              const SizedBox(width: 12),
-              _SmartStationCard(
-                title: 'Deep Focus',
-                subtitle: 'Lofi & study beats',
+              const SizedBox(width: 14),
+              _StationTile(
+                title: 'Deep Focus & Study',
+                subtitle: 'Radio Station · Instrumental',
+                gradient: const [
+                  Color(0xFF134E5E),
+                  Color(0xFF71B280),
+                  Color(0xFF061A21),
+                ],
                 icon: Icons.headphones_rounded,
-                gradient: const [Color(0xFF11998E), Color(0xFF38EF7D)],
                 onTap: () => onPlayVibe(SmartVibe.deepFocus),
               ),
-              const SizedBox(width: 12),
-              _SmartStationCard(
+              const SizedBox(width: 14),
+              _StationTile(
                 title: 'Late Night Chill',
-                subtitle: 'Mellow acoustic vibes',
+                subtitle: 'Radio Station · Midnight soul',
+                gradient: const [
+                  Color(0xFF3A1C71),
+                  Color(0xFFD76D77),
+                  Color(0xFF190A2E),
+                ],
                 icon: Icons.nightlight_round,
-                gradient: const [Color(0xFF4A00E0), Color(0xFF8E2DE2)],
                 onTap: () => onPlayVibe(SmartVibe.lateNightChill),
               ),
             ],
@@ -1443,112 +1636,146 @@ class _SmartStationsSection extends StatelessWidget {
   }
 }
 
-class _SmartStationCard extends StatelessWidget {
-  const _SmartStationCard({
+class _StationTile extends StatelessWidget {
+  const _StationTile({
     required this.title,
     required this.subtitle,
-    required this.icon,
     required this.gradient,
+    required this.icon,
     required this.onTap,
   });
 
   final String title;
   final String subtitle;
-  final IconData icon;
   final List<Color> gradient;
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '$title station. $subtitle',
+    return SizedBox(
+      width: 136,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: 180,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                gradient.first.withValues(alpha: 0.35),
-                gradient.last.withValues(alpha: 0.15),
-              ],
-            ),
-            border: Border.all(
-              color: gradient.first.withValues(alpha: 0.35),
-              width: 1.2,
-            ),
-          ),
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 20),
+              Container(
+                width: 136,
+                height: 136,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: gradient,
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: gradient.first.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.black,
-                      size: 16,
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _FoldedPrismPainter(
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'melo',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
+                      child: Icon(
+                        icon,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.72),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.55),
+                ),
               ),
             ],
           ),
         ),
       ),
-      ),
     );
   }
 }
+
+class _FoldedPrismPainter extends CustomPainter {
+  const _FoldedPrismPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(0, size.height * 0.4)
+      ..lineTo(size.width * 0.7, 0)
+      ..lineTo(size.width, size.height * 0.3)
+      ..lineTo(size.width * 0.3, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FoldedPrismPainter oldDelegate) => false;
+}
+
 
 class _DjMixPreset {
   const _DjMixPreset({
@@ -1717,7 +1944,7 @@ class _DjMixShowcaseSectionState extends State<_DjMixShowcaseSection> {
             const Icon(
               Icons.disc_full_rounded,
               size: 18,
-              color: ToneColors.cherry,
+              color: MeloColors.cherry,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1733,15 +1960,15 @@ class _DjMixShowcaseSectionState extends State<_DjMixShowcaseSection> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: ToneColors.cherry.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(ToneRadii.pill),
+                color: MeloColors.cherry.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(MeloRadii.pill),
               ),
               child: const Text(
                 'NON-STOP SETS',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: ToneColors.cherry,
+                  color: MeloColors.cherry,
                 ),
               ),
             ),
@@ -2076,7 +2303,7 @@ class _LiveDiscoverySectionState extends State<_LiveDiscoverySection> {
             const Icon(
               Icons.explore_rounded,
               size: 18,
-              color: ToneColors.cherry,
+              color: MeloColors.cherry,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -2138,7 +2365,7 @@ class _LiveDiscoverySectionState extends State<_LiveDiscoverySection> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(ToneRadii.md),
+              borderRadius: BorderRadius.circular(MeloRadii.md),
             ),
             child: Row(
               children: [
@@ -2385,7 +2612,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
             const Icon(
               Icons.stars_rounded,
               size: 19,
-              color: ToneColors.cherry,
+              color: MeloColors.cherry,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -2763,7 +2990,7 @@ class _CuratedPlaylistSheetState extends State<_CuratedPlaylistSheet> {
                               style: const TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
-                                color: ToneColors.cherry,
+                                color: MeloColors.cherry,
                                 letterSpacing: 0.8,
                               ),
                             ),
@@ -2865,6 +3092,10 @@ class _CuratedPlaylistSheetState extends State<_CuratedPlaylistSheet> {
                           ),
                           onTap: () =>
                               _streamPlaylist(shuffle: false, startIndex: index),
+                          onLongPress: () => TrackDetailsSheet.show(
+                            context,
+                            track.toMediaItem(),
+                          ),
                           trailing: progress != null
                               ? SizedBox(
                                   width: 24,

@@ -1,10 +1,10 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
-import 'package:tone_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
 
 class SpotifySettingsScreen extends StatefulWidget {
   const SpotifySettingsScreen({
@@ -163,8 +163,8 @@ class _SpotifySettingsScreenState extends State<SpotifySettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ToneGlass(
-                  borderRadius: ToneRadii.lg,
+                MeloGlass(
+                  borderRadius: MeloRadii.lg,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(

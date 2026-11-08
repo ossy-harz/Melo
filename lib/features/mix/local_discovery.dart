@@ -1,4 +1,4 @@
-import 'package:tone_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 
 enum DiscoveryPickType { artistRadio, moodMix, playlist }
 

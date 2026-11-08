@@ -6,29 +6,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/app/tone_app.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/player/audio_profile.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/player/audio_profile_service.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
-import 'package:tone_player/features/shell/app_shell.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/home/home_screen.dart';
-import 'package:tone_player/features/settings/you_screen.dart';
+import 'package:melo_player/app/melo_app.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/shell/app_shell.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/settings/you_screen.dart';
 
 void main() {
   test('app color system uses red as its primary accent', () {
-    expect(ToneTheme.light.colorScheme.primary, const Color(0xFFFA243C));
-    expect(ToneTheme.dark.colorScheme.primary, const Color(0xFFFA243C));
-    expect(ToneTheme.dark.colorScheme.surface, const Color(0xFF000000));
+    expect(MeloTheme.light.colorScheme.primary, const Color(0xFFFA243C));
+    expect(MeloTheme.dark.colorScheme.primary, const Color(0xFFFA243C));
+    expect(MeloTheme.dark.colorScheme.surface, const Color(0xFF000000));
   });
 
   testWidgets('artwork requests embedded cover from its audio source', (
     tester,
   ) async {
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     final calls = <MethodCall>[];
     final sourceUri = Uri.parse(
       'content://media/external/audio/cache-test-${DateTime.now().microsecondsSinceEpoch}',
@@ -68,7 +68,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readAudioWaveform') {
@@ -179,7 +179,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -231,7 +231,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -290,7 +290,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     final outgoing = [
       ...List<double>.filled(230, 0.65),
       ...List<double>.filled(26, 0.01),
@@ -460,7 +460,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -501,7 +501,7 @@ void main() {
 
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
-      ToneColors.amoled,
+      MeloColors.amoled,
     );
     expect(find.text('Quiet Motion'), findsOneWidget);
     expect(find.text('Tone Test'), findsOneWidget);
@@ -519,7 +519,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     var failWaveform = true;
     var waveformRequests = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -584,7 +584,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readLyrics') {
@@ -644,7 +644,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readLyrics') {
@@ -703,7 +703,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -749,7 +749,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -800,7 +800,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readLyrics') {
@@ -872,7 +872,7 @@ void main() {
 
   testWidgets('word-synced lyrics highlight each timed word', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readLyrics') {
@@ -945,7 +945,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -1010,7 +1010,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'readAudioQuality') {
@@ -1086,7 +1086,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1134,7 +1134,7 @@ void main() {
 
   testWidgets('Now Playing exposes standard playback controls', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1179,7 +1179,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1220,7 +1220,7 @@ void main() {
   testWidgets('Personal mixes remain available in the reduced navigation', (
     tester,
   ) async {
-    await tester.pumpWidget(const ToneApp.preview());
+    await tester.pumpWidget(const MeloApp.preview());
 
     expect(find.byType(NavigationDestination), findsNWidgets(3));
     expect(find.byType(BackdropFilter), findsOneWidget);
@@ -1258,7 +1258,7 @@ void main() {
 
   testWidgets('Home plays a selected library recommendation', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1407,7 +1407,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1458,7 +1458,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => null);
     addTearDown(
@@ -1670,7 +1670,7 @@ void main() {
   testWidgets('bottom navigation opens the honest library empty state', (
     tester,
   ) async {
-    await tester.pumpWidget(const ToneApp.preview());
+    await tester.pumpWidget(const MeloApp.preview());
     await tester.tap(find.byIcon(Icons.library_music_outlined));
     await tester.pumpAndSettle();
 
@@ -1691,7 +1691,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const ToneApp.preview());
+    await tester.pumpWidget(const MeloApp.preview());
 
     expect(find.text('Search'), findsNothing);
     await tester.tap(find.byTooltip('Search').first);

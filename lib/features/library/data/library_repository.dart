@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/data/tone_database.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/library_platform_data_source.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/library/data/melo_database.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/library_platform_data_source.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
 
 class LibrarySnapshot {
   const LibrarySnapshot({
@@ -114,7 +114,7 @@ abstract interface class LibraryRepository {
   Future<void> close();
 }
 
-class DriftLibraryRepository extends DatabaseAccessor<ToneDatabase>
+class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
     implements LibraryRepository {
   DriftLibraryRepository({
     required this.database,
@@ -131,7 +131,7 @@ class DriftLibraryRepository extends DatabaseAccessor<ToneDatabase>
   static const _positionKey = 'tone_playback_position_ms_v1';
   static const _mixExclusionsKey = 'tone_mix_exclusions_v1';
 
-  final ToneDatabase database;
+  final MeloDatabase database;
   final SharedPreferences _legacyPreferences;
 
   Future<void> initialize() async {

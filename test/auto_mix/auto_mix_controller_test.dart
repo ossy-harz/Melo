@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_controller.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_profile.dart';
-import 'package:tone_player/features/auto_mix/transition_gain_curve.dart';
-import 'package:tone_player/features/auto_mix/transition_plan.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_controller.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
+import 'package:melo_player/features/auto_mix/transition_gain_curve.dart';
+import 'package:melo_player/features/auto_mix/transition_plan.dart';
 
 void main() {
   test('gain curves have exact endpoints and style-specific midpoints', () {

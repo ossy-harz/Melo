@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:tone_player/features/player/audio_profile.dart';
-import 'package:tone_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/player/audio_profile_service.dart';
 
 class AudioSettingsScreen extends StatefulWidget {
   const AudioSettingsScreen({required this.audioProfileService, super.key});

@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_theme.dart';
+import 'package:melo_player/app/melo_theme.dart';
 
 /// A tinted surface with optional backdrop blur.
 ///
@@ -10,8 +10,8 @@ import 'package:tone_player/app/tone_theme.dart';
 /// both when a surface should always read as dark (for example the lyrics
 /// sheet that floats above the player). Blur is opt-in to keep scrolling and
 /// playback surfaces inexpensive to composite.
-class ToneGlass extends StatelessWidget {
-  const ToneGlass({
+class MeloGlass extends StatelessWidget {
+  const MeloGlass({
     required this.child,
     this.padding,
     this.margin,
@@ -42,12 +42,12 @@ class ToneGlass extends StatelessWidget {
     final radius = BorderRadius.circular(borderRadius);
     final resolvedTint =
         tint ??
-        (isLight ? Colors.white.withValues(alpha: 0.62) : ToneColors.glassTint);
+        (isLight ? Colors.white.withValues(alpha: 0.62) : MeloColors.glassTint);
     final resolvedBorder =
         borderColor ??
         (isLight
             ? Colors.white.withValues(alpha: 0.85)
-            : ToneColors.glassBorder);
+            : MeloColors.glassBorder);
 
     final decoratedSurface = DecoratedBox(
       decoration: BoxDecoration(
@@ -79,7 +79,7 @@ class ToneGlass extends StatelessWidget {
             BoxShadow(
               color: isLight
                   ? Colors.black.withValues(alpha: 0.08)
-                  : ToneColors.glassShadow,
+                  : MeloColors.glassShadow,
               blurRadius: isLight ? 22 : 30,
               offset: const Offset(0, 12),
             ),
@@ -100,8 +100,8 @@ class ToneGlass extends StatelessWidget {
 
 /// A whisper of film grain. Applied over large artwork-driven surfaces so they
 /// read as physical material rather than flat digital colour.
-class ToneGrain extends StatelessWidget {
-  const ToneGrain({this.opacity = 0.05, this.density = 0.00028, super.key});
+class MeloGrain extends StatelessWidget {
+  const MeloGrain({this.opacity = 0.05, this.density = 0.00028, super.key});
 
   final double opacity;
   final double density;

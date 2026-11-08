@@ -1,39 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_appearance.dart';
-import 'package:tone_player/app/tone_services.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_diagnostic_screen.dart';
-import 'package:tone_player/features/shell/app_shell.dart';
+import 'package:melo_player/app/melo_appearance.dart';
+import 'package:melo_player/app/melo_services.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_diagnostic_screen.dart';
+import 'package:melo_player/features/shell/app_shell.dart';
 
-class ToneApp extends StatelessWidget {
-  const ToneApp.preview({super.key})
+class MeloApp extends StatelessWidget {
+  const MeloApp.preview({super.key})
     : services = null,
       servicesFuture = null,
       diagnosticMode = false;
 
-  const ToneApp({
+  const MeloApp({
     super.key,
     required this.servicesFuture,
     this.diagnosticMode = false,
   }) : services = null;
 
-  const ToneApp.ready({super.key, required this.services})
+  const MeloApp.ready({super.key, required this.services})
     : servicesFuture = null,
       diagnosticMode = false;
 
-  final ToneServices? services;
-  final Future<ToneServices>? servicesFuture;
+  final MeloServices? services;
+  final Future<MeloServices>? servicesFuture;
   final bool diagnosticMode;
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ToneAppearanceController.instance,
+      valueListenable: MeloAppearanceController.instance,
       builder: (context, themeMode, _) => MaterialApp(
         title: 'Melo',
         debugShowCheckedModeBanner: false,
-        theme: ToneTheme.light,
-        darkTheme: ToneTheme.dark,
+        theme: MeloTheme.light,
+        darkTheme: MeloTheme.dark,
         themeMode: themeMode,
         home: services != null
             ? _home(services!)
@@ -47,7 +47,7 @@ class ToneApp extends StatelessWidget {
     );
   }
 
-  Widget _home(ToneServices services) => diagnosticMode
+  Widget _home(MeloServices services) => diagnosticMode
       ? AutoMixDiagnosticScreen(services: services)
       : AppShell(services: services);
 }
@@ -55,7 +55,7 @@ class ToneApp extends StatelessWidget {
 class _ServicesLoader extends StatefulWidget {
   const _ServicesLoader({required this.future, required this.diagnosticMode});
 
-  final Future<ToneServices> future;
+  final Future<MeloServices> future;
   final bool diagnosticMode;
 
   @override
@@ -63,7 +63,7 @@ class _ServicesLoader extends StatefulWidget {
 }
 
 class _ServicesLoaderState extends State<_ServicesLoader> {
-  late Future<ToneServices> _future;
+  late Future<MeloServices> _future;
 
   @override
   void initState() {
@@ -72,7 +72,7 @@ class _ServicesLoaderState extends State<_ServicesLoader> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<ToneServices>(
+  Widget build(BuildContext context) => FutureBuilder<MeloServices>(
     future: _future,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
@@ -99,7 +99,7 @@ class _ServicesLoaderState extends State<_ServicesLoader> {
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: () => setState(
-                      () => _future = ToneServices.initialize(
+                      () => _future = MeloServices.initialize(
                         persistPlaybackState: !widget.diagnosticMode,
                       ),
                     ),

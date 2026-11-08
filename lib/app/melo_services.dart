@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/player/audio_profile_service.dart';
-import 'package:tone_player/features/player/tone_audio_handler.dart';
-import 'package:tone_player/features/updates/app_update_service.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
+import 'package:melo_player/features/updates/app_update_service.dart';
 
-class ToneServices {
-  const ToneServices({
+class MeloServices {
+  const MeloServices({
     required this.audioHandler,
     required this.audioProfileService,
     required this.musicLibrary,
@@ -21,7 +21,7 @@ class ToneServices {
   final MusicLibrary musicLibrary;
   final List<StreamSubscription<dynamic>> _subscriptions;
 
-  static Future<ToneServices> initialize({
+  static Future<MeloServices> initialize({
     bool persistPlaybackState = true,
   }) async {
     final libraryFuture = MusicLibrary.open(
@@ -36,13 +36,13 @@ class ToneServices {
       );
       return session;
     }();
-    final handler = await AudioService.init<ToneAudioHandler>(
-      builder: ToneAudioHandler.new,
+    final handler = await AudioService.init<MeloAudioHandler>(
+      builder: MeloAudioHandler.new,
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'app.tone.player.audio',
+        androidNotificationChannelId: 'app.melo.player.audio',
         androidNotificationChannelName: 'Melo music playback',
         androidNotificationChannelDescription:
-            'Playback controls for music playing in Tone.',
+            'Playback controls for music playing in Melo.',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
       ),
@@ -111,7 +111,7 @@ class ToneServices {
         ),
       );
     }
-    return ToneServices(
+    return MeloServices(
       audioHandler: handler,
       audioProfileService: audioProfileService,
       musicLibrary: library,

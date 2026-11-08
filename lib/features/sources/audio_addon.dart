@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/spotify/spotify_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 enum AudioAddonCategory {
   stream,

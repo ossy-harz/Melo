@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class YoutubeAuthService {
   YoutubeAuthService._();
@@ -82,7 +82,7 @@ class YoutubeAuthService {
     return headers;
   }
 
-  static const MethodChannel _channel = MethodChannel('app.tone.tone_player/library');
+  static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
   /// Launches in-app Google / YouTube Music sign-in sheet, captures cookies on authentication.
   Future<bool> launchInAppLogin() async {

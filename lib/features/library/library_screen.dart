@@ -4,18 +4,18 @@ import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_playlist_import.dart';
-import 'package:tone_player/features/library/duplicate_track_selection.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
-import 'package:tone_player/features/library/playlist_detail_screen.dart';
-import 'package:tone_player/features/library/library_track_filters.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/sources/universal_link_sheet.dart';
-import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
-import 'package:tone_player/features/youtube/youtube_search_screen.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_playlist_import.dart';
+import 'package:melo_player/features/library/duplicate_track_selection.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/library/playlist_detail_screen.dart';
+import 'package:melo_player/features/library/library_track_filters.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/sources/universal_link_sheet.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -1046,7 +1046,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               tooltip: 'Import Online Playlist',
                               icon: const Icon(
                                 Icons.playlist_add_rounded,
-                                color: ToneColors.cherry,
+                                color: MeloColors.cherry,
                               ),
                               onPressed: () => SpotifyImportSheet.show(
                                 context,
@@ -1058,7 +1058,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               tooltip: 'Download Lossless FLAC & Links',
                               icon: const Icon(
                                 Icons.link_rounded,
-                                color: ToneColors.cherry,
+                                color: MeloColors.cherry,
                               ),
                               onPressed: () => UniversalLinkSheet.show(
                                 context,
@@ -1162,7 +1162,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ),
                                 icon: const Icon(
                                   Icons.playlist_add_rounded,
-                                  color: ToneColors.cherry,
+                                  color: MeloColors.cherry,
                                 ),
                                 label: const Text('Import link'),
                               ),
@@ -1174,7 +1174,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ),
                                 icon: const Icon(
                                   Icons.link_rounded,
-                                  color: ToneColors.cherry,
+                                  color: MeloColors.cherry,
                                 ),
                                 label: const Text('Rip FLAC / Links'),
                               ),
@@ -2144,6 +2144,10 @@ class _AlbumTrackList extends StatelessWidget {
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
               ),
               onTap: () => onPlay(track),
+              onLongPress: () => TrackDetailsSheet.show(
+                context,
+                track.toMediaItem(),
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2156,6 +2160,9 @@ class _AlbumTrackList extends StatelessWidget {
                     tooltip: 'Song options',
                     onSelected: (value) {
                       if (value == 'favorite') onToggleFavorite(track);
+                      if (value == 'details') {
+                        TrackDetailsSheet.show(context, track.toMediaItem());
+                      }
                       if (value == 'remove') onRemove(track);
                     },
                     itemBuilder: (context) => [
@@ -2165,6 +2172,16 @@ class _AlbumTrackList extends StatelessWidget {
                           isFavorite(track)
                               ? 'Remove from favorites'
                               : 'Add to favorites',
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'details',
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 19),
+                            SizedBox(width: 8),
+                            Text('Track details'),
+                          ],
                         ),
                       ),
                       PopupMenuItem(
@@ -2390,7 +2407,7 @@ class _GroupList extends StatelessWidget {
           (context, index) {
             final group = groups[index];
             final artwork = group.artworkTrack;
-            final radius = BorderRadius.circular(ToneRadii.lg);
+            final radius = BorderRadius.circular(MeloRadii.lg);
             return Material(
               color: Colors.transparent,
               borderRadius: radius,
@@ -2526,7 +2543,7 @@ class _PlaylistList extends StatelessWidget {
                             right: 8,
                             bottom: 8,
                             child: Material(
-                              color: ToneColors.cherry,
+                              color: MeloColors.cherry,
                               shape: const CircleBorder(),
                               elevation: 4,
                               child: InkWell(

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/player/mini_player.dart';
+import 'package:melo_player/features/player/mini_player.dart';
 
 void main() {
   testWidgets('track details expose embedded tags and source audio quality', (
@@ -11,7 +11,7 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
 
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {

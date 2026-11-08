@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/player/audio_waveform.dart';
+import 'package:melo_player/features/player/audio_waveform.dart';
 
 void main() {
   test('accepts finite normalized audio peaks', () {

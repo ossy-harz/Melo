@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_profile.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_settings.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_settings.dart';
 
 /// Settings screen for AutoMix crossfade behaviour.
 ///
@@ -255,8 +255,8 @@ class _AutoMixSettingsScreenState extends State<AutoMixSettingsScreen> {
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
-            ToneGlass(
-              borderRadius: ToneRadii.md,
+            MeloGlass(
+              borderRadius: MeloRadii.md,
               tint: Colors.black.withValues(alpha: 0.12),
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(

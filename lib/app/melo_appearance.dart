@@ -6,10 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Tone defaults to its dark listening shell. The Now Playing surface stays
 /// light by design, so switching themes changes the app shell without making
 /// the player unreadable.
-class ToneAppearanceController extends ValueNotifier<ThemeMode> {
-  ToneAppearanceController._() : super(ThemeMode.dark);
+class MeloAppearanceController extends ValueNotifier<ThemeMode> {
+  MeloAppearanceController._() : super(ThemeMode.dark);
 
-  static final ToneAppearanceController instance = ToneAppearanceController._();
+  static final MeloAppearanceController instance = MeloAppearanceController._();
 
   static const _preferenceKey = 'tone.themeMode';
   bool _hasLoaded = false;

@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/data/library_repository.dart';
-import 'package:tone_player/features/library/data/tone_database.dart';
-import 'package:tone_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/data/library_repository.dart';
+import 'package:melo_player/features/library/data/melo_database.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +16,7 @@ void main() {
       'tone-library-migration-',
     );
     final file = File('${directory.path}\\tone.db');
-    final originalDatabase = ToneDatabase.open(file);
+    final originalDatabase = MeloDatabase.open(file);
     final originalRepository = DriftLibraryRepository(
       database: originalDatabase,
       legacyPreferences: preferences,
@@ -42,7 +42,7 @@ void main() {
     }
 
     final upgradedRepository = DriftLibraryRepository(
-      database: ToneDatabase.open(file),
+      database: MeloDatabase.open(file),
       legacyPreferences: preferences,
     );
     try {

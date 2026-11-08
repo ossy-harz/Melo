@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
+import 'package:melo_player/app/melo_glass.dart';
 
 class PlayerGlassIconButton extends StatelessWidget {
   const PlayerGlassIconButton({
@@ -23,7 +23,7 @@ class PlayerGlassIconButton extends StatelessWidget {
         minimumSize: const Size(42, 42),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      icon: ToneGlass(
+      icon: MeloGlass(
         borderRadius: 99,
         tint: Colors.white.withValues(alpha: 0.14),
         child: SizedBox(

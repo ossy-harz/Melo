@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'tone_database.dart';
+part of 'melo_database.dart';
 
 // ignore_for_file: type=lint
 class $ArtistsTable extends Artists with TableInfo<$ArtistsTable, Artist> {
@@ -6872,8 +6872,8 @@ class AudioProfilesCompanion extends UpdateCompanion<AudioProfile> {
   }
 }
 
-abstract class _$ToneDatabase extends GeneratedDatabase {
-  _$ToneDatabase(QueryExecutor e) : super(e);
+abstract class _$MeloDatabase extends GeneratedDatabase {
+  _$MeloDatabase(QueryExecutor e) : super(e);
   $ToneDatabaseManager get managers => $ToneDatabaseManager(this);
   late final $ArtistsTable artists = $ArtistsTable(this);
   late final $AlbumsTable albums = $AlbumsTable(this);
@@ -7052,11 +7052,11 @@ typedef $$ArtistsTableUpdateCompanionBuilder = ArtistsCompanion Function({
 });
 
 final class $$ArtistsTableReferences
-    extends BaseReferences<_$ToneDatabase, $ArtistsTable, Artist> {
+    extends BaseReferences<_$MeloDatabase, $ArtistsTable, Artist> {
   $$ArtistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static MultiTypedResultKey<$AlbumsTable, List<Album>> _albumsRefsTable(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.albums,
     aliasName: 'artists__id__albums__artist_id',
@@ -7075,7 +7075,7 @@ final class $$ArtistsTableReferences
   }
 
   static MultiTypedResultKey<$LibraryTracksTable, List<LibraryTrack>>
-  _libraryTracksRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _libraryTracksRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.libraryTracks,
     aliasName: 'artists__id__library_tracks__artist_id',
   );
@@ -7094,7 +7094,7 @@ final class $$ArtistsTableReferences
 }
 
 class $$ArtistsTableFilterComposer
-    extends Composer<_$ToneDatabase, $ArtistsTable> {
+    extends Composer<_$MeloDatabase, $ArtistsTable> {
   $$ArtistsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -7169,7 +7169,7 @@ class $$ArtistsTableFilterComposer
 }
 
 class $$ArtistsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $ArtistsTable> {
+    extends Composer<_$MeloDatabase, $ArtistsTable> {
   $$ArtistsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -7194,7 +7194,7 @@ class $$ArtistsTableOrderingComposer
 }
 
 class $$ArtistsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $ArtistsTable> {
+    extends Composer<_$MeloDatabase, $ArtistsTable> {
   $$ArtistsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -7267,7 +7267,7 @@ class $$ArtistsTableAnnotationComposer
 class $$ArtistsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $ArtistsTable,
           Artist,
           $$ArtistsTableFilterComposer,
@@ -7279,7 +7279,7 @@ class $$ArtistsTableTableManager
           Artist,
           PrefetchHooks Function({bool albumsRefs, bool libraryTracksRefs})
         > {
-  $$ArtistsTableTableManager(_$ToneDatabase db, $ArtistsTable table)
+  $$ArtistsTableTableManager(_$MeloDatabase db, $ArtistsTable table)
     : super(
         TableManagerState(
           db: db,
@@ -7383,7 +7383,7 @@ class $$ArtistsTableTableManager
 
 typedef $$ArtistsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $ArtistsTable,
       Artist,
       $$ArtistsTableFilterComposer,
@@ -7413,10 +7413,10 @@ typedef $$AlbumsTableUpdateCompanionBuilder = AlbumsCompanion Function({
 });
 
 final class $$AlbumsTableReferences
-    extends BaseReferences<_$ToneDatabase, $AlbumsTable, Album> {
+    extends BaseReferences<_$MeloDatabase, $AlbumsTable, Album> {
   $$AlbumsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $ArtistsTable _artistIdTable(_$ToneDatabase db) =>
+  static $ArtistsTable _artistIdTable(_$MeloDatabase db) =>
       db.artists.createAlias('albums__artist_id__artists__id');
 
   $$ArtistsTableProcessedTableManager get artistId {
@@ -7434,7 +7434,7 @@ final class $$AlbumsTableReferences
   }
 
   static MultiTypedResultKey<$LibraryTracksTable, List<LibraryTrack>>
-  _libraryTracksRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _libraryTracksRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.libraryTracks,
     aliasName: 'albums__id__library_tracks__album_id',
   );
@@ -7453,7 +7453,7 @@ final class $$AlbumsTableReferences
 }
 
 class $$AlbumsTableFilterComposer
-    extends Composer<_$ToneDatabase, $AlbumsTable> {
+    extends Composer<_$MeloDatabase, $AlbumsTable> {
   $$AlbumsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -7531,7 +7531,7 @@ class $$AlbumsTableFilterComposer
 }
 
 class $$AlbumsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $AlbumsTable> {
+    extends Composer<_$MeloDatabase, $AlbumsTable> {
   $$AlbumsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -7584,7 +7584,7 @@ class $$AlbumsTableOrderingComposer
 }
 
 class $$AlbumsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $AlbumsTable> {
+    extends Composer<_$MeloDatabase, $AlbumsTable> {
   $$AlbumsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -7658,7 +7658,7 @@ class $$AlbumsTableAnnotationComposer
 class $$AlbumsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $AlbumsTable,
           Album,
           $$AlbumsTableFilterComposer,
@@ -7670,7 +7670,7 @@ class $$AlbumsTableTableManager
           Album,
           PrefetchHooks Function({bool artistId, bool libraryTracksRefs})
         > {
-  $$AlbumsTableTableManager(_$ToneDatabase db, $AlbumsTable table)
+  $$AlbumsTableTableManager(_$MeloDatabase db, $AlbumsTable table)
     : super(
         TableManagerState(
           db: db,
@@ -7790,7 +7790,7 @@ class $$AlbumsTableTableManager
 
 typedef $$AlbumsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $AlbumsTable,
       Album,
       $$AlbumsTableFilterComposer,
@@ -7864,14 +7864,14 @@ typedef $$LibraryTracksTableUpdateCompanionBuilder =
     });
 
 final class $$LibraryTracksTableReferences
-    extends BaseReferences<_$ToneDatabase, $LibraryTracksTable, LibraryTrack> {
+    extends BaseReferences<_$MeloDatabase, $LibraryTracksTable, LibraryTrack> {
   $$LibraryTracksTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $ArtistsTable _artistIdTable(_$ToneDatabase db) =>
+  static $ArtistsTable _artistIdTable(_$MeloDatabase db) =>
       db.artists.createAlias('library_tracks__artist_id__artists__id');
 
   $$ArtistsTableProcessedTableManager get artistId {
@@ -7888,7 +7888,7 @@ final class $$LibraryTracksTableReferences
     );
   }
 
-  static $AlbumsTable _albumIdTable(_$ToneDatabase db) =>
+  static $AlbumsTable _albumIdTable(_$MeloDatabase db) =>
       db.albums.createAlias('library_tracks__album_id__albums__id');
 
   $$AlbumsTableProcessedTableManager get albumId {
@@ -7906,7 +7906,7 @@ final class $$LibraryTracksTableReferences
   }
 
   static MultiTypedResultKey<$PlaylistTracksTable, List<PlaylistTrack>>
-  _playlistTracksRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _playlistTracksRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.playlistTracks,
     aliasName: 'library_tracks__id__playlist_tracks__track_id',
   );
@@ -7924,7 +7924,7 @@ final class $$LibraryTracksTableReferences
   }
 
   static MultiTypedResultKey<$FavoritesTable, List<Favorite>>
-  _favoritesRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _favoritesRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.favorites,
     aliasName: 'library_tracks__id__favorites__track_id',
   );
@@ -7942,7 +7942,7 @@ final class $$LibraryTracksTableReferences
   }
 
   static MultiTypedResultKey<$ExcludedTracksTable, List<ExcludedTrack>>
-  _excludedTracksRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _excludedTracksRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.excludedTracks,
     aliasName: 'library_tracks__id__excluded_tracks__track_id',
   );
@@ -7960,7 +7960,7 @@ final class $$LibraryTracksTableReferences
   }
 
   static MultiTypedResultKey<$TrackAnalysisTable, List<TrackAnalysi>>
-  _trackAnalysisRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _trackAnalysisRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.trackAnalysis,
     aliasName: 'library_tracks__id__track_analysis__track_id',
   );
@@ -7978,7 +7978,7 @@ final class $$LibraryTracksTableReferences
   }
 
   static MultiTypedResultKey<$DownloadsTable, List<Download>>
-  _downloadsRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _downloadsRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.downloads,
     aliasName: 'library_tracks__id__downloads__track_id',
   );
@@ -7997,7 +7997,7 @@ final class $$LibraryTracksTableReferences
 }
 
 class $$LibraryTracksTableFilterComposer
-    extends Composer<_$ToneDatabase, $LibraryTracksTable> {
+    extends Composer<_$MeloDatabase, $LibraryTracksTable> {
   $$LibraryTracksTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -8298,7 +8298,7 @@ class $$LibraryTracksTableFilterComposer
 }
 
 class $$LibraryTracksTableOrderingComposer
-    extends Composer<_$ToneDatabase, $LibraryTracksTable> {
+    extends Composer<_$MeloDatabase, $LibraryTracksTable> {
   $$LibraryTracksTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -8474,7 +8474,7 @@ class $$LibraryTracksTableOrderingComposer
 }
 
 class $$LibraryTracksTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $LibraryTracksTable> {
+    extends Composer<_$MeloDatabase, $LibraryTracksTable> {
   $$LibraryTracksTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -8757,7 +8757,7 @@ class $$LibraryTracksTableAnnotationComposer
 class $$LibraryTracksTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $LibraryTracksTable,
           LibraryTrack,
           $$LibraryTracksTableFilterComposer,
@@ -8777,7 +8777,7 @@ class $$LibraryTracksTableTableManager
             bool downloadsRefs,
           })
         > {
-  $$LibraryTracksTableTableManager(_$ToneDatabase db, $LibraryTracksTable table)
+  $$LibraryTracksTableTableManager(_$MeloDatabase db, $LibraryTracksTable table)
     : super(
         TableManagerState(
           db: db,
@@ -9084,7 +9084,7 @@ class $$LibraryTracksTableTableManager
 
 typedef $$LibraryTracksTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $LibraryTracksTable,
       LibraryTrack,
       $$LibraryTracksTableFilterComposer,
@@ -9122,7 +9122,7 @@ typedef $$LibraryFoldersTableUpdateCompanionBuilder =
     });
 
 class $$LibraryFoldersTableFilterComposer
-    extends Composer<_$ToneDatabase, $LibraryFoldersTable> {
+    extends Composer<_$MeloDatabase, $LibraryFoldersTable> {
   $$LibraryFoldersTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -9152,7 +9152,7 @@ class $$LibraryFoldersTableFilterComposer
 }
 
 class $$LibraryFoldersTableOrderingComposer
-    extends Composer<_$ToneDatabase, $LibraryFoldersTable> {
+    extends Composer<_$MeloDatabase, $LibraryFoldersTable> {
   $$LibraryFoldersTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -9182,7 +9182,7 @@ class $$LibraryFoldersTableOrderingComposer
 }
 
 class $$LibraryFoldersTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $LibraryFoldersTable> {
+    extends Composer<_$MeloDatabase, $LibraryFoldersTable> {
   $$LibraryFoldersTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -9206,7 +9206,7 @@ class $$LibraryFoldersTableAnnotationComposer
 class $$LibraryFoldersTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $LibraryFoldersTable,
           LibraryFolder,
           $$LibraryFoldersTableFilterComposer,
@@ -9216,13 +9216,13 @@ class $$LibraryFoldersTableTableManager
           $$LibraryFoldersTableUpdateCompanionBuilder,
           (
             LibraryFolder,
-            BaseReferences<_$ToneDatabase, $LibraryFoldersTable, LibraryFolder>,
+            BaseReferences<_$MeloDatabase, $LibraryFoldersTable, LibraryFolder>,
           ),
           LibraryFolder,
           PrefetchHooks Function()
         > {
   $$LibraryFoldersTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $LibraryFoldersTable table,
   ) : super(
         TableManagerState(
@@ -9267,7 +9267,7 @@ class $$LibraryFoldersTableTableManager
                 (e) => (
                   e.readTable<$LibraryFoldersTable, LibraryFolder>(table),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $LibraryFoldersTable,
                     LibraryFolder
                   >(db, table, e),
@@ -9281,7 +9281,7 @@ class $$LibraryFoldersTableTableManager
 
 typedef $$LibraryFoldersTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $LibraryFoldersTable,
       LibraryFolder,
       $$LibraryFoldersTableFilterComposer,
@@ -9291,7 +9291,7 @@ typedef $$LibraryFoldersTableProcessedTableManager =
       $$LibraryFoldersTableUpdateCompanionBuilder,
       (
         LibraryFolder,
-        BaseReferences<_$ToneDatabase, $LibraryFoldersTable, LibraryFolder>,
+        BaseReferences<_$MeloDatabase, $LibraryFoldersTable, LibraryFolder>,
       ),
       LibraryFolder,
       PrefetchHooks Function()
@@ -9312,11 +9312,11 @@ typedef $$PlaylistsTableUpdateCompanionBuilder = PlaylistsCompanion Function({
 });
 
 final class $$PlaylistsTableReferences
-    extends BaseReferences<_$ToneDatabase, $PlaylistsTable, Playlist> {
+    extends BaseReferences<_$MeloDatabase, $PlaylistsTable, Playlist> {
   $$PlaylistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static MultiTypedResultKey<$PlaylistTracksTable, List<PlaylistTrack>>
-  _playlistTracksRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _playlistTracksRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.playlistTracks,
     aliasName: 'playlists__id__playlist_tracks__playlist_id',
   );
@@ -9335,7 +9335,7 @@ final class $$PlaylistsTableReferences
 }
 
 class $$PlaylistsTableFilterComposer
-    extends Composer<_$ToneDatabase, $PlaylistsTable> {
+    extends Composer<_$MeloDatabase, $PlaylistsTable> {
   $$PlaylistsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -9390,7 +9390,7 @@ class $$PlaylistsTableFilterComposer
 }
 
 class $$PlaylistsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $PlaylistsTable> {
+    extends Composer<_$MeloDatabase, $PlaylistsTable> {
   $$PlaylistsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -9420,7 +9420,7 @@ class $$PlaylistsTableOrderingComposer
 }
 
 class $$PlaylistsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $PlaylistsTable> {
+    extends Composer<_$MeloDatabase, $PlaylistsTable> {
   $$PlaylistsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -9469,7 +9469,7 @@ class $$PlaylistsTableAnnotationComposer
 class $$PlaylistsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaylistsTable,
           Playlist,
           $$PlaylistsTableFilterComposer,
@@ -9481,7 +9481,7 @@ class $$PlaylistsTableTableManager
           Playlist,
           PrefetchHooks Function({bool playlistTracksRefs})
         > {
-  $$PlaylistsTableTableManager(_$ToneDatabase db, $PlaylistsTable table)
+  $$PlaylistsTableTableManager(_$MeloDatabase db, $PlaylistsTable table)
     : super(
         TableManagerState(
           db: db,
@@ -9567,7 +9567,7 @@ class $$PlaylistsTableTableManager
 
 typedef $$PlaylistsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $PlaylistsTable,
       Playlist,
       $$PlaylistsTableFilterComposer,
@@ -9596,14 +9596,14 @@ typedef $$PlaylistTracksTableUpdateCompanionBuilder =
 
 final class $$PlaylistTracksTableReferences
     extends
-        BaseReferences<_$ToneDatabase, $PlaylistTracksTable, PlaylistTrack> {
+        BaseReferences<_$MeloDatabase, $PlaylistTracksTable, PlaylistTrack> {
   $$PlaylistTracksTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $PlaylistsTable _playlistIdTable(_$ToneDatabase db) =>
+  static $PlaylistsTable _playlistIdTable(_$MeloDatabase db) =>
       db.playlists.createAlias('playlist_tracks__playlist_id__playlists__id');
 
   $$PlaylistsTableProcessedTableManager get playlistId {
@@ -9620,7 +9620,7 @@ final class $$PlaylistTracksTableReferences
     );
   }
 
-  static $LibraryTracksTable _trackIdTable(_$ToneDatabase db) => db
+  static $LibraryTracksTable _trackIdTable(_$MeloDatabase db) => db
       .libraryTracks
       .createAlias('playlist_tracks__track_id__library_tracks__id');
 
@@ -9640,7 +9640,7 @@ final class $$PlaylistTracksTableReferences
 }
 
 class $$PlaylistTracksTableFilterComposer
-    extends Composer<_$ToneDatabase, $PlaylistTracksTable> {
+    extends Composer<_$MeloDatabase, $PlaylistTracksTable> {
   $$PlaylistTracksTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -9701,7 +9701,7 @@ class $$PlaylistTracksTableFilterComposer
 }
 
 class $$PlaylistTracksTableOrderingComposer
-    extends Composer<_$ToneDatabase, $PlaylistTracksTable> {
+    extends Composer<_$MeloDatabase, $PlaylistTracksTable> {
   $$PlaylistTracksTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -9762,7 +9762,7 @@ class $$PlaylistTracksTableOrderingComposer
 }
 
 class $$PlaylistTracksTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $PlaylistTracksTable> {
+    extends Composer<_$MeloDatabase, $PlaylistTracksTable> {
   $$PlaylistTracksTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -9823,7 +9823,7 @@ class $$PlaylistTracksTableAnnotationComposer
 class $$PlaylistTracksTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaylistTracksTable,
           PlaylistTrack,
           $$PlaylistTracksTableFilterComposer,
@@ -9836,7 +9836,7 @@ class $$PlaylistTracksTableTableManager
           PrefetchHooks Function({bool playlistId, bool trackId})
         > {
   $$PlaylistTracksTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $PlaylistTracksTable table,
   ) : super(
         TableManagerState(
@@ -9936,7 +9936,7 @@ class $$PlaylistTracksTableTableManager
 
 typedef $$PlaylistTracksTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $PlaylistTracksTable,
       PlaylistTrack,
       $$PlaylistTracksTableFilterComposer,
@@ -9960,10 +9960,10 @@ typedef $$FavoritesTableUpdateCompanionBuilder = FavoritesCompanion Function({
 });
 
 final class $$FavoritesTableReferences
-    extends BaseReferences<_$ToneDatabase, $FavoritesTable, Favorite> {
+    extends BaseReferences<_$MeloDatabase, $FavoritesTable, Favorite> {
   $$FavoritesTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $LibraryTracksTable _trackIdTable(_$ToneDatabase db) =>
+  static $LibraryTracksTable _trackIdTable(_$MeloDatabase db) =>
       db.libraryTracks.createAlias('favorites__track_id__library_tracks__id');
 
   $$LibraryTracksTableProcessedTableManager get trackId {
@@ -9982,7 +9982,7 @@ final class $$FavoritesTableReferences
 }
 
 class $$FavoritesTableFilterComposer
-    extends Composer<_$ToneDatabase, $FavoritesTable> {
+    extends Composer<_$MeloDatabase, $FavoritesTable> {
   $$FavoritesTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -10020,7 +10020,7 @@ class $$FavoritesTableFilterComposer
 }
 
 class $$FavoritesTableOrderingComposer
-    extends Composer<_$ToneDatabase, $FavoritesTable> {
+    extends Composer<_$MeloDatabase, $FavoritesTable> {
   $$FavoritesTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -10058,7 +10058,7 @@ class $$FavoritesTableOrderingComposer
 }
 
 class $$FavoritesTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $FavoritesTable> {
+    extends Composer<_$MeloDatabase, $FavoritesTable> {
   $$FavoritesTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -10096,7 +10096,7 @@ class $$FavoritesTableAnnotationComposer
 class $$FavoritesTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $FavoritesTable,
           Favorite,
           $$FavoritesTableFilterComposer,
@@ -10108,7 +10108,7 @@ class $$FavoritesTableTableManager
           Favorite,
           PrefetchHooks Function({bool trackId})
         > {
-  $$FavoritesTableTableManager(_$ToneDatabase db, $FavoritesTable table)
+  $$FavoritesTableTableManager(_$MeloDatabase db, $FavoritesTable table)
     : super(
         TableManagerState(
           db: db,
@@ -10192,7 +10192,7 @@ class $$FavoritesTableTableManager
 
 typedef $$FavoritesTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $FavoritesTable,
       Favorite,
       $$FavoritesTableFilterComposer,
@@ -10219,14 +10219,14 @@ typedef $$ExcludedTracksTableUpdateCompanionBuilder =
 
 final class $$ExcludedTracksTableReferences
     extends
-        BaseReferences<_$ToneDatabase, $ExcludedTracksTable, ExcludedTrack> {
+        BaseReferences<_$MeloDatabase, $ExcludedTracksTable, ExcludedTrack> {
   $$ExcludedTracksTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $LibraryTracksTable _trackIdTable(_$ToneDatabase db) => db
+  static $LibraryTracksTable _trackIdTable(_$MeloDatabase db) => db
       .libraryTracks
       .createAlias('excluded_tracks__track_id__library_tracks__id');
 
@@ -10246,7 +10246,7 @@ final class $$ExcludedTracksTableReferences
 }
 
 class $$ExcludedTracksTableFilterComposer
-    extends Composer<_$ToneDatabase, $ExcludedTracksTable> {
+    extends Composer<_$MeloDatabase, $ExcludedTracksTable> {
   $$ExcludedTracksTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -10284,7 +10284,7 @@ class $$ExcludedTracksTableFilterComposer
 }
 
 class $$ExcludedTracksTableOrderingComposer
-    extends Composer<_$ToneDatabase, $ExcludedTracksTable> {
+    extends Composer<_$MeloDatabase, $ExcludedTracksTable> {
   $$ExcludedTracksTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -10322,7 +10322,7 @@ class $$ExcludedTracksTableOrderingComposer
 }
 
 class $$ExcludedTracksTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $ExcludedTracksTable> {
+    extends Composer<_$MeloDatabase, $ExcludedTracksTable> {
   $$ExcludedTracksTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -10362,7 +10362,7 @@ class $$ExcludedTracksTableAnnotationComposer
 class $$ExcludedTracksTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $ExcludedTracksTable,
           ExcludedTrack,
           $$ExcludedTracksTableFilterComposer,
@@ -10375,7 +10375,7 @@ class $$ExcludedTracksTableTableManager
           PrefetchHooks Function({bool trackId})
         > {
   $$ExcludedTracksTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $ExcludedTracksTable table,
   ) : super(
         TableManagerState(
@@ -10460,7 +10460,7 @@ class $$ExcludedTracksTableTableManager
 
 typedef $$ExcludedTracksTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $ExcludedTracksTable,
       ExcludedTrack,
       $$ExcludedTracksTableFilterComposer,
@@ -10484,7 +10484,7 @@ typedef $$PlaybackQueueEntriesTableUpdateCompanionBuilder =
     });
 
 class $$PlaybackQueueEntriesTableFilterComposer
-    extends Composer<_$ToneDatabase, $PlaybackQueueEntriesTable> {
+    extends Composer<_$MeloDatabase, $PlaybackQueueEntriesTable> {
   $$PlaybackQueueEntriesTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -10504,7 +10504,7 @@ class $$PlaybackQueueEntriesTableFilterComposer
 }
 
 class $$PlaybackQueueEntriesTableOrderingComposer
-    extends Composer<_$ToneDatabase, $PlaybackQueueEntriesTable> {
+    extends Composer<_$MeloDatabase, $PlaybackQueueEntriesTable> {
   $$PlaybackQueueEntriesTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -10524,7 +10524,7 @@ class $$PlaybackQueueEntriesTableOrderingComposer
 }
 
 class $$PlaybackQueueEntriesTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $PlaybackQueueEntriesTable> {
+    extends Composer<_$MeloDatabase, $PlaybackQueueEntriesTable> {
   $$PlaybackQueueEntriesTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -10542,7 +10542,7 @@ class $$PlaybackQueueEntriesTableAnnotationComposer
 class $$PlaybackQueueEntriesTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaybackQueueEntriesTable,
           PlaybackQueueEntry,
           $$PlaybackQueueEntriesTableFilterComposer,
@@ -10553,7 +10553,7 @@ class $$PlaybackQueueEntriesTableTableManager
           (
             PlaybackQueueEntry,
             BaseReferences<
-              _$ToneDatabase,
+              _$MeloDatabase,
               $PlaybackQueueEntriesTable,
               PlaybackQueueEntry
             >,
@@ -10562,7 +10562,7 @@ class $$PlaybackQueueEntriesTableTableManager
           PrefetchHooks Function()
         > {
   $$PlaybackQueueEntriesTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $PlaybackQueueEntriesTable table,
   ) : super(
         TableManagerState(
@@ -10603,7 +10603,7 @@ class $$PlaybackQueueEntriesTableTableManager
                     table,
                   ),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $PlaybackQueueEntriesTable,
                     PlaybackQueueEntry
                   >(db, table, e),
@@ -10617,7 +10617,7 @@ class $$PlaybackQueueEntriesTableTableManager
 
 typedef $$PlaybackQueueEntriesTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $PlaybackQueueEntriesTable,
       PlaybackQueueEntry,
       $$PlaybackQueueEntriesTableFilterComposer,
@@ -10628,7 +10628,7 @@ typedef $$PlaybackQueueEntriesTableProcessedTableManager =
       (
         PlaybackQueueEntry,
         BaseReferences<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaybackQueueEntriesTable,
           PlaybackQueueEntry
         >,
@@ -10650,7 +10650,7 @@ typedef $$PlaybackStateTableUpdateCompanionBuilder =
     });
 
 class $$PlaybackStateTableFilterComposer
-    extends Composer<_$ToneDatabase, $PlaybackStateTable> {
+    extends Composer<_$MeloDatabase, $PlaybackStateTable> {
   $$PlaybackStateTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -10675,7 +10675,7 @@ class $$PlaybackStateTableFilterComposer
 }
 
 class $$PlaybackStateTableOrderingComposer
-    extends Composer<_$ToneDatabase, $PlaybackStateTable> {
+    extends Composer<_$MeloDatabase, $PlaybackStateTable> {
   $$PlaybackStateTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -10700,7 +10700,7 @@ class $$PlaybackStateTableOrderingComposer
 }
 
 class $$PlaybackStateTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $PlaybackStateTable> {
+    extends Composer<_$MeloDatabase, $PlaybackStateTable> {
   $$PlaybackStateTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -10725,7 +10725,7 @@ class $$PlaybackStateTableAnnotationComposer
 class $$PlaybackStateTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaybackStateTable,
           PlaybackStateData,
           $$PlaybackStateTableFilterComposer,
@@ -10736,7 +10736,7 @@ class $$PlaybackStateTableTableManager
           (
             PlaybackStateData,
             BaseReferences<
-              _$ToneDatabase,
+              _$MeloDatabase,
               $PlaybackStateTable,
               PlaybackStateData
             >,
@@ -10744,7 +10744,7 @@ class $$PlaybackStateTableTableManager
           PlaybackStateData,
           PrefetchHooks Function()
         > {
-  $$PlaybackStateTableTableManager(_$ToneDatabase db, $PlaybackStateTable table)
+  $$PlaybackStateTableTableManager(_$MeloDatabase db, $PlaybackStateTable table)
     : super(
         TableManagerState(
           db: db,
@@ -10780,7 +10780,7 @@ class $$PlaybackStateTableTableManager
                 (e) => (
                   e.readTable<$PlaybackStateTable, PlaybackStateData>(table),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $PlaybackStateTable,
                     PlaybackStateData
                   >(db, table, e),
@@ -10794,7 +10794,7 @@ class $$PlaybackStateTableTableManager
 
 typedef $$PlaybackStateTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $PlaybackStateTable,
       PlaybackStateData,
       $$PlaybackStateTableFilterComposer,
@@ -10804,7 +10804,7 @@ typedef $$PlaybackStateTableProcessedTableManager =
       $$PlaybackStateTableUpdateCompanionBuilder,
       (
         PlaybackStateData,
-        BaseReferences<_$ToneDatabase, $PlaybackStateTable, PlaybackStateData>,
+        BaseReferences<_$MeloDatabase, $PlaybackStateTable, PlaybackStateData>,
       ),
       PlaybackStateData,
       PrefetchHooks Function()
@@ -10833,7 +10833,7 @@ typedef $$PlaybackHistoryTableUpdateCompanionBuilder =
     });
 
 class $$PlaybackHistoryTableFilterComposer
-    extends Composer<_$ToneDatabase, $PlaybackHistoryTable> {
+    extends Composer<_$MeloDatabase, $PlaybackHistoryTable> {
   $$PlaybackHistoryTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -10883,7 +10883,7 @@ class $$PlaybackHistoryTableFilterComposer
 }
 
 class $$PlaybackHistoryTableOrderingComposer
-    extends Composer<_$ToneDatabase, $PlaybackHistoryTable> {
+    extends Composer<_$MeloDatabase, $PlaybackHistoryTable> {
   $$PlaybackHistoryTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -10933,7 +10933,7 @@ class $$PlaybackHistoryTableOrderingComposer
 }
 
 class $$PlaybackHistoryTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $PlaybackHistoryTable> {
+    extends Composer<_$MeloDatabase, $PlaybackHistoryTable> {
   $$PlaybackHistoryTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -10971,7 +10971,7 @@ class $$PlaybackHistoryTableAnnotationComposer
 class $$PlaybackHistoryTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaybackHistoryTable,
           PlaybackHistoryData,
           $$PlaybackHistoryTableFilterComposer,
@@ -10982,7 +10982,7 @@ class $$PlaybackHistoryTableTableManager
           (
             PlaybackHistoryData,
             BaseReferences<
-              _$ToneDatabase,
+              _$MeloDatabase,
               $PlaybackHistoryTable,
               PlaybackHistoryData
             >,
@@ -10991,7 +10991,7 @@ class $$PlaybackHistoryTableTableManager
           PrefetchHooks Function()
         > {
   $$PlaybackHistoryTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $PlaybackHistoryTable table,
   ) : super(
         TableManagerState(
@@ -11050,7 +11050,7 @@ class $$PlaybackHistoryTableTableManager
                     table,
                   ),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $PlaybackHistoryTable,
                     PlaybackHistoryData
                   >(db, table, e),
@@ -11064,7 +11064,7 @@ class $$PlaybackHistoryTableTableManager
 
 typedef $$PlaybackHistoryTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $PlaybackHistoryTable,
       PlaybackHistoryData,
       $$PlaybackHistoryTableFilterComposer,
@@ -11075,7 +11075,7 @@ typedef $$PlaybackHistoryTableProcessedTableManager =
       (
         PlaybackHistoryData,
         BaseReferences<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $PlaybackHistoryTable,
           PlaybackHistoryData
         >,
@@ -11105,14 +11105,14 @@ typedef $$TrackAnalysisTableUpdateCompanionBuilder =
     });
 
 final class $$TrackAnalysisTableReferences
-    extends BaseReferences<_$ToneDatabase, $TrackAnalysisTable, TrackAnalysi> {
+    extends BaseReferences<_$MeloDatabase, $TrackAnalysisTable, TrackAnalysi> {
   $$TrackAnalysisTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $LibraryTracksTable _trackIdTable(_$ToneDatabase db) => db
+  static $LibraryTracksTable _trackIdTable(_$MeloDatabase db) => db
       .libraryTracks
       .createAlias('track_analysis__track_id__library_tracks__id');
 
@@ -11132,7 +11132,7 @@ final class $$TrackAnalysisTableReferences
 }
 
 class $$TrackAnalysisTableFilterComposer
-    extends Composer<_$ToneDatabase, $TrackAnalysisTable> {
+    extends Composer<_$MeloDatabase, $TrackAnalysisTable> {
   $$TrackAnalysisTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -11190,7 +11190,7 @@ class $$TrackAnalysisTableFilterComposer
 }
 
 class $$TrackAnalysisTableOrderingComposer
-    extends Composer<_$ToneDatabase, $TrackAnalysisTable> {
+    extends Composer<_$MeloDatabase, $TrackAnalysisTable> {
   $$TrackAnalysisTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -11248,7 +11248,7 @@ class $$TrackAnalysisTableOrderingComposer
 }
 
 class $$TrackAnalysisTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $TrackAnalysisTable> {
+    extends Composer<_$MeloDatabase, $TrackAnalysisTable> {
   $$TrackAnalysisTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -11304,7 +11304,7 @@ class $$TrackAnalysisTableAnnotationComposer
 class $$TrackAnalysisTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $TrackAnalysisTable,
           TrackAnalysi,
           $$TrackAnalysisTableFilterComposer,
@@ -11316,7 +11316,7 @@ class $$TrackAnalysisTableTableManager
           TrackAnalysi,
           PrefetchHooks Function({bool trackId})
         > {
-  $$TrackAnalysisTableTableManager(_$ToneDatabase db, $TrackAnalysisTable table)
+  $$TrackAnalysisTableTableManager(_$MeloDatabase db, $TrackAnalysisTable table)
     : super(
         TableManagerState(
           db: db,
@@ -11416,7 +11416,7 @@ class $$TrackAnalysisTableTableManager
 
 typedef $$TrackAnalysisTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $TrackAnalysisTable,
       TrackAnalysi,
       $$TrackAnalysisTableFilterComposer,
@@ -11448,7 +11448,7 @@ typedef $$ArtworkCacheTableUpdateCompanionBuilder =
     });
 
 class $$ArtworkCacheTableFilterComposer
-    extends Composer<_$ToneDatabase, $ArtworkCacheTable> {
+    extends Composer<_$MeloDatabase, $ArtworkCacheTable> {
   $$ArtworkCacheTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -11483,7 +11483,7 @@ class $$ArtworkCacheTableFilterComposer
 }
 
 class $$ArtworkCacheTableOrderingComposer
-    extends Composer<_$ToneDatabase, $ArtworkCacheTable> {
+    extends Composer<_$MeloDatabase, $ArtworkCacheTable> {
   $$ArtworkCacheTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -11518,7 +11518,7 @@ class $$ArtworkCacheTableOrderingComposer
 }
 
 class $$ArtworkCacheTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $ArtworkCacheTable> {
+    extends Composer<_$MeloDatabase, $ArtworkCacheTable> {
   $$ArtworkCacheTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -11551,7 +11551,7 @@ class $$ArtworkCacheTableAnnotationComposer
 class $$ArtworkCacheTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $ArtworkCacheTable,
           ArtworkCacheData,
           $$ArtworkCacheTableFilterComposer,
@@ -11562,7 +11562,7 @@ class $$ArtworkCacheTableTableManager
           (
             ArtworkCacheData,
             BaseReferences<
-              _$ToneDatabase,
+              _$MeloDatabase,
               $ArtworkCacheTable,
               ArtworkCacheData
             >,
@@ -11570,7 +11570,7 @@ class $$ArtworkCacheTableTableManager
           ArtworkCacheData,
           PrefetchHooks Function()
         > {
-  $$ArtworkCacheTableTableManager(_$ToneDatabase db, $ArtworkCacheTable table)
+  $$ArtworkCacheTableTableManager(_$MeloDatabase db, $ArtworkCacheTable table)
     : super(
         TableManagerState(
           db: db,
@@ -11618,7 +11618,7 @@ class $$ArtworkCacheTableTableManager
                 (e) => (
                   e.readTable<$ArtworkCacheTable, ArtworkCacheData>(table),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $ArtworkCacheTable,
                     ArtworkCacheData
                   >(db, table, e),
@@ -11632,7 +11632,7 @@ class $$ArtworkCacheTableTableManager
 
 typedef $$ArtworkCacheTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $ArtworkCacheTable,
       ArtworkCacheData,
       $$ArtworkCacheTableFilterComposer,
@@ -11642,7 +11642,7 @@ typedef $$ArtworkCacheTableProcessedTableManager =
       $$ArtworkCacheTableUpdateCompanionBuilder,
       (
         ArtworkCacheData,
-        BaseReferences<_$ToneDatabase, $ArtworkCacheTable, ArtworkCacheData>,
+        BaseReferences<_$MeloDatabase, $ArtworkCacheTable, ArtworkCacheData>,
       ),
       ArtworkCacheData,
       PrefetchHooks Function()
@@ -11665,10 +11665,10 @@ typedef $$DownloadsTableUpdateCompanionBuilder = DownloadsCompanion Function({
 });
 
 final class $$DownloadsTableReferences
-    extends BaseReferences<_$ToneDatabase, $DownloadsTable, Download> {
+    extends BaseReferences<_$MeloDatabase, $DownloadsTable, Download> {
   $$DownloadsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $LibraryTracksTable _trackIdTable(_$ToneDatabase db) =>
+  static $LibraryTracksTable _trackIdTable(_$MeloDatabase db) =>
       db.libraryTracks.createAlias('downloads__track_id__library_tracks__id');
 
   $$LibraryTracksTableProcessedTableManager get trackId {
@@ -11687,7 +11687,7 @@ final class $$DownloadsTableReferences
 }
 
 class $$DownloadsTableFilterComposer
-    extends Composer<_$ToneDatabase, $DownloadsTable> {
+    extends Composer<_$MeloDatabase, $DownloadsTable> {
   $$DownloadsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -11740,7 +11740,7 @@ class $$DownloadsTableFilterComposer
 }
 
 class $$DownloadsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $DownloadsTable> {
+    extends Composer<_$MeloDatabase, $DownloadsTable> {
   $$DownloadsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -11793,7 +11793,7 @@ class $$DownloadsTableOrderingComposer
 }
 
 class $$DownloadsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $DownloadsTable> {
+    extends Composer<_$MeloDatabase, $DownloadsTable> {
   $$DownloadsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -11846,7 +11846,7 @@ class $$DownloadsTableAnnotationComposer
 class $$DownloadsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $DownloadsTable,
           Download,
           $$DownloadsTableFilterComposer,
@@ -11858,7 +11858,7 @@ class $$DownloadsTableTableManager
           Download,
           PrefetchHooks Function({bool trackId})
         > {
-  $$DownloadsTableTableManager(_$ToneDatabase db, $DownloadsTable table)
+  $$DownloadsTableTableManager(_$MeloDatabase db, $DownloadsTable table)
     : super(
         TableManagerState(
           db: db,
@@ -11954,7 +11954,7 @@ class $$DownloadsTableTableManager
 
 typedef $$DownloadsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $DownloadsTable,
       Download,
       $$DownloadsTableFilterComposer,
@@ -11982,11 +11982,11 @@ typedef $$DjSessionsTableUpdateCompanionBuilder = DjSessionsCompanion Function({
 });
 
 final class $$DjSessionsTableReferences
-    extends BaseReferences<_$ToneDatabase, $DjSessionsTable, DjSession> {
+    extends BaseReferences<_$MeloDatabase, $DjSessionsTable, DjSession> {
   $$DjSessionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static MultiTypedResultKey<$DjSessionEventsTable, List<DjSessionEvent>>
-  _djSessionEventsRefsTable(_$ToneDatabase db) => MultiTypedResultKey.fromTable(
+  _djSessionEventsRefsTable(_$MeloDatabase db) => MultiTypedResultKey.fromTable(
     db.djSessionEvents,
     aliasName: 'dj_sessions__id__dj_session_events__session_id',
   );
@@ -12007,7 +12007,7 @@ final class $$DjSessionsTableReferences
 }
 
 class $$DjSessionsTableFilterComposer
-    extends Composer<_$ToneDatabase, $DjSessionsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionsTable> {
   $$DjSessionsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -12062,7 +12062,7 @@ class $$DjSessionsTableFilterComposer
 }
 
 class $$DjSessionsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $DjSessionsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionsTable> {
   $$DjSessionsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -12092,7 +12092,7 @@ class $$DjSessionsTableOrderingComposer
 }
 
 class $$DjSessionsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $DjSessionsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionsTable> {
   $$DjSessionsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -12143,7 +12143,7 @@ class $$DjSessionsTableAnnotationComposer
 class $$DjSessionsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $DjSessionsTable,
           DjSession,
           $$DjSessionsTableFilterComposer,
@@ -12155,7 +12155,7 @@ class $$DjSessionsTableTableManager
           DjSession,
           PrefetchHooks Function({bool djSessionEventsRefs})
         > {
-  $$DjSessionsTableTableManager(_$ToneDatabase db, $DjSessionsTable table)
+  $$DjSessionsTableTableManager(_$MeloDatabase db, $DjSessionsTable table)
     : super(
         TableManagerState(
           db: db,
@@ -12241,7 +12241,7 @@ class $$DjSessionsTableTableManager
 
 typedef $$DjSessionsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $DjSessionsTable,
       DjSession,
       $$DjSessionsTableFilterComposer,
@@ -12274,14 +12274,14 @@ typedef $$DjSessionEventsTableUpdateCompanionBuilder =
 
 final class $$DjSessionEventsTableReferences
     extends
-        BaseReferences<_$ToneDatabase, $DjSessionEventsTable, DjSessionEvent> {
+        BaseReferences<_$MeloDatabase, $DjSessionEventsTable, DjSessionEvent> {
   $$DjSessionEventsTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $DjSessionsTable _sessionIdTable(_$ToneDatabase db) => db.djSessions
+  static $DjSessionsTable _sessionIdTable(_$MeloDatabase db) => db.djSessions
       .createAlias('dj_session_events__session_id__dj_sessions__id');
 
   $$DjSessionsTableProcessedTableManager get sessionId {
@@ -12300,7 +12300,7 @@ final class $$DjSessionEventsTableReferences
 }
 
 class $$DjSessionEventsTableFilterComposer
-    extends Composer<_$ToneDatabase, $DjSessionEventsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionEventsTable> {
   $$DjSessionEventsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -12358,7 +12358,7 @@ class $$DjSessionEventsTableFilterComposer
 }
 
 class $$DjSessionEventsTableOrderingComposer
-    extends Composer<_$ToneDatabase, $DjSessionEventsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionEventsTable> {
   $$DjSessionEventsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -12416,7 +12416,7 @@ class $$DjSessionEventsTableOrderingComposer
 }
 
 class $$DjSessionEventsTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $DjSessionEventsTable> {
+    extends Composer<_$MeloDatabase, $DjSessionEventsTable> {
   $$DjSessionEventsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -12470,7 +12470,7 @@ class $$DjSessionEventsTableAnnotationComposer
 class $$DjSessionEventsTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $DjSessionEventsTable,
           DjSessionEvent,
           $$DjSessionEventsTableFilterComposer,
@@ -12483,7 +12483,7 @@ class $$DjSessionEventsTableTableManager
           PrefetchHooks Function({bool sessionId})
         > {
   $$DjSessionEventsTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $DjSessionEventsTable table,
   ) : super(
         TableManagerState(
@@ -12580,7 +12580,7 @@ class $$DjSessionEventsTableTableManager
 
 typedef $$DjSessionEventsTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $DjSessionEventsTable,
       DjSessionEvent,
       $$DjSessionEventsTableFilterComposer,
@@ -12608,7 +12608,7 @@ typedef $$UserPreferencesTableUpdateCompanionBuilder =
     });
 
 class $$UserPreferencesTableFilterComposer
-    extends Composer<_$ToneDatabase, $UserPreferencesTable> {
+    extends Composer<_$MeloDatabase, $UserPreferencesTable> {
   $$UserPreferencesTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -12633,7 +12633,7 @@ class $$UserPreferencesTableFilterComposer
 }
 
 class $$UserPreferencesTableOrderingComposer
-    extends Composer<_$ToneDatabase, $UserPreferencesTable> {
+    extends Composer<_$MeloDatabase, $UserPreferencesTable> {
   $$UserPreferencesTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -12658,7 +12658,7 @@ class $$UserPreferencesTableOrderingComposer
 }
 
 class $$UserPreferencesTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $UserPreferencesTable> {
+    extends Composer<_$MeloDatabase, $UserPreferencesTable> {
   $$UserPreferencesTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -12679,7 +12679,7 @@ class $$UserPreferencesTableAnnotationComposer
 class $$UserPreferencesTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $UserPreferencesTable,
           UserPreference,
           $$UserPreferencesTableFilterComposer,
@@ -12690,7 +12690,7 @@ class $$UserPreferencesTableTableManager
           (
             UserPreference,
             BaseReferences<
-              _$ToneDatabase,
+              _$MeloDatabase,
               $UserPreferencesTable,
               UserPreference
             >,
@@ -12699,7 +12699,7 @@ class $$UserPreferencesTableTableManager
           PrefetchHooks Function()
         > {
   $$UserPreferencesTableTableManager(
-    _$ToneDatabase db,
+    _$MeloDatabase db,
     $UserPreferencesTable table,
   ) : super(
         TableManagerState(
@@ -12740,7 +12740,7 @@ class $$UserPreferencesTableTableManager
                 (e) => (
                   e.readTable<$UserPreferencesTable, UserPreference>(table),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $UserPreferencesTable,
                     UserPreference
                   >(db, table, e),
@@ -12754,7 +12754,7 @@ class $$UserPreferencesTableTableManager
 
 typedef $$UserPreferencesTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $UserPreferencesTable,
       UserPreference,
       $$UserPreferencesTableFilterComposer,
@@ -12764,7 +12764,7 @@ typedef $$UserPreferencesTableProcessedTableManager =
       $$UserPreferencesTableUpdateCompanionBuilder,
       (
         UserPreference,
-        BaseReferences<_$ToneDatabase, $UserPreferencesTable, UserPreference>,
+        BaseReferences<_$MeloDatabase, $UserPreferencesTable, UserPreference>,
       ),
       UserPreference,
       PrefetchHooks Function()
@@ -12787,7 +12787,7 @@ typedef $$AudioProfilesTableUpdateCompanionBuilder =
     });
 
 class $$AudioProfilesTableFilterComposer
-    extends Composer<_$ToneDatabase, $AudioProfilesTable> {
+    extends Composer<_$MeloDatabase, $AudioProfilesTable> {
   $$AudioProfilesTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -12817,7 +12817,7 @@ class $$AudioProfilesTableFilterComposer
 }
 
 class $$AudioProfilesTableOrderingComposer
-    extends Composer<_$ToneDatabase, $AudioProfilesTable> {
+    extends Composer<_$MeloDatabase, $AudioProfilesTable> {
   $$AudioProfilesTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -12847,7 +12847,7 @@ class $$AudioProfilesTableOrderingComposer
 }
 
 class $$AudioProfilesTableAnnotationComposer
-    extends Composer<_$ToneDatabase, $AudioProfilesTable> {
+    extends Composer<_$MeloDatabase, $AudioProfilesTable> {
   $$AudioProfilesTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -12873,7 +12873,7 @@ class $$AudioProfilesTableAnnotationComposer
 class $$AudioProfilesTableTableManager
     extends
         RootTableManager<
-          _$ToneDatabase,
+          _$MeloDatabase,
           $AudioProfilesTable,
           AudioProfile,
           $$AudioProfilesTableFilterComposer,
@@ -12883,12 +12883,12 @@ class $$AudioProfilesTableTableManager
           $$AudioProfilesTableUpdateCompanionBuilder,
           (
             AudioProfile,
-            BaseReferences<_$ToneDatabase, $AudioProfilesTable, AudioProfile>,
+            BaseReferences<_$MeloDatabase, $AudioProfilesTable, AudioProfile>,
           ),
           AudioProfile,
           PrefetchHooks Function()
         > {
-  $$AudioProfilesTableTableManager(_$ToneDatabase db, $AudioProfilesTable table)
+  $$AudioProfilesTableTableManager(_$MeloDatabase db, $AudioProfilesTable table)
     : super(
         TableManagerState(
           db: db,
@@ -12932,7 +12932,7 @@ class $$AudioProfilesTableTableManager
                 (e) => (
                   e.readTable<$AudioProfilesTable, AudioProfile>(table),
                   BaseReferences<
-                    _$ToneDatabase,
+                    _$MeloDatabase,
                     $AudioProfilesTable,
                     AudioProfile
                   >(db, table, e),
@@ -12946,7 +12946,7 @@ class $$AudioProfilesTableTableManager
 
 typedef $$AudioProfilesTableProcessedTableManager =
     ProcessedTableManager<
-      _$ToneDatabase,
+      _$MeloDatabase,
       $AudioProfilesTable,
       AudioProfile,
       $$AudioProfilesTableFilterComposer,
@@ -12956,14 +12956,14 @@ typedef $$AudioProfilesTableProcessedTableManager =
       $$AudioProfilesTableUpdateCompanionBuilder,
       (
         AudioProfile,
-        BaseReferences<_$ToneDatabase, $AudioProfilesTable, AudioProfile>,
+        BaseReferences<_$MeloDatabase, $AudioProfilesTable, AudioProfile>,
       ),
       AudioProfile,
       PrefetchHooks Function()
     >;
 
 class $ToneDatabaseManager {
-  final _$ToneDatabase _db;
+  final _$MeloDatabase _db;
   $ToneDatabaseManager(this._db);
   $$ArtistsTableTableManager get artists =>
       $$ArtistsTableTableManager(_db, _db.artists);

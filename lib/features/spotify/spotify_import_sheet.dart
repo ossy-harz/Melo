@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/spotify/spotify_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class SpotifyImportSheet extends StatefulWidget {
   const SpotifyImportSheet({
@@ -450,7 +450,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                               : null,
                           filled: true,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(ToneRadii.md),
+                            borderRadius: BorderRadius.circular(MeloRadii.md),
                             borderSide: BorderSide.none,
                           ),
                         ),
@@ -477,7 +477,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(ToneRadii.sm),
+                      borderRadius: BorderRadius.circular(MeloRadii.sm),
                     ),
                     child: Text(
                       _errorMessage!,
@@ -562,8 +562,8 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                 ],
                 if (_loadedPlaylist != null) ...[
                   const SizedBox(height: 20),
-                  ToneGlass(
-                    borderRadius: ToneRadii.lg,
+                  MeloGlass(
+                    borderRadius: MeloRadii.lg,
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -625,7 +625,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
-                                        color: ToneColors.cherry,
+                                        color: MeloColors.cherry,
                                       ),
                                     ),
                                   ],

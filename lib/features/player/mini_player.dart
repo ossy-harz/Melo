@@ -10,24 +10,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_palette.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/auto_mix/waveform_transition_cues.dart';
-import 'package:tone_player/features/library/data/artwork_cache.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/song_metadata_enricher.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
-import 'package:tone_player/features/mix/smart_playlist_service.dart';
-import 'package:tone_player/features/player/audio_waveform.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
-import 'package:tone_player/features/player/player_formatters.dart';
-import 'package:tone_player/features/player/player_glass_icon_button.dart';
-import 'package:tone_player/features/player/player_queue_sheet.dart';
-import 'package:tone_player/features/player/tone_audio_handler.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_palette.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/auto_mix/waveform_transition_cues.dart';
+import 'package:melo_player/features/library/data/artwork_cache.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/player/audio_waveform.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/player/player_formatters.dart';
+import 'package:melo_player/features/player/player_glass_icon_button.dart';
+import 'package:melo_player/features/player/player_queue_sheet.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 part 'album_artwork.dart';
 part 'now_playing_details.dart';
@@ -36,9 +36,9 @@ part 'now_playing_controls.dart';
 part 'now_playing_lyrics.dart';
 part 'now_playing_screen.dart';
 
-const _artworkChannel = MethodChannel('app.tone.tone_player/library');
+const _artworkChannel = MethodChannel('app.melo.melo_player/library');
 final Map<Uri, Future<Uint8List?>> _artworkCache = {};
-final Map<Uri, Future<TonePalette?>> _paletteCache = {};
+final Map<Uri, Future<MeloPalette?>> _paletteCache = {};
 final Map<String, Future<Map<String, Object?>?>> _audioQualityCache = {};
 final Map<String, Future<Map<String, Object?>?>> _audioTagsCache = {};
 final Map<String, Future<AudioWaveformData>> _audioWaveformCache = {};
@@ -137,7 +137,7 @@ class MiniPlayer extends StatelessWidget {
     builder: (context, mediaSnapshot) {
       final item = mediaSnapshot.data;
       if (item == null) return const SizedBox.shrink();
-      final radius = BorderRadius.circular(ToneRadii.lg);
+      final radius = BorderRadius.circular(MeloRadii.lg);
       return Container(
         decoration: BoxDecoration(
           borderRadius: radius,
@@ -149,15 +149,15 @@ class MiniPlayer extends StatelessWidget {
               offset: const Offset(0, 12),
             ),
             BoxShadow(
-              color: ToneColors.cherry.withValues(alpha: 0.22),
+              color: MeloColors.cherry.withValues(alpha: 0.22),
               blurRadius: 30,
               spreadRadius: -14,
               offset: const Offset(0, 16),
             ),
           ],
         ),
-        child: ToneGlass(
-          borderRadius: ToneRadii.lg,
+        child: MeloGlass(
+          borderRadius: MeloRadii.lg,
           blur: 9,
           tint: Colors.black.withValues(alpha: 0.7),
           borderColor: Colors.white.withValues(alpha: 0.12),
@@ -170,7 +170,7 @@ class MiniPlayer extends StatelessWidget {
                 borderRadius: radius,
                 child: Stack(
                   children: [
-                    const Positioned.fill(child: ToneGrain(opacity: 0.05)),
+                    const Positioned.fill(child: MeloGrain(opacity: 0.05)),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
                       child: Row(
@@ -235,13 +235,13 @@ class MiniPlayer extends StatelessWidget {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      ToneColors.cherryGlow,
-                                      ToneColors.cherry,
+                                      MeloColors.cherryGlow,
+                                      MeloColors.cherry,
                                     ],
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: ToneColors.cherry.withValues(
+                                      color: MeloColors.cherry.withValues(
                                         alpha: 0.5,
                                       ),
                                       blurRadius: 16,
@@ -261,7 +261,7 @@ class MiniPlayer extends StatelessWidget {
                                     foregroundColor: Colors.white,
                                   ),
                                   icon: AnimatedSwitcher(
-                                    duration: ToneMotion.fast,
+                                    duration: MeloMotion.fast,
                                     transitionBuilder: (child, animation) =>
                                         ScaleTransition(
                                           scale: animation,
@@ -316,7 +316,7 @@ class MiniPlayer extends StatelessWidget {
                                 alpha: 0.14,
                               ),
                               valueColor: const AlwaysStoppedAnimation(
-                                ToneColors.cherry,
+                                MeloColors.cherry,
                               ),
                             ),
                           );
@@ -366,7 +366,7 @@ Stream<Duration> playbackPositionStream(AudioHandler audioHandler) =>
     _positionStreams[audioHandler] ??= _createPositionStream(audioHandler);
 
 Stream<Duration> _createPositionStream(AudioHandler audioHandler) {
-  if (audioHandler is ToneAudioHandler) return audioHandler.positionStream;
+  if (audioHandler is MeloAudioHandler) return audioHandler.positionStream;
   // Any other handler publishes a position with each state change and projects
   // forward from it. It deliberately avoids a free-running timer: a handler
   // that never stops ticking would repaint the bar forever and leave the

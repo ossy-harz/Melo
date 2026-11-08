@@ -11,15 +11,15 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/library_platform_data_source.dart';
-import 'package:tone_player/features/library/data/library_repository.dart';
-import 'package:tone_player/features/library/data/tone_database.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
-import 'package:tone_player/features/mix/personal_mix.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/library_platform_data_source.dart';
+import 'package:melo_player/features/library/data/library_repository.dart';
+import 'package:melo_player/features/library/data/melo_database.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/mix/personal_mix.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
 
-export 'package:tone_player/features/library/library_platform_data_source.dart'
+export 'package:melo_player/features/library/library_platform_data_source.dart'
     show
         DeviceAudio,
         LibraryPlatformDataSource,
@@ -349,7 +349,7 @@ class MusicLibrary extends ChangeNotifier {
     await directory.create(recursive: true);
     final preferences = await SharedPreferences.getInstance();
     final databaseFile = File(p.join(support.path, 'tone_library.sqlite'));
-    final database = ToneDatabase.open(databaseFile);
+    final database = MeloDatabase.open(databaseFile);
     var repository = DriftLibraryRepository(
       database: database,
       legacyPreferences: preferences,
@@ -363,7 +363,7 @@ class MusicLibrary extends ChangeNotifier {
       );
       await databaseFile.rename(quarantined.path);
       repository = DriftLibraryRepository(
-        database: ToneDatabase.open(databaseFile),
+        database: MeloDatabase.open(databaseFile),
         legacyPreferences: preferences,
       );
       await repository.initialize();
@@ -1048,7 +1048,7 @@ class MusicLibrary extends ChangeNotifier {
             if (artworkUri != null && artworkUri.startsWith('file:')) {
               localArtworkPath = Uri.parse(artworkUri).toFilePath();
             }
-            await const MethodChannel('app.tone.tone_player/library')
+            await const MethodChannel('app.melo.melo_player/library')
                 .invokeMethod<Map<Object?, Object?>>(
               'convertToLosslessFlac',
               <String, Object?>{
@@ -1084,7 +1084,7 @@ class MusicLibrary extends ChangeNotifier {
           }
         }
         try {
-          await const MethodChannel('app.tone.tone_player/library')
+          await const MethodChannel('app.melo.melo_player/library')
               .invokeMethod<Map<Object?, Object?>>(
             'saveToDeviceMusic',
             <String, Object?>{

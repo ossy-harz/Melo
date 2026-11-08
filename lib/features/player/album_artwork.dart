@@ -3,11 +3,11 @@ part of 'mini_player.dart';
 /// The artwork-derived palette for [item], or `null` when it has no artwork or
 /// the artwork is effectively monochrome. Shares the artwork cache so the
 /// image is only ever fetched once per track.
-Future<TonePalette?> _paletteForItem(MediaItem item) {
+Future<MeloPalette?> _paletteForItem(MediaItem item) {
   final artworkUri = item.artUri;
   final sourceUri = Uri.tryParse(item.id);
   if (artworkUri == null && sourceUri == null) {
-    return Future<TonePalette?>.value();
+    return Future<MeloPalette?>.value();
   }
   final key = artworkUri ?? sourceUri!;
   return _paletteCache.putIfAbsent(key, () async {
@@ -22,29 +22,29 @@ Future<TonePalette?> _paletteForItem(MediaItem item) {
 
 /// The palette to actually paint with: artwork colour when available, otherwise
 /// a tasteful deterministic colour derived from the title.
-TonePalette _paletteFor(MediaItem item, TonePalette? artworkPalette) =>
-    artworkPalette ?? TonePalette.fromSeed(item.title.hashCode);
+MeloPalette _paletteFor(MediaItem item, MeloPalette? artworkPalette) =>
+    artworkPalette ?? MeloPalette.fromSeed(item.title.hashCode);
 
 /// Public entry point so hero surfaces elsewhere (Home, Library) can pick up
 /// the same artwork-derived colour as the Now Playing screen.
-Future<TonePalette?> tonePaletteForItem(MediaItem item) =>
+Future<MeloPalette?> tonePaletteForItem(MediaItem item) =>
     _paletteForItem(item);
 
 class _ArtworkBackdrop extends StatelessWidget {
   const _ArtworkBackdrop({required this.palette});
 
-  final TonePalette palette;
+  final MeloPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: ToneMotion.slow,
-      curve: ToneMotion.emphasized,
+      duration: MeloMotion.slow,
+      curve: MeloMotion.emphasized,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [palette.deep, ToneColors.playerBackdrop, ToneColors.amoled],
+          colors: [palette.deep, MeloColors.playerBackdrop, MeloColors.amoled],
           stops: const [0, 0.52, 1],
         ),
       ),
@@ -52,8 +52,8 @@ class _ArtworkBackdrop extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           AnimatedContainer(
-            duration: ToneMotion.slow,
-            curve: ToneMotion.emphasized,
+            duration: MeloMotion.slow,
+            curve: MeloMotion.emphasized,
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 center: const Alignment(0, -0.74),
@@ -66,8 +66,8 @@ class _ArtworkBackdrop extends StatelessWidget {
             ),
           ),
           AnimatedContainer(
-            duration: ToneMotion.slow,
-            curve: ToneMotion.emphasized,
+            duration: MeloMotion.slow,
+            curve: MeloMotion.emphasized,
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 center: const Alignment(0.8, 1.1),
@@ -79,7 +79,7 @@ class _ArtworkBackdrop extends StatelessWidget {
               ),
             ),
           ),
-          const ToneGrain(),
+          const MeloGrain(),
         ],
       ),
     );
@@ -127,7 +127,7 @@ class AlbumArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = TonePalette.fromSeed(title.hashCode);
+    final palette = MeloPalette.fromSeed(title.hashCode);
     final radius = BorderRadius.circular(borderRadius ?? size * 0.09);
     final artwork = artworkUri != null || sourceUri != null
         ? _loadArtwork(artworkUri, sourceUri)
@@ -142,7 +142,7 @@ class AlbumArtwork extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: radius,
           gradient: LinearGradient(
-            colors: [palette.muted, palette.deep, ToneColors.cherryDeep],
+            colors: [palette.muted, palette.deep, MeloColors.cherryDeep],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -194,7 +194,7 @@ class AlbumArtwork extends StatelessWidget {
   /// The no-artwork treatment: a deterministic gradient with the track's
   /// monogram and a whisper of grain, so a missing cover still looks
   /// deliberate rather than broken.
-  Widget _fallback(TonePalette palette) {
+  Widget _fallback(MeloPalette palette) {
     if (size < 56) {
       return Icon(
         Icons.graphic_eq_rounded,
@@ -217,7 +217,7 @@ class AlbumArtwork extends StatelessWidget {
             ),
           ),
         ),
-        const ToneGrain(opacity: 0.07, density: 0.0006),
+        const MeloGrain(opacity: 0.07, density: 0.0006),
         Center(
           child: Text(
             _monogram(title),

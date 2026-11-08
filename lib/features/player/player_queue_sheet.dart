@@ -1,10 +1,10 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/player/player_formatters.dart';
-import 'package:tone_player/features/player/player_glass_icon_button.dart';
-import 'package:tone_player/features/player/tone_audio_handler.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/player/player_formatters.dart';
+import 'package:melo_player/features/player/player_glass_icon_button.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 
 void showPlayerQueue(BuildContext context, AudioHandler handler) {
   final queue = handler.queue.value;
@@ -38,13 +38,13 @@ void showPlayerQueue(BuildContext context, AudioHandler handler) {
                 reportedIndex >= 0 && reportedIndex < currentQueue.length
                 ? reportedIndex
                 : 0;
-            final upcomingIndices = handler is ToneAudioHandler
+            final upcomingIndices = handler is MeloAudioHandler
                 ? handler.upcomingQueueIndices
                 : List<int>.generate(
                     currentQueue.length - currentIndex - 1,
                     (index) => currentIndex + index + 1,
                   );
-            final isAutoplay = handler is ToneAudioHandler
+            final isAutoplay = handler is MeloAudioHandler
                 ? handler.autoplayContinuous
                 : true;
             return PlayerQueueSheet(
@@ -66,7 +66,7 @@ void showPlayerQueue(BuildContext context, AudioHandler handler) {
                 () => handler.removeQueueItem(item),
                 'Could not remove that queued track',
               ),
-              onReorder: handler is ToneAudioHandler
+              onReorder: handler is MeloAudioHandler
                   ? (oldIndex, newIndex) => _runQueueAction(
                       context,
                       () async {
@@ -96,7 +96,7 @@ Future<void> _clearQueue(
   List<MediaItem> queue,
   List<int> upcomingIndices,
 ) async {
-  if (handler is ToneAudioHandler) {
+  if (handler is MeloAudioHandler) {
     await handler.customAction('clearUpcomingQueue');
     return;
   }
@@ -166,7 +166,7 @@ class PlayerQueueSheet extends StatelessWidget {
       height: MediaQuery.sizeOf(context).height * 0.78,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: ToneGlass(
+        child: MeloGlass(
           borderRadius: 28,
           tint: const Color(0xE8170B0F),
           child: Column(

@@ -6,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _lyricsChannel = MethodChannel('app.tone.tone_player/library');
+const _lyricsChannel = MethodChannel('app.melo.melo_player/library');
 typedef OnlineLyricsLookup = Future<Object?> Function(Uri uri);
 
 class LyricsServiceUnavailableException implements Exception {

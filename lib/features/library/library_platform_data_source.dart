@@ -20,7 +20,7 @@ abstract interface class LibraryPlatformDataSource {
 class MethodChannelLibraryPlatformDataSource
     implements LibraryPlatformDataSource {
   const MethodChannelLibraryPlatformDataSource({
-    this._channel = const MethodChannel('app.tone.tone_player/library'),
+    this._channel = const MethodChannel('app.melo.melo_player/library'),
   });
 
   final MethodChannel _channel;

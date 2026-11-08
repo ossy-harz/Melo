@@ -1,5 +1,5 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:tone_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/player/audio_profile.dart';
 
 abstract interface class AudioProfileService {
   Future<AudioProfile> loadAudioProfile();

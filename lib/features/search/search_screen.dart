@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
-import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_search_screen.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({this.library, this.audioHandler, super.key});
@@ -511,10 +511,10 @@ class _BrowseDestinationCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(ToneRadii.lg),
+          borderRadius: BorderRadius.circular(MeloRadii.lg),
           child: Ink(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(ToneRadii.lg),
+              borderRadius: BorderRadius.circular(MeloRadii.lg),
               color: colors.surfaceContainerLow,
               border: Border.all(
                 color: colors.outlineVariant.withValues(alpha: 0.35),
@@ -676,10 +676,10 @@ class _SearchResultTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(ToneRadii.md),
+        borderRadius: BorderRadius.circular(MeloRadii.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(ToneRadii.md),
+          borderRadius: BorderRadius.circular(MeloRadii.md),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
             child: Row(
@@ -761,10 +761,10 @@ class _OnlineSearchResultTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(ToneRadii.md),
+        borderRadius: BorderRadius.circular(MeloRadii.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(ToneRadii.md),
+          borderRadius: BorderRadius.circular(MeloRadii.md),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
             child: Row(

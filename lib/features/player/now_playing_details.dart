@@ -193,12 +193,12 @@ class _QualityBadge extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: highlighted
-          ? ToneColors.cherry.withValues(alpha: 0.24)
+          ? MeloColors.cherry.withValues(alpha: 0.24)
           : Colors.white.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(ToneRadii.pill),
+      borderRadius: BorderRadius.circular(MeloRadii.pill),
       border: Border.all(
         color: highlighted
-            ? ToneColors.cherrySoft.withValues(alpha: 0.45)
+            ? MeloColors.cherrySoft.withValues(alpha: 0.45)
             : Colors.white.withValues(alpha: 0.14),
         width: 0.8,
       ),
@@ -215,7 +215,7 @@ class _QualityBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: highlighted ? ToneColors.cherrySoft : ToneColors.playerText,
+          color: highlighted ? MeloColors.cherrySoft : MeloColors.playerText,
           fontSize: 9.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.4,
@@ -225,14 +225,33 @@ class _QualityBadge extends StatelessWidget {
   );
 }
 
-class _TrackDetailsSheet extends StatelessWidget {
-  const _TrackDetailsSheet({
+class TrackDetailsSheet extends StatelessWidget {
+  const TrackDetailsSheet({
     required this.item,
     this.onEnrichMetadata,
+    super.key,
   });
 
   final MediaItem item;
   final VoidCallback? onEnrichMetadata;
+
+  static void show(
+    BuildContext context,
+    MediaItem item, {
+    VoidCallback? onEnrichMetadata,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (context) => TrackDetailsSheet(
+        item: item,
+        onEnrichMetadata: onEnrichMetadata,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +331,7 @@ class _TrackDetailsSheet extends StatelessWidget {
       height: MediaQuery.sizeOf(context).height * 0.82,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: ToneGlass(
+        child: MeloGlass(
           borderRadius: 28,
           tint: const Color(0xE817171B),
           child: Column(

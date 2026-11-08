@@ -1,11 +1,11 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
-import 'package:tone_player/features/player/mini_player.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/player/mini_player.dart';
 
 /// Apple Music-inspired dedicated playlist screen with hero artwork,
 /// editorial themes, side-by-side Play & Shuffle pills, and clean track list.
@@ -190,7 +190,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         if (chosen.isNotEmpty)
                           FilledButton(
                             style: FilledButton.styleFrom(
-                              backgroundColor: ToneColors.cherry,
+                              backgroundColor: MeloColors.cherry,
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                             ),
                             onPressed: () async {
@@ -274,7 +274,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                   color: Colors.white24, size: 22)
                               : Checkbox(
                                   value: isSelected,
-                                  activeColor: ToneColors.cherry,
+                                  activeColor: MeloColors.cherry,
                                   shape: const CircleBorder(),
                                   onChanged: (checked) {
                                     setSheetState(() {
@@ -581,7 +581,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final playlist = _currentPlaylist;
     final tracks = _tracks;
     final filtered = _filteredTracks;
-    final themeIndex = playlist.coverStyle != null ? int.tryParse(playlist.coverStyle!) : null;
+    final themeIndex = playlist.coverStyle != null
+        ? int.tryParse(playlist.coverStyle!)
+        : null;
+    final themeColors = const [
+      Color(0xFFFF2A4F),
+      Color(0xFF06B6D4),
+      Color(0xFFF59E0B),
+      Color(0xFF10B981),
+      Color(0xFFF43F5E),
+      Color(0xFFFB7185),
+      Color(0xFF94A3B8),
+    ];
+    final headerTint = themeIndex != null &&
+            themeIndex >= 0 &&
+            themeIndex < themeColors.length
+        ? themeColors[themeIndex]
+        : const Color(0xFF4A6B82);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -597,10 +613,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.94)
                     : Colors.transparent,
                 surfaceTintColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  tooltip: 'Back',
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
+                      child: const Icon(Icons.arrow_back_rounded,
+                          size: 18, color: Colors.white),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: 'Back',
+                  ),
                 ),
                 title: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
@@ -616,13 +643,37 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   ),
                 ),
                 actions: [
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
+                      child: const Icon(Icons.share_rounded,
+                          size: 18, color: Colors.white),
+                    ),
+                    tooltip: 'Share',
+                    onPressed: () =>
+                        _showMessage('Sharing "${playlist.name}"'),
+                  ),
                   PopupMenuButton<String>(
                     tooltip: 'Playlist Options',
-                    icon: const Icon(Icons.more_horiz_rounded),
+                    icon: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
+                      child: const Icon(Icons.more_horiz_rounded,
+                          size: 18, color: Colors.white),
+                    ),
                     onSelected: (val) {
                       if (val == 'add') _addSongsDialog();
                       if (val == 'cover') _changeCoverThemeDialog();
-                      if (val == 'reorder') setState(() => _isReordering = !_isReordering);
+                      if (val == 'reorder') {
+                        setState(() => _isReordering = !_isReordering);
+                      }
                       if (val == 'rename') _renamePlaylistDialog();
                       if (val == 'delete') _deletePlaylistDialog();
                     },
@@ -657,8 +708,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                   : Icons.reorder_rounded,
                               size: 20,
                             ),
-                            const SizedBox(width: 10),
-                            Text(_isReordering ? 'Done Reordering' : 'Reorder Songs'),
+                            SizedBox(width: 10),
+                            Text(_isReordering
+                                ? 'Done Reordering'
+                                : 'Reorder Songs'),
                           ],
                         ),
                       ),
@@ -687,173 +740,181 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(width: 4),
                 ],
               ),
 
-              // Apple Music Hero Header
+              // Apple Music Ambient Gradient Hero Header (Reference Screenshot 1)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        headerTint.withValues(alpha: 0.42),
+                        headerTint.withValues(alpha: 0.12),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.7, 1.0],
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                   child: Column(
                     children: [
-                      // Large Hero Artwork with Ambient Shadow
-                      Center(
-                        child: GestureDetector(
-                          onTap: _changeCoverThemeDialog,
-                          child: PlaylistArtwork(
-                            playlistName: playlist.name,
-                            tracks: tracks,
-                            library: widget.library,
-                            size: 216,
-                            borderRadius: 18,
-                            customArtworkUri: playlist.customArtworkUri,
-                            themeIndex: themeIndex,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Playlist Title
+                      // Centered Huge Bold Title
                       Text(
                         playlist.name,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.6,
-                          height: 1.15,
+                          fontSize: 38,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.0,
+                          color: Colors.white,
+                          height: 1.1,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
 
-                      // Curator & Info
+                      // Two-line Subtitle
                       Text(
-                        'Melo Playlist · ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
+                        '${playlist.name} Essentials',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Melo Curated · ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: Colors.white.withValues(alpha: 0.62),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
 
-                      // Side-by-side Apple Music Play & Shuffle buttons
+                      // Apple Music 3-button Row: [Shuffle Circle] [▶ Play Pill] [+ Circle]
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: ToneColors.cherry,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                          // Left: Circular Glass Shuffle Button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: tracks.isEmpty
+                                  ? null
+                                  : () => _playPlaylist(shuffle: true),
+                              customBorder: const CircleBorder(),
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
                                 ),
-                              ),
-                              onPressed: tracks.isEmpty ? null : () => _playPlaylist(),
-                              icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                              label: const Text(
-                                'Play',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.2,
+                                child: const Icon(
+                                  Icons.shuffle_rounded,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.12),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                          const SizedBox(width: 16),
+
+                          // Center: High-contrast Solid White Pill Play Button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: tracks.isEmpty ? null : () => _playPlaylist(),
+                              borderRadius: BorderRadius.circular(28),
+                              child: Container(
+                                height: 48,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 42),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(28),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.28),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.play_arrow_rounded,
+                                      color: Colors.black,
+                                      size: 24,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Play',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              onPressed:
-                                  tracks.isEmpty ? null : () => _playPlaylist(shuffle: true),
-                              icon: const Icon(Icons.shuffle_rounded, size: 22),
-                              label: const Text(
-                                'Shuffle',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+
+                          // Right: Circular Glass Add Button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _addSongsDialog,
+                              customBorder: const CircleBorder(),
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.add_rounded,
+                                  color: Colors.white,
+                                  size: 24,
                                 ),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-
-                      // Quick Action Pills
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ActionChip(
-                              avatar: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('Add Songs'),
-                              backgroundColor: Colors.white.withValues(alpha: 0.08),
-                              side: BorderSide.none,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              onPressed: _addSongsDialog,
-                            ),
-                            const SizedBox(width: 8),
-                            ActionChip(
-                              avatar: const Icon(Icons.palette_rounded, size: 17),
-                              label: const Text('Cover Theme'),
-                              backgroundColor: Colors.white.withValues(alpha: 0.08),
-                              side: BorderSide.none,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              onPressed: _changeCoverThemeDialog,
-                            ),
-                            if (tracks.length > 1) ...[
-                              const SizedBox(width: 8),
-                              ActionChip(
-                                avatar: Icon(
-                                  _isReordering
-                                      ? Icons.check_rounded
-                                      : Icons.reorder_rounded,
-                                  size: 18,
-                                ),
-                                label: Text(_isReordering ? 'Done' : 'Reorder'),
-                                backgroundColor: _isReordering
-                                    ? ToneColors.cherry.withValues(alpha: 0.28)
-                                    : Colors.white.withValues(alpha: 0.08),
-                                side: BorderSide.none,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                onPressed: () =>
-                                    setState(() => _isReordering = !_isReordering),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      // Optional in-playlist search if playlist has >= 6 tracks
                       if (tracks.length >= 6 && !_isReordering) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         TextField(
                           decoration: InputDecoration(
                             hintText: 'Filter in playlist...',
-                            prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                            prefixIcon:
+                                const Icon(Icons.search_rounded, size: 18),
                             isDense: true,
                             filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.06),
+                            fillColor: Colors.white.withValues(alpha: 0.08),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
@@ -901,7 +962,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         const SizedBox(height: 20),
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: ToneColors.cherry,
+                            backgroundColor: MeloColors.cherry,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -992,29 +1053,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () => _playPlaylist(startTrackId: track.id),
+                            onLongPress: () => TrackDetailsSheet.show(
+                              context,
+                              track.toMediaItem(),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
+                                horizontal: 10,
+                                vertical: 7,
                               ),
                               child: Row(
                                 children: [
-                                  // Track Index
-                                  SizedBox(
-                                    width: 26,
-                                    child: Text(
-                                      '${index + 1}',
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.4),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Track Artwork Thumbnail
+                                  // Apple Music Track Artwork Thumbnail
                                   AlbumArtwork(
-                                    size: 44,
+                                    size: 48,
                                     title: track.title,
                                     artworkUri: track.artworkUri != null
                                         ? Uri.tryParse(track.artworkUri!)
@@ -1022,19 +1074,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     sourceUri: Uri.tryParse(track.path),
                                     borderRadius: 8,
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 14),
 
                                   // Title & Subtitle
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           track.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            fontSize: 15,
+                                            fontSize: 15.5,
                                             fontWeight: FontWeight.w600,
                                             color: Colors.white,
                                           ),
@@ -1044,13 +1097,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                           children: [
                                             if (isLossless) ...[
                                               Container(
-                                                padding: const EdgeInsets.symmetric(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
                                                   horizontal: 4.5,
                                                   vertical: 1.5,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  borderRadius: BorderRadius.circular(4),
-                                                  color: Colors.white.withValues(alpha: 0.12),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.12),
                                                 ),
                                                 child: const Text(
                                                   'LOSSLESS',
@@ -1066,12 +1122,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                             ],
                                             Expanded(
                                               child: Text(
-                                                '${displayArtistName(track.artist)}${track.album.isNotEmpty ? ' · ${track.album}' : ''}',
+                                                displayArtistName(track.artist),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
-                                                  fontSize: 12.5,
-                                                  color: Colors.white.withValues(alpha: 0.55),
+                                                  fontSize: 13,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.55),
                                                 ),
                                               ),
                                             ),
@@ -1081,26 +1138,58 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     ),
                                   ),
 
-                                  // Trailing 3-dots popup menu
+                                  // Trailing 3-dots popup menu (vertical dots per Apple Music)
                                   PopupMenuButton<String>(
                                     icon: const Icon(
-                                      Icons.more_horiz_rounded,
+                                      Icons.more_vert_rounded,
                                       color: Colors.white54,
                                       size: 20,
                                     ),
                                     tooltip: 'Track Options',
                                     onSelected: (val) {
+                                      if (val == 'play') {
+                                        _playPlaylist(startTrackId: track.id);
+                                      }
                                       if (val == 'queue') _queueTrack(track);
+                                      if (val == 'details') {
+                                        TrackDetailsSheet.show(
+                                          context,
+                                          track.toMediaItem(),
+                                        );
+                                      }
                                       if (val == 'remove') _removeTrack(track);
                                     },
                                     itemBuilder: (context) => [
                                       const PopupMenuItem(
+                                        value: 'play',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.play_arrow_rounded,
+                                                size: 19),
+                                            SizedBox(width: 10),
+                                            Text('Play Track'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
                                         value: 'queue',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.queue_music_rounded, size: 18),
+                                            Icon(Icons.queue_music_rounded,
+                                                size: 18),
                                             SizedBox(width: 10),
                                             Text('Play Next / Add to Queue'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'details',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.info_outline_rounded,
+                                                size: 18),
+                                            SizedBox(width: 10),
+                                            Text('View Track Details'),
                                           ],
                                         ),
                                       ),
@@ -1108,11 +1197,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                         value: 'remove',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.remove_circle_outline_rounded,
-                                                color: Colors.redAccent, size: 18),
+                                            Icon(
+                                                Icons
+                                                    .remove_circle_outline_rounded,
+                                                color: Colors.redAccent,
+                                                size: 18),
                                             SizedBox(width: 10),
                                             Text('Remove from Playlist',
-                                                style: TextStyle(color: Colors.redAccent)),
+                                                style: TextStyle(
+                                                    color: Colors.redAccent)),
                                           ],
                                         ),
                                       ),

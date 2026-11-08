@@ -4,14 +4,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:tone_player/app/tone_services.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_settings.dart';
-import 'package:tone_player/features/library/imported_track.dart';
+import 'package:melo_player/app/melo_services.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_settings.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 
 class AutoMixDiagnosticScreen extends StatefulWidget {
   const AutoMixDiagnosticScreen({super.key, required this.services});
 
-  final ToneServices services;
+  final MeloServices services;
 
   @override
   State<AutoMixDiagnosticScreen> createState() =>

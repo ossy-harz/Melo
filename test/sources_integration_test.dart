@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/song_metadata_enricher.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
-import 'package:tone_player/features/sources/audio_addon.dart';
-import 'package:tone_player/features/spotify/spotify_service.dart';
-import 'package:tone_player/features/updates/app_update_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/sources/audio_addon.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/updates/app_update_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

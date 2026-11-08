@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:just_audio/just_audio.dart';
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
 
 abstract interface class AudioDeckPlayer {
   Stream<AudioDeckState> get states;

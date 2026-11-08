@@ -7,21 +7,21 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_controller.dart';
-import 'package:tone_player/features/auto_mix/just_audio_dual_deck_engine.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_settings.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_profile.dart';
-import 'package:tone_player/features/auto_mix/track_analysis.dart';
-import 'package:tone_player/features/auto_mix/transition_diagnostic.dart';
-import 'package:tone_player/features/auto_mix/transition_plan.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_controller.dart';
+import 'package:melo_player/features/auto_mix/just_audio_dual_deck_engine.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_settings.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
+import 'package:melo_player/features/auto_mix/track_analysis.dart';
+import 'package:melo_player/features/auto_mix/transition_diagnostic.dart';
+import 'package:melo_player/features/auto_mix/transition_plan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/player/audio_profile.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
-class ToneAudioHandler extends BaseAudioHandler with SeekHandler {
-  ToneAudioHandler({
+class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
+  MeloAudioHandler({
     AudioEngine? audioEngine,
     TransitionDelay? transitionDelay,
     Duration transitionGainStep = AutoMixController.defaultGainStep,

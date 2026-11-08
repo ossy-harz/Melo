@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/library/library_platform_data_source.dart';
+import 'package:melo_player/features/library/library_platform_data_source.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

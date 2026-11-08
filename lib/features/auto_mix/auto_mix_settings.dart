@@ -1,13 +1,13 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_profile.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
 
 /// Persisted user preferences for AutoMix.
 ///
 /// Settings are loaded lazily from `SharedPreferences` and written back on
 /// change. The in-memory controller settings are updated separately through
-/// `ToneAudioHandler`.
+/// `MeloAudioHandler`.
 class AutoMixSettings {
   AutoMixSettings({
     this.profile = AutoMixProfile.balanced,

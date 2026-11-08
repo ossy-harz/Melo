@@ -23,7 +23,7 @@ standard playback transport and queue boundary.
 Define `LibraryPlatformDataSource` with a
 `MethodChannelLibraryPlatformDataSource` Android adapter for library scan,
 folder, and imported-metadata operations. Create that adapter at
-`ToneServices` composition and retain method-channel payloads.
+`MeloServices` composition and retain method-channel payloads.
 
 Do not move audio-engine internals or change the native channel protocol in
 this step.

@@ -1,11 +1,11 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/settings/spotify_settings_screen.dart';
-import 'package:tone_player/features/settings/youtube_settings_screen.dart';
-import 'package:tone_player/features/sources/audio_addon.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/settings/spotify_settings_screen.dart';
+import 'package:melo_player/features/settings/youtube_settings_screen.dart';
+import 'package:melo_player/features/sources/audio_addon.dart';
 
 class AddonsScreen extends StatefulWidget {
   const AddonsScreen({
@@ -174,12 +174,12 @@ class _AddonsScreenState extends State<AddonsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: ToneColors.cherry.withValues(alpha: 0.15),
+                  color: MeloColors.cherry.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.extension_rounded,
-                  color: ToneColors.cherry,
+                  color: MeloColors.cherry,
                   size: 26,
                 ),
               ),
@@ -227,8 +227,8 @@ class _AddonsScreenState extends State<AddonsScreen> {
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    child: ToneGlass(
-                      borderRadius: ToneRadii.lg,
+                    child: MeloGlass(
+                      borderRadius: MeloRadii.lg,
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(

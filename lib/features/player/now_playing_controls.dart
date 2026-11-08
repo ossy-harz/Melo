@@ -32,7 +32,7 @@ class _MixNextControl extends StatelessWidget {
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
-          duration: ToneMotion.respecting(context, ToneMotion.fast),
+          duration: MeloMotion.respecting(context, MeloMotion.fast),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
@@ -62,7 +62,7 @@ class _MixNextControl extends StatelessWidget {
               Row(
                 children: [
                   AnimatedContainer(
-                    duration: ToneMotion.respecting(context, ToneMotion.fast),
+                    duration: MeloMotion.respecting(context, MeloMotion.fast),
                     width: 26,
                     height: 26,
                     decoration: BoxDecoration(
@@ -75,7 +75,7 @@ class _MixNextControl extends StatelessWidget {
                       transitioning
                           ? Icons.close_rounded
                           : Icons.multitrack_audio_rounded,
-                      color: ToneColors.playerText,
+                      color: MeloColors.playerText,
                       size: 15,
                     ),
                   ),
@@ -92,7 +92,7 @@ class _MixNextControl extends StatelessWidget {
                               style: TextStyle(
                                 color: transitioning
                                     ? accent
-                                    : ToneColors.playerMuted,
+                                    : MeloColors.playerMuted,
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.8,
@@ -105,7 +105,7 @@ class _MixNextControl extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: ToneColors.playerText,
+                                  color: MeloColors.playerText,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -123,7 +123,7 @@ class _MixNextControl extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: ToneColors.playerMuted,
+                                color: MeloColors.playerMuted,
                                 fontSize: 10,
                               ),
                             ),
@@ -212,7 +212,7 @@ class _MixActivityWaveformState extends State<_MixActivityWaveform>
   }
 
   void _syncAnimation() {
-    if (widget.active && !ToneMotion.reduced(context)) {
+    if (widget.active && !MeloMotion.reduced(context)) {
       _controller.repeat();
     } else {
       _controller
@@ -299,14 +299,14 @@ class _BeatPulse extends StatelessWidget {
   final AudioHandler audioHandler;
   final double? bpm;
   final bool live;
-  final TonePalette palette;
+  final MeloPalette palette;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     // The pulse is purely decorative, so stand down entirely when the platform
     // asks for reduced motion.
-    if (ToneMotion.reduced(context)) return child;
+    if (MeloMotion.reduced(context)) return child;
     return StreamBuilder<Duration>(
       stream: playbackPositionStream(audioHandler),
       builder: (context, snapshot) {
@@ -390,7 +390,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 tooltip: shuffleOn ? 'Turn shuffle off' : 'Turn shuffle on',
                 onPressed: widget.onShuffle,
                 icon: const Icon(Icons.shuffle_rounded),
-                color: shuffleOn ? ToneColors.cherry : ToneColors.playerMuted,
+                color: shuffleOn ? MeloColors.cherry : MeloColors.playerMuted,
                 iconSize: 22,
               ),
               if (shuffleOn)
@@ -399,7 +399,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                   height: 4,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: ToneColors.cherry,
+                    color: MeloColors.cherry,
                   ),
                 )
               else
@@ -410,7 +410,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
             tooltip: 'Previous track',
             onPressed: widget.onPrevious,
             icon: const Icon(Icons.skip_previous_rounded),
-            color: ToneColors.playerText,
+            color: MeloColors.playerText,
             iconSize: 34,
           ),
           GestureDetector(
@@ -419,7 +419,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
             onTapCancel: () => setState(() => _isPressed = false),
             child: AnimatedScale(
               scale: _isPressed ? 0.92 : 1.0,
-              duration: ToneMotion.fast,
+              duration: MeloMotion.fast,
               curve: Curves.easeOutCubic,
               child: Container(
                 width: 66,
@@ -430,14 +430,14 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      ToneColors.cherryGlow,
-                      ToneColors.cherry,
-                      ToneColors.cherryDeep,
+                      MeloColors.cherryGlow,
+                      MeloColors.cherry,
+                      MeloColors.cherryDeep,
                     ],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: ToneColors.cherry.withValues(
+                      color: MeloColors.cherry.withValues(
                         alpha: widget.playing ? 0.52 : 0.35,
                       ),
                       blurRadius: widget.playing ? 28 : 20,
@@ -460,7 +460,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                   ),
                   iconSize: 36,
                   icon: AnimatedSwitcher(
-                    duration: ToneMotion.fast,
+                    duration: MeloMotion.fast,
                     transitionBuilder: (child, animation) =>
                         ScaleTransition(scale: animation, child: child),
                     layoutBuilder: _safeAnimatedSwitcherLayout,
@@ -479,7 +479,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
             tooltip: 'Next track',
             onPressed: widget.onNext,
             icon: const Icon(Icons.skip_next_rounded),
-            color: ToneColors.playerText,
+            color: MeloColors.playerText,
             iconSize: 34,
           ),
           Column(
@@ -497,7 +497,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                       ? Icons.repeat_one_rounded
                       : Icons.repeat_rounded,
                 ),
-                color: repeatOn ? ToneColors.cherry : ToneColors.playerMuted,
+                color: repeatOn ? MeloColors.cherry : MeloColors.playerMuted,
                 iconSize: 22,
               ),
               if (repeatOn)
@@ -506,7 +506,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                   height: 4,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: ToneColors.cherry,
+                    color: MeloColors.cherry,
                   ),
                 )
               else

@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
-import 'package:tone_player/features/youtube/youtube_search_screen.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 class YoutubeSettingsScreen extends StatefulWidget {
   const YoutubeSettingsScreen({
@@ -344,8 +344,8 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
                 ),
           ),
           const SizedBox(height: 12),
-          ToneGlass(
-            borderRadius: ToneRadii.lg,
+          MeloGlass(
+            borderRadius: MeloRadii.lg,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -456,8 +456,8 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
               return FilterChip(
                 label: Text(genre),
                 selected: isSelected,
-                selectedColor: ToneColors.cherry.withValues(alpha: 0.25),
-                checkmarkColor: ToneColors.cherry,
+                selectedColor: MeloColors.cherry.withValues(alpha: 0.25),
+                checkmarkColor: MeloColors.cherry,
                 onSelected: (selected) async {
                   final current = List<String>.from(auth.favoriteGenres);
                   if (selected) {
@@ -483,8 +483,8 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
                 ),
           ),
           const SizedBox(height: 12),
-          ToneGlass(
-            borderRadius: ToneRadii.lg,
+          MeloGlass(
+            borderRadius: MeloRadii.lg,
             child: Column(
               children: [
                 RadioListTile<YoutubeAudioQuality>(

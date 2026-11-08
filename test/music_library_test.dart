@@ -5,12 +5,12 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/library_screen.dart';
-import 'package:tone_player/features/library/data/library_repository.dart';
-import 'package:tone_player/features/library/data/tone_database.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/player/mini_player.dart';
+import 'package:melo_player/features/library/library_screen.dart';
+import 'package:melo_player/features/library/data/library_repository.dart';
+import 'package:melo_player/features/library/data/melo_database.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/mini_player.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -541,7 +541,7 @@ void main() {
     'uses modified-since scans and periodically reconciles missing tracks',
     () async {
       final repository = DriftLibraryRepository(
-        database: ToneDatabase.inMemory(),
+        database: MeloDatabase.inMemory(),
         legacyPreferences: preferences,
       );
       addTearDown(repository.close);
@@ -908,7 +908,7 @@ void main() {
     tester,
   ) async {
     final repository = DriftLibraryRepository(
-      database: ToneDatabase.inMemory(),
+      database: MeloDatabase.inMemory(),
       legacyPreferences: preferences,
     );
     await repository.initialize();

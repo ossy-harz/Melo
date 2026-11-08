@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/mix/local_discovery.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/mix/local_discovery.dart';
 
 void main() {
   const tracks = [

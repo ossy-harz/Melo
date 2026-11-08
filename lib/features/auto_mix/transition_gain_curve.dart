@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:tone_player/features/auto_mix/auto_mix_profile.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
 
 class DeckGainPair {
   const DeckGainPair({required this.outgoing, required this.incoming});

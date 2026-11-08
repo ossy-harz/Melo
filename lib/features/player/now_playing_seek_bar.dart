@@ -64,7 +64,7 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                       durationMs: widget.duration.inMilliseconds,
                       bufferedPositionMs:
                           widget.bufferedPosition?.inMilliseconds,
-                      activeColor: ToneColors.cherry,
+                      activeColor: MeloColors.cherry,
                       inactiveColor: Colors.white.withValues(alpha: 0.18),
                       bpm: widget.bpm,
                       mixMarkerPositionMs:
@@ -72,7 +72,7 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                       isDragging: _isDragging,
                     ),
                     thumbShape: _SeekBarThumb(
-                      activeColor: ToneColors.cherry,
+                      activeColor: MeloColors.cherry,
                       isDragging: _isDragging,
                     ),
                     overlayShape: const RoundSliderOverlayShape(
@@ -80,8 +80,8 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                     ),
                     activeTrackColor: Colors.transparent,
                     inactiveTrackColor: Colors.transparent,
-                    thumbColor: ToneColors.cherry,
-                    overlayColor: ToneColors.cherry.withValues(alpha: 0.22),
+                    thumbColor: MeloColors.cherry,
+                    overlayColor: MeloColors.cherry.withValues(alpha: 0.22),
                   ),
                   child: Semantics(
                     label: hasWaveform
@@ -134,12 +134,12 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                         color: Colors.black.withValues(alpha: 0.88),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: ToneColors.cherrySoft.withValues(alpha: 0.5),
+                          color: MeloColors.cherrySoft.withValues(alpha: 0.5),
                           width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: ToneColors.cherry.withValues(alpha: 0.35),
+                            color: MeloColors.cherry.withValues(alpha: 0.35),
                             blurRadius: 10,
                             offset: const Offset(0, 2),
                           ),
@@ -168,7 +168,7 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                   ? null
                   : widget.onRetry,
               style: TextButton.styleFrom(
-                foregroundColor: ToneColors.playerMuted,
+                foregroundColor: MeloColors.playerMuted,
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 minimumSize: const Size(44, 28),
@@ -190,7 +190,7 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
               Text(
                 _formatTime(widget.value.round()),
                 style: const TextStyle(
-                  color: ToneColors.playerText,
+                  color: MeloColors.playerText,
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   fontFeatures: [FontFeature.tabularFigures()],
@@ -212,8 +212,8 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                         : '--:--',
                     style: TextStyle(
                       color: _showRemainingTime
-                          ? ToneColors.cherrySoft
-                          : ToneColors.playerMuted,
+                          ? MeloColors.cherrySoft
+                          : MeloColors.playerMuted,
                       fontSize: 11.5,
                       fontWeight: _showRemainingTime
                           ? FontWeight.w700
@@ -382,7 +382,7 @@ class _ModernSeekBarTrack extends SliderTrackShape {
           ..shader = ui.Gradient.linear(
             Offset(rect.left, midY),
             Offset(math.max(rect.left + 1, playedX), midY),
-            [activeColor, ToneColors.cherryGlow],
+            [activeColor, MeloColors.cherryGlow],
           );
         canvas.drawRRect(
           RRect.fromRectAndRadius(playedRect, Radius.circular(trackHeight / 2)),
@@ -408,13 +408,13 @@ class _ModernSeekBarTrack extends SliderTrackShape {
           Offset(x, rect.top + 2),
           Offset(x, rect.bottom - 2),
           Paint()
-            ..color = ToneColors.cherrySoft
+            ..color = MeloColors.cherrySoft
             ..strokeWidth = 1.6,
         );
         canvas.drawCircle(
           Offset(x, rect.top + 3),
           3.0,
-          Paint()..color = ToneColors.cherryGlow,
+          Paint()..color = MeloColors.cherryGlow,
         );
         canvas.drawCircle(
           Offset(x, rect.top + 3),

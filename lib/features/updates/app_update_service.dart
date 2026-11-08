@@ -103,7 +103,7 @@ class AppUpdateService extends ChangeNotifier {
   static const String _autoCheckPrefKey = 'tone_github_auto_check_updates';
   static const String _includePrereleasesPrefKey = 'tone_github_include_prereleases';
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
-  static const MethodChannel _channel = MethodChannel('app.tone.tone_player/library');
+  static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
   String _currentVersion = '1.0.0';
   int _currentBuildNumber = 1;

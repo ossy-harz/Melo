@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/auto_mix/waveform_transition_cues.dart';
+import 'package:melo_player/features/auto_mix/waveform_transition_cues.dart';
 
 void main() {
   const analyzer = WaveformTransitionAnalyzer();

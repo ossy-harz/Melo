@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
-import 'package:tone_player/features/auto_mix/just_audio_dual_deck_engine.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/auto_mix/just_audio_dual_deck_engine.dart';
 
 void main() {
   late _FakeAudioDeckPlayerFactory factory;

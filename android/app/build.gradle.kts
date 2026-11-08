@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "app.tone.tone_player"
+    namespace = "app.melo.melo_player"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.tone.tone_player"
+        applicationId = "app.melo.melo_player"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

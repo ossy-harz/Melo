@@ -4,23 +4,23 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_services.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/home/home_screen.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/library_screen.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/mix/personal_mix.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/search/search_screen.dart';
-import 'package:tone_player/features/settings/you_screen.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_services.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/library_screen.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/mix/personal_mix.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/search/search_screen.dart';
+import 'package:melo_player/features/settings/you_screen.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({this.services, super.key});
 
-  final ToneServices? services;
+  final MeloServices? services;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -158,7 +158,7 @@ class _AppShellState extends State<AppShell> {
                   ),
                 ),
               if (widget.services != null) const SizedBox(height: 6),
-              ToneGlass(
+              MeloGlass(
                 borderRadius: 25,
                 blur: 12,
                 tint: const Color(0xC9000000),
@@ -167,7 +167,7 @@ class _AppShellState extends State<AppShell> {
                 child: NavigationBarTheme(
                   data: Theme.of(context).navigationBarTheme.copyWith(
                     backgroundColor: Colors.transparent,
-                    indicatorColor: ToneColors.cherry.withValues(alpha: 0.16),
+                    indicatorColor: MeloColors.cherry.withValues(alpha: 0.16),
                     height: 68,
                   ),
                   child: NavigationBar(
@@ -771,7 +771,7 @@ class _DjMixSetsSectionState extends State<_DjMixSetsSection> {
             const Icon(
               Icons.disc_full_rounded,
               size: 18,
-              color: ToneColors.cherry,
+              color: MeloColors.cherry,
             ),
             const SizedBox(width: 8),
             Expanded(

@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/player/mini_player.dart';
-import 'package:tone_player/features/settings/youtube_settings_screen.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/settings/youtube_settings_screen.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 class YoutubeSearchScreen extends StatefulWidget {
   const YoutubeSearchScreen({
@@ -481,7 +481,7 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                   isLoggedIn
                       ? Icons.account_circle_rounded
                       : Icons.tune_rounded,
-                  color: isLoggedIn ? ToneColors.cherry : null,
+                  color: isLoggedIn ? MeloColors.cherry : null,
                 ),
                 onPressed: () => Navigator.of(context)
                     .push(
@@ -632,7 +632,7 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(ToneRadii.md),
+                            borderRadius: BorderRadius.circular(MeloRadii.md),
                             onTap: () => _playTrack(track),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -685,7 +685,7 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                                         height: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: ToneColors.cherry,
+                                          color: MeloColors.cherry,
                                         ),
                                       ),
                                     )
@@ -802,15 +802,15 @@ class _CategoryChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(ToneRadii.pill),
+          borderRadius: BorderRadius.circular(MeloRadii.pill),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: selected
-                  ? ToneColors.cherry
+                  ? MeloColors.cherry
                   : colors.surfaceContainerHighest.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(ToneRadii.pill),
+              borderRadius: BorderRadius.circular(MeloRadii.pill),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -819,7 +819,7 @@ class _CategoryChip extends StatelessWidget {
                   Icon(
                     icon,
                     size: 15,
-                    color: selected ? Colors.white : ToneColors.cherry,
+                    color: selected ? Colors.white : MeloColors.cherry,
                   ),
                   const SizedBox(width: 6),
                 ],

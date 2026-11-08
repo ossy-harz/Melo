@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tone_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/player/audio_profile.dart';
 
 void main() {
   test('presets round-trip and custom bands stay inside safe limits', () {

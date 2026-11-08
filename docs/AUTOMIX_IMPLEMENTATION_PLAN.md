@@ -9,13 +9,13 @@ audio engine before validating platform support, licensing, and cost.
 
 ## Repository-specific architecture
 
-Keep `ToneAudioHandler` as the existing `audio_service` transport and
+Keep `MeloAudioHandler` as the existing `audio_service` transport and
 media-session boundary. Keep AutoMix policy in `lib/features/auto_mix/`, not
 in player widgets or the library's queue code. `TransitionPlanner` is pure
 Dart and plans only from supplied track metadata and confidence; it does not
 analyze audio or perform playback.
 
-`AudioEngine` has a two-player `just_audio` prototype. `ToneAudioHandler` owns
+`AudioEngine` has a two-player `just_audio` prototype. `MeloAudioHandler` owns
 both decks and remains the playback-session and queue boundary. Deck A drives
 existing queue transport; Deck B can be preloaded, inspected, played, paused,
 seeked, gain-adjusted, and unloaded through explicit audio-service actions.
@@ -73,7 +73,7 @@ crossfade without these cues.
 | `lib/features/auto_mix/audio_engine.dart` | Expanded with deck state, source, error, and processing-state types. |
 | `lib/features/auto_mix/just_audio_dual_deck_engine.dart` | Replaceable prototype using two independent `just_audio` players and an injectable player factory. |
 | `lib/features/auto_mix/auto_mix_controller.dart` | Expanded to coordinate incoming-deck preload and controls through the engine interface. |
-| `lib/features/player/tone_audio_handler.dart` | Owns both decks in the existing audio-service isolate, preserves queue/transport ownership, centralizes audio-session behavior, and exposes limited Deck B custom actions. |
+| `lib/features/player/melo_audio_handler.dart` | Owns both decks in the existing audio-service isolate, preserves queue/transport ownership, centralizes audio-session behavior, and exposes limited Deck B custom actions. |
 | `test/auto_mix/dual_deck_engine_test.dart` | Engine-contract tests using an injected deck-player fake. |
 | `test/auto_mix/tone_audio_handler_dual_deck_test.dart` | Queue regression verifying queue advancement remains on Deck A and clears the old Deck B preload. |
 
@@ -93,9 +93,9 @@ analysis, UI, or playback behavior.
    multiple players playing at once. Its Android plugin creates a separately
    identified ExoPlayer per `AudioPlayer`, and volume is set per player.
    Tone constructs both players with automatic focus activation and automatic
-   interruption handling disabled; `ToneAudioHandler` centrally activates
+   interruption handling disabled; `MeloAudioHandler` centrally activates
    the shared music session and pauses/resumes both decks together.
-2. The engine is owned inside `ToneAudioHandler`, which is created by
+2. The engine is owned inside `MeloAudioHandler`, which is created by
    `audio_service`; Deck A remains authoritative for queue, now-playing item,
    seek, repeat, shuffle, and media notification state. Queue mutations clear
    stale Deck B content. Deck B load errors are isolated from Deck A.
@@ -145,7 +145,7 @@ Files introduced or changed for this milestone include:
   player to the queue-owned Deck A role while remapping deck state/events.
 - `lib/features/auto_mix/auto_mix_controller.dart`: stepped gain ramp,
   cancellation, and recovery.
-- `lib/features/player/tone_audio_handler.dart`: transition action, queue
+- `lib/features/player/melo_audio_handler.dart`: transition action, queue
   promotion, interruption-safe cancellation, and profile headroom.
 - `test/auto_mix/auto_mix_controller_test.dart`,
   `test/auto_mix/dual_deck_engine_test.dart`, and
@@ -160,7 +160,7 @@ Files introduced or changed for this milestone include:
    player processing latency can make the actual interval longer or uneven.
    This is stepped volume automation, not native scheduled DSP, and it cannot
    guarantee sample accuracy or synchronized starts.
-3. `ToneAudioHandler` exposes `autoMix.transitionToNextTrack`. The explicit
+3. `MeloAudioHandler` exposes `autoMix.transitionToNextTrack`. The explicit
    action transitions to the queue's next item immediately, bounded by the
    outgoing track's remaining duration; on completion it promotes Deck B to
    the queue-owned Deck A role, updates the current queue item, and releases
@@ -199,8 +199,8 @@ user-facing AutoMix controls until this gate has adequate evidence.
 #### Run the developer diagnostic driver
 
 The diagnostic UI is compiled into the app but only opens in a debug build
-when the explicit developer define is enabled. It uses `ToneServices`, the
-existing `ToneAudioHandler`, queue, transition controller, and dual-deck
+when the explicit developer define is enabled. It uses `MeloServices`, the
+existing `MeloAudioHandler`, queue, transition controller, and dual-deck
 engine; it does not implement a second transition. Diagnostic mode disables
 queue/playback-position persistence so test selections do not overwrite the
 saved playback queue. Normal debug/release launches are unchanged.
@@ -366,9 +366,9 @@ Final recommendation must be exactly one of:
 1. Separate declared metadata (such as an embedded BPM tag) from measured
    analysis, with explicit confidence and analysis version.
 2. Reuse the existing `TrackAnalysis` table in
-   `lib/features/library/data/tone_database.dart` if its fields and migration
+   `lib/features/library/data/melo_database.dart` if its fields and migration
    behavior are sufficient. Inspect and update
-   `lib/features/library/data/tone_database.g.dart` through the repository's
+   `lib/features/library/data/melo_database.g.dart` through the repository's
    Drift generation workflow only if the schema changes.
 3. Add a narrow analysis repository to
    `lib/features/library/data/library_repository.dart` (or a feature-owned

@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
-import 'package:tone_player/features/auto_mix/auto_mix_settings.dart';
-import 'package:tone_player/features/auto_mix/track_analysis.dart';
-import 'package:tone_player/features/auto_mix/transition_plan.dart';
-import 'package:tone_player/features/auto_mix/transition_gain_curve.dart';
-import 'package:tone_player/features/auto_mix/transition_planner.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/auto_mix/auto_mix_settings.dart';
+import 'package:melo_player/features/auto_mix/track_analysis.dart';
+import 'package:melo_player/features/auto_mix/transition_plan.dart';
+import 'package:melo_player/features/auto_mix/transition_gain_curve.dart';
+import 'package:melo_player/features/auto_mix/transition_planner.dart';
 
 typedef TransitionDelay = Future<void> Function(Duration duration);
 

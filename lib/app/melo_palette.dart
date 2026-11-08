@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 /// Tone never shows a flat, generic backdrop: the current album drives the
 /// accent glow and the deep gradient wash behind the Now Playing screen.
 @immutable
-class TonePalette {
-  const TonePalette({
+class MeloPalette {
+  const MeloPalette({
     required this.accent,
     required this.deep,
     required this.muted,
@@ -25,7 +25,7 @@ class TonePalette {
   final Color muted;
 
   /// Used when artwork is missing or effectively monochrome.
-  static const fallback = TonePalette(
+  static const fallback = MeloPalette(
     accent: Color(0xFFFF3D5A),
     deep: Color(0xFF180509),
     muted: Color(0xFF50101F),
@@ -33,18 +33,18 @@ class TonePalette {
 
   /// A tasteful, deterministic palette for artwork-less items so the UI never
   /// degrades into random pastel gradients.
-  factory TonePalette.fromSeed(int seed) {
+  factory MeloPalette.fromSeed(int seed) {
     final hue = (seed.abs() % 360).toDouble();
     final accent = HSLColor.fromAHSL(1, hue, 0.66, 0.58).toColor();
     final deep = HSLColor.fromAHSL(1, hue, 0.55, 0.1).toColor();
     final muted = HSLColor.fromAHSL(1, hue, 0.5, 0.24).toColor();
-    return TonePalette(accent: accent, deep: deep, muted: muted);
+    return MeloPalette(accent: accent, deep: deep, muted: muted);
   }
 }
 
 /// Downsamples [bytes] and extracts a dominant palette. Returns `null` when the
 /// image is unreadable or effectively monochrome.
-Future<TonePalette?> tonePaletteFromBytes(Uint8List? bytes) async {
+Future<MeloPalette?> tonePaletteFromBytes(Uint8List? bytes) async {
   if (bytes == null || bytes.isEmpty) return null;
   ui.Image? image;
   ui.Codec? codec;
@@ -67,7 +67,7 @@ Future<TonePalette?> tonePaletteFromBytes(Uint8List? bytes) async {
   }
 }
 
-TonePalette? _paletteFromPixels(ByteData data) {
+MeloPalette? _paletteFromPixels(ByteData data) {
   final bytes = data.buffer.asUint8List();
   const buckets = 12;
   final weights = List<double>.filled(buckets, 0);
@@ -112,7 +112,7 @@ TonePalette? _paletteFromPixels(ByteData data) {
   );
   final hsl = HSLColor.fromColor(avg);
 
-  return TonePalette(
+  return MeloPalette(
     accent: HSLColor.fromAHSL(
       1,
       hsl.hue,

@@ -1,5 +1,5 @@
 import 'package:path/path.dart' as p;
-import 'package:tone_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 
 class MusicPlaylistEntry {
   const MusicPlaylistEntry({

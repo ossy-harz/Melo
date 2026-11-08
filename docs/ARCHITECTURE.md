@@ -32,13 +32,13 @@ layers solely to match a proposed directory tree.
 
 ```text
 main
-  └── ToneApp
-       └── ToneServices.initialize()
+  └── MeloApp
+       └── MeloServices.initialize()
             ├── AudioSession configuration
-            ├── AudioService → ToneAudioHandler
+            ├── AudioService → MeloAudioHandler
             ├── MethodChannelLibraryPlatformDataSource → MusicLibrary
             ├── AudioServiceAudioProfileService → AudioHandler
-            └── DriftLibraryRepository → ToneDatabase
+            └── DriftLibraryRepository → MeloDatabase
        └── queue restoration / playback persistence subscriptions
        └── AppShell
             ├── screens receive feature dependencies
@@ -48,7 +48,7 @@ main
 Rules:
 
 1. `main.dart` starts the app; it does not own feature behavior.
-2. `ToneServices` is the production composition root and owns application
+2. `MeloServices` is the production composition root and owns application
    service instances and lifecycle subscriptions.
 3. Screens may depend on feature-facing service interfaces and view data. They
    must not depend on audio-engine implementation classes.
@@ -59,7 +59,7 @@ Rules:
    `MusicLibrary` still owns some Android `MethodChannel` and file-picker
    calls; this is a known follow-up, not a completed separation.
 7. AutoMix policy stays independent of player widgets and the queue. The
-   current `just_audio` dual-deck prototype is owned by `ToneAudioHandler`;
+   current `just_audio` dual-deck prototype is owned by `MeloAudioHandler`;
    it is not sample-accurate and does not replace the handler's queue owner.
 
 ## 3. Audio profile service
@@ -141,7 +141,7 @@ only with a clear redaction policy, severity/context contract, and test seam.
 MediaStore scans, metadata, lyrics, artwork, codec details, and waveform
 decoding. Library scan, SAF folder, and imported-metadata operations now use
 `LibraryPlatformDataSource`; production creates
-`MethodChannelLibraryPlatformDataSource` at app composition. `ToneAudioHandler`,
+`MethodChannelLibraryPlatformDataSource` at app composition. `MeloAudioHandler`,
 `LyricsRepository`, and player artwork/waveform helpers still invoke the
 shared channel directly in their respective features.
 
@@ -174,7 +174,7 @@ contract tests before changing the Kotlin implementation. Avoid one generic
 
 `features/auto_mix/` contains validated settings and track-evidence models, a
 pure-Dart transition planner, a controller, an `AudioEngine` contract, and a
-two-player `just_audio` prototype. `ToneAudioHandler` owns both players and
+two-player `just_audio` prototype. `MeloAudioHandler` owns both players and
 remains the only queue owner; Deck A drives normal transport and media-session
 state, while Deck B can preload and play independently through explicit audio
 service actions. Queue replacement, advancement, and edits clear stale Deck B

@@ -1,4 +1,4 @@
-package app.tone.tone_player
+package app.melo.melo_player
 
 import android.app.RecoverableSecurityException
 import android.content.Intent
@@ -55,11 +55,11 @@ class MainActivity : AudioServiceActivity() {
         }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "app.tone.tone_player/library",
+            "app.melo.melo_player/library",
         ).setMethodCallHandler(libraryHandler)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "app.tonetoneplayer/library",
+            "app.melomeloplayer/library",
         ).setMethodCallHandler(libraryHandler)
     }
 

@@ -1,23 +1,22 @@
 import 'dart:async';
-
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tone_player/app/tone_appearance.dart';
-import 'package:tone_player/app/tone_glass.dart';
-import 'package:tone_player/app/tone_theme.dart';
-import 'package:tone_player/features/library/music_library.dart';
-import 'package:tone_player/features/mix/smart_playlist_service.dart';
-import 'package:tone_player/features/player/audio_profile_service.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
-import 'package:tone_player/features/settings/audio_settings_screen.dart';
-import 'package:tone_player/features/settings/auto_mix_settings_screen.dart';
-import 'package:tone_player/features/settings/youtube_settings_screen.dart';
-import 'package:tone_player/features/sources/addons_screen.dart';
-import 'package:tone_player/features/sources/lossless_audio_service.dart';
-import 'package:tone_player/features/spotify/spotify_import_sheet.dart';
-import 'package:tone_player/features/updates/app_update_service.dart';
-import 'package:tone_player/features/youtube/youtube_audio_service.dart';
-import 'package:tone_player/features/youtube/youtube_auth_service.dart';
+import 'package:melo_player/app/melo_appearance.dart';
+import 'package:melo_player/app/melo_glass.dart';
+import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/settings/audio_settings_screen.dart';
+import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
+import 'package:melo_player/features/settings/youtube_settings_screen.dart';
+import 'package:melo_player/features/sources/addons_screen.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/updates/app_update_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 class YouScreen extends StatelessWidget {
   const YouScreen({
@@ -75,7 +74,7 @@ class YouScreen extends StatelessWidget {
               const SizedBox(height: 24),
               const _ProfileHero(),
               const SizedBox(height: 26),
-              Text('YOUR TONE', style: _sectionLabel(context)),
+              Text('APP PREFERENCES', style: _sectionLabel(context)),
               const SizedBox(height: 8),
               _SettingsRow(
                 icon: Icons.tune_rounded,
@@ -220,8 +219,8 @@ class OfflineDataScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 22),
-          ToneGlass(
-            borderRadius: ToneRadii.md,
+          MeloGlass(
+            borderRadius: MeloRadii.md,
             shadow: false,
             child: Column(
               children: [
@@ -306,7 +305,7 @@ class AppearanceInfoScreen extends StatelessWidget {
           Container(
             height: 164,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(ToneRadii.xl),
+              borderRadius: BorderRadius.circular(MeloRadii.xl),
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -316,10 +315,10 @@ class AppearanceInfoScreen extends StatelessWidget {
                   Color(0xFFFF4B3E),
                 ],
               ),
-              boxShadow: ToneShadows.glow(ToneColors.cherry, opacity: 0.28),
+              boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.28),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(ToneRadii.xl),
+              borderRadius: BorderRadius.circular(MeloRadii.xl),
               child: Stack(
                 children: [
                   Positioned(
@@ -339,7 +338,7 @@ class AppearanceInfoScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Positioned.fill(child: ToneGrain(opacity: 0.07)),
+                  const Positioned.fill(child: MeloGrain(opacity: 0.07)),
                   const Center(
                     child: Icon(
                       Icons.graphic_eq_rounded,
@@ -375,7 +374,7 @@ class AppearanceInfoScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ValueListenableBuilder<ThemeMode>(
-            valueListenable: ToneAppearanceController.instance,
+            valueListenable: MeloAppearanceController.instance,
             builder: (context, mode, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -391,7 +390,7 @@ class AppearanceInfoScreen extends StatelessWidget {
                     ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
                   ],
                   selected: {mode},
-                  onSelectionChanged: (selection) => ToneAppearanceController
+                  onSelectionChanged: (selection) => MeloAppearanceController
                       .instance
                       .setMode(selection.first),
                 ),
@@ -566,12 +565,12 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                     end: Alignment.bottomRight,
                     colors: [Color(0xFF09070C), Color(0xFF3D0919)],
                   ),
-                  boxShadow: ToneShadows.glow(ToneColors.cherry, opacity: 0.25),
+                  boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.25),
                 ),
                 child: const Icon(
                   Icons.graphic_eq_rounded,
                   size: 32,
-                  color: ToneColors.cherry,
+                  color: MeloColors.cherry,
                 ),
               ),
               const SizedBox(width: 16),
@@ -590,7 +589,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                     Text(
                       'Version ${_updater.currentVersion} (Build ${_updater.currentBuildNumber}) · arm64-v8a',
                       style: textTheme.labelMedium?.copyWith(
-                        color: ToneColors.cherry,
+                        color: MeloColors.cherry,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -616,8 +615,8 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          ToneGlass(
-            borderRadius: ToneRadii.lg,
+          MeloGlass(
+            borderRadius: MeloRadii.lg,
             shadow: false,
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -631,7 +630,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                             ? Icons.system_update_rounded
                             : Icons.verified_rounded,
                         color: isUpdateAvailable
-                            ? ToneColors.cherry
+                            ? MeloColors.cherry
                             : Colors.greenAccent,
                       ),
                       const SizedBox(width: 10),
@@ -691,7 +690,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isUpdateAvailable
-                              ? ToneColors.cherry.withValues(alpha: 0.5)
+                              ? MeloColors.cherry.withValues(alpha: 0.5)
                               : colors.outlineVariant.withValues(alpha: 0.3),
                         ),
                       ),
@@ -763,7 +762,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                     Text(
                       'Downloading APK update... ${(_updater.downloadProgress * 100).round()}%',
                       style: textTheme.labelSmall?.copyWith(
-                        color: ToneColors.cherry,
+                        color: MeloColors.cherry,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -829,8 +828,8 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
             for (final rel in allReleases.skip(1))
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: ToneGlass(
-                  borderRadius: ToneRadii.md,
+                child: MeloGlass(
+                  borderRadius: MeloRadii.md,
                   shadow: false,
                   child: ListTile(
                     title: Text(
@@ -1058,21 +1057,21 @@ class _ProfileHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ToneRadii.xl),
+        borderRadius: BorderRadius.circular(MeloRadii.xl),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            ToneColors.shellRaised,
+            MeloColors.shellRaised,
             Color(0xFF2A0C14),
-            ToneColors.cherryDeep,
+            MeloColors.cherryDeep,
           ],
           stops: [0, 0.55, 1],
         ),
-        boxShadow: ToneShadows.glow(ToneColors.cherry, opacity: 0.24),
+        boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.24),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(ToneRadii.xl),
+        borderRadius: BorderRadius.circular(MeloRadii.xl),
         child: Stack(
           children: [
             Positioned(
@@ -1085,14 +1084,14 @@ class _ProfileHero extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      ToneColors.cherryGlow.withValues(alpha: 0.45),
+                      MeloColors.cherryGlow.withValues(alpha: 0.45),
                       Colors.transparent,
                     ],
                   ),
                 ),
               ),
             ),
-            const Positioned.fill(child: ToneGrain(opacity: 0.06)),
+            const Positioned.fill(child: MeloGrain(opacity: 0.06)),
             Padding(
               padding: const EdgeInsets.all(18),
               child: Row(
@@ -1105,11 +1104,11 @@ class _ProfileHero extends StatelessWidget {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [ToneColors.cherryGlow, ToneColors.cherry],
+                        colors: [MeloColors.cherryGlow, MeloColors.cherry],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: ToneColors.cherry.withValues(alpha: 0.5),
+                          color: MeloColors.cherry.withValues(alpha: 0.5),
                           blurRadius: 18,
                           offset: const Offset(0, 8),
                         ),
@@ -1205,7 +1204,7 @@ class _SettingsRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(ToneRadii.md),
+        borderRadius: BorderRadius.circular(MeloRadii.md),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -1217,7 +1216,7 @@ class _SettingsRow extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(ToneRadii.sm),
+                    borderRadius: BorderRadius.circular(MeloRadii.sm),
                     color: colors.primary.withValues(alpha: dark ? 0.16 : 0.1),
                     border: Border.all(
                       color: colors.primary.withValues(alpha: 0.16),
@@ -1355,7 +1354,7 @@ class _QualityAndStreamingSectionState
                               ? Icons.radio_button_checked_rounded
                               : Icons.radio_button_off_rounded,
                           color: _streamingQuality == q
-                              ? ToneColors.cherry
+                              ? MeloColors.cherry
                               : colors.onSurfaceVariant,
                         ),
                         title: Text(
@@ -1381,8 +1380,8 @@ class _QualityAndStreamingSectionState
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return ToneGlass(
-      borderRadius: ToneRadii.lg,
+    return MeloGlass(
+      borderRadius: MeloRadii.lg,
       shadow: false,
       child: Material(
         color: Colors.transparent,
@@ -1391,7 +1390,7 @@ class _QualityAndStreamingSectionState
             ListTile(
               leading: const Icon(
                 Icons.high_quality_rounded,
-                color: ToneColors.cherry,
+                color: MeloColors.cherry,
               ),
               title: const Text(
                 'Download Audio Quality',
@@ -1401,7 +1400,7 @@ class _QualityAndStreamingSectionState
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: ToneColors.cherry.withValues(alpha: 0.15),
+                  color: MeloColors.cherry.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -1409,7 +1408,7 @@ class _QualityAndStreamingSectionState
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: ToneColors.cherry,
+                    color: MeloColors.cherry,
                   ),
                 ),
               ),
@@ -1445,7 +1444,7 @@ class _QualityAndStreamingSectionState
             ListTile(
               leading: const Icon(
                 Icons.graphic_eq_rounded,
-                color: ToneColors.cherry,
+                color: MeloColors.cherry,
               ),
               title: const Text(
                 'Live Streaming Quality',
@@ -1507,8 +1506,8 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
     final colors = Theme.of(context).colorScheme;
     final isYtSignedIn = YoutubeAuthService.instance.isLoggedIn;
     final accountName = YoutubeAuthService.instance.accountName;
-    return ToneGlass(
-      borderRadius: ToneRadii.lg,
+    return MeloGlass(
+      borderRadius: MeloRadii.lg,
       shadow: false,
       child: Material(
         color: Colors.transparent,
@@ -1517,7 +1516,7 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
             ListTile(
               leading: const Icon(
                 Icons.play_circle_fill_rounded,
-                color: ToneColors.cherry,
+                color: MeloColors.cherry,
               ),
               title: const Text(
                 'YouTube Music Account',
@@ -1549,7 +1548,7 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
             ListTile(
               leading: const Icon(
                 Icons.playlist_add_check_circle_rounded,
-                color: ToneColors.cherry,
+                color: MeloColors.cherry,
               ),
               title: const Text(
                 'Import Music or Playlist Link',

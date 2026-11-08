@@ -2,23 +2,23 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/library/data/library_repository.dart';
-import 'package:tone_player/features/library/data/tone_database.dart';
-import 'package:tone_player/features/library/imported_track.dart';
-import 'package:tone_player/features/library/library_platform_data_source.dart';
-import 'package:tone_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/library/data/library_repository.dart';
+import 'package:melo_player/features/library/data/melo_database.dart';
+import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/library/library_platform_data_source.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late SharedPreferences preferences;
-  late ToneDatabase database;
+  late MeloDatabase database;
   late DriftLibraryRepository repository;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     preferences = await SharedPreferences.getInstance();
-    database = ToneDatabase.inMemory();
+    database = MeloDatabase.inMemory();
     repository = DriftLibraryRepository(
       database: database,
       legacyPreferences: preferences,

@@ -14,7 +14,7 @@ class _LyricsPeek extends StatelessWidget {
 
   final SongLyrics lyrics;
   final AudioHandler audioHandler;
-  final TonePalette palette;
+  final MeloPalette palette;
   final VoidCallback onExpand;
 
   static const double _rowHeight = 21;
@@ -77,7 +77,7 @@ class _LyricsPeek extends StatelessWidget {
       height: _rowHeight,
       child: Center(
         child: AnimatedSwitcher(
-          duration: ToneMotion.fast,
+          duration: MeloMotion.fast,
           switchInCurve: Curves.easeOut,
           transitionBuilder: _safeFadeSwitcherTransition,
           layoutBuilder: _safeAnimatedSwitcherLayout,
@@ -94,7 +94,7 @@ class _LyricsPeek extends StatelessWidget {
               letterSpacing: isActive ? -0.2 : 0,
               color: isActive
                   ? palette.accent
-                  : ToneColors.playerText.withValues(alpha: 0.4),
+                  : MeloColors.playerText.withValues(alpha: 0.4),
               shadows: isActive
                   ? [
                       Shadow(
@@ -128,7 +128,7 @@ class _NowPlayingLyrics extends StatefulWidget {
   final SongLyrics? lyrics;
   final bool isLoading;
   final AudioHandler audioHandler;
-  final TonePalette palette;
+  final MeloPalette palette;
   final VoidCallback onBackToArtwork;
   final Future<void> Function() onFindOnline;
   final Future<void> Function() onImportFile;
@@ -203,8 +203,8 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
       if (lineContext == null) return;
       Scrollable.ensureVisible(
         lineContext,
-        duration: ToneMotion.slow,
-        curve: ToneMotion.emphasized,
+        duration: MeloMotion.slow,
+        curve: MeloMotion.emphasized,
         alignment: 0.42,
       );
     });
@@ -279,7 +279,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
           Text(
             'LYRICS',
             style: TextStyle(
-              color: ToneColors.playerText.withValues(alpha: 0.82),
+              color: MeloColors.playerText.withValues(alpha: 0.82),
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.8,
@@ -290,12 +290,12 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: (synced ? widget.palette.accent : ToneColors.playerMuted)
+                color: (synced ? widget.palette.accent : MeloColors.playerMuted)
                     .withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(99),
                 border: Border.all(
                   color:
-                      (synced ? widget.palette.accent : ToneColors.playerMuted)
+                      (synced ? widget.palette.accent : MeloColors.playerMuted)
                           .withValues(alpha: 0.42),
                 ),
               ),
@@ -304,7 +304,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                 style: TextStyle(
                   color: synced
                       ? widget.palette.accent
-                      : ToneColors.playerMuted,
+                      : MeloColors.playerMuted,
                   fontSize: 8.5,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
@@ -340,7 +340,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
           child: Text(
             label,
             style: TextStyle(
-              color: ToneColors.playerText.withValues(alpha: 0.78),
+              color: MeloColors.playerText.withValues(alpha: 0.78),
               fontSize: 9.5,
               fontWeight: FontWeight.w700,
             ),
@@ -366,12 +366,12 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15, color: ToneColors.playerText),
+              Icon(icon, size: 15, color: MeloColors.playerText),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(
-                  color: ToneColors.playerText,
+                  color: MeloColors.playerText,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -399,7 +399,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
           const SizedBox(height: 14),
           const Text(
             'Looking for lyrics…',
-            style: TextStyle(color: ToneColors.playerMuted, fontSize: 13),
+            style: TextStyle(color: MeloColors.playerMuted, fontSize: 13),
           ),
         ],
       ),
@@ -423,7 +423,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
               ),
               child: Icon(
                 Icons.lyrics_outlined,
-                color: ToneColors.playerText.withValues(alpha: 0.72),
+                color: MeloColors.playerText.withValues(alpha: 0.72),
                 size: 28,
               ),
             ),
@@ -431,7 +431,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
             const Text(
               'No lyrics yet',
               style: TextStyle(
-                color: ToneColors.playerText,
+                color: MeloColors.playerText,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.3,
@@ -443,7 +443,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
               'time every word, or let Tone search for lyrics.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: ToneColors.playerText.withValues(alpha: 0.6),
+                color: MeloColors.playerText.withValues(alpha: 0.6),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -457,7 +457,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                 FilledButton.icon(
                   onPressed: () => unawaited(widget.onFindOnline()),
                   style: FilledButton.styleFrom(
-                    backgroundColor: ToneColors.cherry,
+                    backgroundColor: MeloColors.cherry,
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.travel_explore_rounded, size: 18),
@@ -466,7 +466,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                 OutlinedButton.icon(
                   onPressed: () => unawaited(widget.onImportFile()),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: ToneColors.playerText,
+                    foregroundColor: MeloColors.playerText,
                     side: BorderSide(
                       color: Colors.white.withValues(alpha: 0.24),
                     ),
@@ -488,7 +488,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
       stream: playbackPositionStream(widget.audioHandler),
       builder: (context, snapshot) {
         final rawPosition = snapshot.data ?? Duration.zero;
-        final leadInMs = widget.audioHandler is ToneAudioHandler ? 120 : 0;
+        final leadInMs = widget.audioHandler is MeloAudioHandler ? 120 : 0;
         final adjustedMs =
             (rawPosition.inMilliseconds + _syncOffsetMs + leadInMs).clamp(
               0,
@@ -549,8 +549,8 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                           vertical: 4,
                         ),
                         child: AnimatedDefaultTextStyle(
-                          duration: ToneMotion.slow,
-                          curve: ToneMotion.emphasized,
+                          duration: MeloMotion.slow,
+                          curve: MeloMotion.emphasized,
                           style: base.copyWith(
                             fontSize: isActive ? 24 : 21,
                             height: 1.26,
@@ -560,7 +560,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                                 : FontWeight.w600,
                             color: isActive
                                 ? widget.palette.accent
-                                : ToneColors.playerText.withValues(alpha: dim),
+                                : MeloColors.playerText.withValues(alpha: dim),
                             shadows: isActive
                                 ? [
                                     Shadow(
@@ -692,7 +692,7 @@ class _FullLyricsSheetState extends State<_FullLyricsSheet> {
       height: MediaQuery.sizeOf(context).height * 0.86,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: ToneGlass(
+        child: MeloGlass(
           borderRadius: 28,
           tint: Colors.black.withValues(alpha: 0.28),
           child: Column(

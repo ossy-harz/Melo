@@ -2,7 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -83,7 +83,7 @@ void main() {
   test('loads matching folder lyrics automatically and caches them', () async {
     SharedPreferences.setMockInitialValues({});
     var reads = 0;
-    const channel = MethodChannel('app.tone.tone_player/library');
+    const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           expect(call.method, 'readLyrics');

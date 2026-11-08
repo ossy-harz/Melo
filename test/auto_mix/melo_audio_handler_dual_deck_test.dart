@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tone_player/features/auto_mix/audio_engine.dart';
-import 'package:tone_player/features/player/tone_audio_handler.dart';
+import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +14,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       final engine = _FakeAudioEngine();
-      final handler = ToneAudioHandler(
+      final handler = MeloAudioHandler(
         audioEngine: engine,
         transitionGainStep: const Duration(seconds: 30),
         transitionDelay: (_) async {},
@@ -70,7 +70,7 @@ void main() {
 
   test('diagnostic duration validation rejects unsupported values', () async {
     SharedPreferences.setMockInitialValues({});
-    final handler = ToneAudioHandler(audioEngine: _FakeAudioEngine());
+    final handler = MeloAudioHandler(audioEngine: _FakeAudioEngine());
     addTearDown(handler.dispose);
 
     for (final duration in [0, 2000, 4000, 31000]) {
@@ -93,7 +93,7 @@ void main() {
 
   test('analysis lookup reports the queue-owned next track', () async {
     SharedPreferences.setMockInitialValues({});
-    final handler = ToneAudioHandler(audioEngine: _FakeAudioEngine());
+    final handler = MeloAudioHandler(audioEngine: _FakeAudioEngine());
     addTearDown(handler.dispose);
     await handler.replaceQueue([
       const MediaItem(
@@ -121,7 +121,7 @@ void main() {
     final engine = _FakeAudioEngine();
     final stepStarted = Completer<void>();
     final holdStep = Completer<void>();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(milliseconds: 10),
       transitionDelay: (_) async {
@@ -159,7 +159,7 @@ void main() {
     final engine = _FakeAudioEngine();
     final stepStarted = Completer<void>();
     final holdStep = Completer<void>();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(milliseconds: 10),
       transitionDelay: (_) async {
@@ -197,7 +197,7 @@ void main() {
       final engine = _FakeAudioEngine();
       final stepStarted = Completer<void>();
       final holdStep = Completer<void>();
-      final handler = ToneAudioHandler(
+      final handler = MeloAudioHandler(
         audioEngine: engine,
         transitionGainStep: const Duration(milliseconds: 10),
         transitionDelay: (_) async {
@@ -235,7 +235,7 @@ void main() {
     final engine = _FakeAudioEngine();
     final stepStarted = Completer<void>();
     final holdStep = Completer<void>();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(milliseconds: 10),
       transitionDelay: (_) async {
@@ -268,7 +268,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       final engine = _FakeAudioEngine();
-      final handler = ToneAudioHandler(audioEngine: engine);
+      final handler = MeloAudioHandler(audioEngine: engine);
       addTearDown(handler.dispose);
       await handler.replaceQueue([
         const MediaItem(id: '/music/current.mp3', title: 'Current'),
@@ -298,7 +298,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       final engine = _FakeAudioEngine();
-      final handler = ToneAudioHandler(audioEngine: engine);
+      final handler = MeloAudioHandler(audioEngine: engine);
       addTearDown(handler.dispose);
 
       await handler.replaceQueue([
@@ -330,7 +330,7 @@ void main() {
   test('automatically crossfades before the outgoing track ends', () async {
     SharedPreferences.setMockInitialValues({});
     final engine = _FakeAudioEngine();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(seconds: 30),
       transitionDelay: (_) async {},
@@ -363,7 +363,7 @@ void main() {
   test('queue edits clear Deck B before changing the upcoming order', () async {
     SharedPreferences.setMockInitialValues({});
     final engine = _FakeAudioEngine();
-    final handler = ToneAudioHandler(audioEngine: engine);
+    final handler = MeloAudioHandler(audioEngine: engine);
     addTearDown(handler.dispose);
     const current = MediaItem(id: '/music/current.mp3', title: 'Current');
     const next = MediaItem(id: '/music/next.mp3', title: 'Next');
@@ -386,7 +386,7 @@ void main() {
   test('transition fades Decks, promotes the incoming track, and keeps queue state', () async {
     SharedPreferences.setMockInitialValues({});
     final engine = _FakeAudioEngine();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(seconds: 1),
       transitionDelay: (_) async {},
@@ -438,7 +438,7 @@ void main() {
     final engine = _FakeAudioEngine();
     final stepStarted = Completer<void>();
     final holdStep = Completer<void>();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(milliseconds: 10),
       transitionDelay: (_) async {
@@ -473,7 +473,7 @@ void main() {
     final engine = _FakeAudioEngine();
     final stepStarted = Completer<void>();
     final holdStep = Completer<void>();
-    final handler = ToneAudioHandler(
+    final handler = MeloAudioHandler(
       audioEngine: engine,
       transitionGainStep: const Duration(milliseconds: 10),
       transitionDelay: (_) async {
@@ -506,7 +506,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       final engine = _FakeAudioEngine();
-      final handler = ToneAudioHandler(
+      final handler = MeloAudioHandler(
         audioEngine: engine,
         transitionGainStep: const Duration(seconds: 1),
         transitionDelay: (_) async {},
@@ -538,7 +538,7 @@ void main() {
       final engine = _FakeAudioEngine();
       final stepStarted = Completer<void>();
       final holdStep = Completer<void>();
-      final handler = ToneAudioHandler(
+      final handler = MeloAudioHandler(
         audioEngine: engine,
         transitionGainStep: const Duration(milliseconds: 10),
         transitionDelay: (_) async {

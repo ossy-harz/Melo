@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
-part 'tone_database.g.dart';
+part 'melo_database.g.dart';
 
 class Artists extends Table {
   TextColumn get id => text()();
@@ -253,13 +253,13 @@ class AudioProfiles extends Table {
     AudioProfiles,
   ],
 )
-class ToneDatabase extends _$ToneDatabase {
-  ToneDatabase(super.executor);
+class MeloDatabase extends _$MeloDatabase {
+  MeloDatabase(super.executor);
 
-  factory ToneDatabase.open(File file) =>
-      ToneDatabase(NativeDatabase.createInBackground(file));
+  factory MeloDatabase.open(File file) =>
+      MeloDatabase(NativeDatabase.createInBackground(file));
 
-  factory ToneDatabase.inMemory() => ToneDatabase(NativeDatabase.memory());
+  factory MeloDatabase.inMemory() => MeloDatabase(NativeDatabase.memory());
 
   @override
   int get schemaVersion => 3;

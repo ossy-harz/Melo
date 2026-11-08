@@ -17,11 +17,11 @@ class NowPlayingScreen extends StatelessWidget {
     value: SystemUiOverlayStyle.light.copyWith(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: ToneColors.amoled,
+      systemNavigationBarColor: MeloColors.amoled,
       systemNavigationBarIconBrightness: Brightness.light,
     ),
     child: Scaffold(
-      backgroundColor: ToneColors.amoled,
+      backgroundColor: MeloColors.amoled,
       body: StreamBuilder<MediaItem?>(
         stream: audioHandler.mediaItem,
         builder: (context, snapshot) {
@@ -50,13 +50,13 @@ class _NowPlayingEmptyState extends StatelessWidget {
       gradient: RadialGradient(
         center: Alignment(0, -0.7),
         radius: 1.2,
-        colors: [Color(0x4DE8173B), ToneColors.amoled],
+        colors: [Color(0x4DE8173B), MeloColors.amoled],
       ),
     ),
     child: Center(
       child: Padding(
         padding: EdgeInsets.all(28),
-        child: ToneGlass(
+        child: MeloGlass(
           borderRadius: 30,
           tint: Color(0x0FFFFFFF),
           padding: EdgeInsets.fromLTRB(28, 30, 28, 26),
@@ -67,7 +67,7 @@ class _NowPlayingEmptyState extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [ToneColors.cherry, ToneColors.cherryDeep],
+                    colors: [MeloColors.cherry, MeloColors.cherryDeep],
                   ),
                 ),
                 child: SizedBox(
@@ -84,7 +84,7 @@ class _NowPlayingEmptyState extends StatelessWidget {
               Text(
                 'Nothing playing yet',
                 style: TextStyle(
-                  color: ToneColors.playerText,
+                  color: MeloColors.playerText,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.4,
@@ -95,7 +95,7 @@ class _NowPlayingEmptyState extends StatelessWidget {
                 'Choose a song from your library to start listening.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: ToneColors.playerMuted,
+                  color: MeloColors.playerMuted,
                   fontSize: 13.5,
                   height: 1.45,
                 ),
@@ -175,14 +175,14 @@ class _NowPlayingFavoriteButtonState extends State<_NowPlayingFavoriteButton>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: widget.isFavorite
-                ? ToneColors.cherry.withValues(alpha: 0.22)
+                ? MeloColors.cherry.withValues(alpha: 0.22)
                 : Colors.white.withValues(alpha: 0.06),
           ),
           child: Icon(
             widget.isFavorite
                 ? Icons.star_rounded
                 : Icons.star_border_rounded,
-            color: widget.isFavorite ? ToneColors.cherry : ToneColors.playerMuted,
+            color: widget.isFavorite ? MeloColors.cherry : MeloColors.playerMuted,
             size: 20,
           ),
         ),
@@ -228,7 +228,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   StreamSubscription<List<MediaItem>>? _queueSubscription;
   StreamSubscription<PlaybackState>? _playbackSubscription;
   StreamSubscription<dynamic>? _transitionSubscription;
-  TonePalette _palette = TonePalette.fallback;
+  MeloPalette _palette = MeloPalette.fallback;
   bool _showLyrics = false;
 
   @override
@@ -584,7 +584,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.48),
-      builder: (context) => _TrackDetailsSheet(
+      builder: (context) => TrackDetailsSheet(
         item: widget.item,
         onEnrichMetadata: () {
           Navigator.of(context).pop();
@@ -982,13 +982,13 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                           margin: const EdgeInsets.only(top: 6, bottom: 2),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.28),
-                            borderRadius: BorderRadius.circular(ToneRadii.pill),
+                            borderRadius: BorderRadius.circular(MeloRadii.pill),
                           ),
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-                        child: ToneGlass(
+                        child: MeloGlass(
                           borderRadius: 24,
                           tint: Colors.black.withValues(alpha: 0.32),
                           borderColor: Colors.white.withValues(alpha: 0.08),
@@ -1002,7 +1002,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 tooltip: 'Close player',
                                 onPressed: () =>
                                     Navigator.of(context).maybePop(),
-                                color: ToneColors.playerText,
+                                color: MeloColors.playerText,
                                 icon: const Icon(
                                   Icons.keyboard_arrow_down_rounded,
                                   size: 28,
@@ -1013,7 +1013,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   'NOW PLAYING',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: ToneColors.playerText,
+                                    color: MeloColors.playerText,
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 1.4,
@@ -1029,14 +1029,14 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 },
                                 style: IconButton.styleFrom(
                                   backgroundColor: _showLyrics
-                                      ? ToneColors.cherry.withValues(
+                                      ? MeloColors.cherry.withValues(
                                           alpha: 0.22,
                                         )
                                       : null,
                                 ),
                                 color: _showLyrics
-                                    ? ToneColors.cherrySoft
-                                    : ToneColors.playerText,
+                                    ? MeloColors.cherrySoft
+                                    : MeloColors.playerText,
                                 icon: Icon(
                                   _showLyrics
                                       ? Icons.album_rounded
@@ -1047,7 +1047,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                               IconButton(
                                 tooltip: 'Up next',
                                 onPressed: _openQueue,
-                                color: ToneColors.playerText,
+                                color: MeloColors.playerText,
                                 icon: const Icon(
                                   Icons.queue_music_rounded,
                                   size: 22,
@@ -1059,9 +1059,9 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                       ),
                       Expanded(
                         child: AnimatedSwitcher(
-                          duration: ToneMotion.slow,
-                          switchInCurve: ToneMotion.emphasized,
-                          switchOutCurve: ToneMotion.emphasized,
+                          duration: MeloMotion.slow,
+                          switchInCurve: MeloMotion.emphasized,
+                          switchOutCurve: MeloMotion.emphasized,
                           transitionBuilder: _safeFadeSwitcherTransition,
                           layoutBuilder: _safeAnimatedSwitcherLayout,
                           child: _showLyrics
@@ -1082,10 +1082,10 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   builder: (context, constraints) {
                                     final artSize = math
                                         .min(
-                                          constraints.maxWidth * 0.88,
-                                          constraints.maxHeight * 0.92,
+                                          constraints.maxWidth - 36,
+                                          constraints.maxHeight * 0.96,
                                         )
-                                        .clamp(0.0, 390.0);
+                                        .clamp(0.0, 380.0);
                                     return Center(
                                       child: GestureDetector(
                                         onTap: () =>
@@ -1096,15 +1096,15 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                           live: true,
                                           palette: _palette,
                                           child: AnimatedScale(
-                                            scale: playing ? 1.0 : 0.93,
-                                            duration: ToneMotion.slow,
-                                            curve: ToneMotion.emphasized,
+                                            scale: playing ? 1.0 : 0.92,
+                                            duration: MeloMotion.slow,
+                                            curve: MeloMotion.emphasized,
                                             child: AnimatedContainer(
-                                              duration: ToneMotion.slow,
-                                              curve: ToneMotion.emphasized,
+                                              duration: MeloMotion.slow,
+                                              curve: MeloMotion.emphasized,
                                               decoration: BoxDecoration(
                                                 borderRadius:
-                                                    BorderRadius.circular(28),
+                                                    BorderRadius.circular(22),
                                                 boxShadow: [
                                                   BoxShadow(
                                                     color: _palette.accent
@@ -1138,7 +1138,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                               child: Container(
                                                 decoration: BoxDecoration(
                                                   borderRadius:
-                                                      BorderRadius.circular(28),
+                                                      BorderRadius.circular(22),
                                                   border: Border.all(
                                                     color: Colors.white
                                                         .withValues(alpha: 0.14),
@@ -1157,7 +1157,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                     sourceUri: Uri.tryParse(
                                                       widget.item.id,
                                                     ),
-                                                    borderRadius: 28,
+                                                    borderRadius: 22,
                                                   ),
                                                 ),
                                               ),
@@ -1194,7 +1194,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                             .textTheme
                                             .headlineSmall
                                             ?.copyWith(
-                                              color: ToneColors.playerText,
+                                              color: MeloColors.playerText,
                                               fontSize: 23,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: -0.6,
@@ -1218,7 +1218,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                             .textTheme
                                             .bodyMedium
                                             ?.copyWith(
-                                              color: ToneColors.playerMuted,
+                                              color: MeloColors.playerMuted,
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -1253,7 +1253,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                 child:
                                                     CircularProgressIndicator(
                                                       strokeWidth: 2.2,
-                                                      color: ToneColors.cherry,
+                                                      color: MeloColors.cherry,
                                                     ),
                                               ),
                                             )
@@ -1272,7 +1272,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                           .download_for_offline_outlined,
                                                 color: onDevice
                                                     ? Colors.greenAccent
-                                                    : ToneColors.playerMuted,
+                                                    : MeloColors.playerMuted,
                                                 size: 24,
                                               ),
                                             ),
@@ -1345,7 +1345,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 ),
                                 child: const Icon(
                                   Icons.more_horiz_rounded,
-                                  color: ToneColors.playerMuted,
+                                  color: MeloColors.playerMuted,
                                   size: 20,
                                 ),
                               ),
@@ -1368,7 +1368,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                         ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-                        child: ToneGlass(
+                        child: MeloGlass(
                           borderRadius: 32,
                           tint: Colors.black.withValues(alpha: 0.44),
                           borderColor: Colors.white.withValues(alpha: 0.12),
@@ -1491,7 +1491,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                       if (widget.onNavigate case final onNavigate?)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
-                          child: ToneGlass(
+                          child: MeloGlass(
                             borderRadius: 26,
                             tint: Colors.black.withValues(alpha: 0.44),
                             borderColor: Colors.white.withValues(alpha: 0.10),
@@ -1525,12 +1525,12 @@ class _PlayerBottomNavigation extends StatelessWidget {
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      indicatorColor: ToneColors.cherry.withValues(alpha: 0.24),
+      indicatorColor: MeloColors.cherry.withValues(alpha: 0.24),
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
           color: states.contains(WidgetState.selected)
-              ? ToneColors.cherry
-              : ToneColors.playerMuted,
+              ? MeloColors.cherry
+              : MeloColors.playerMuted,
         ),
       ),
       labelTextStyle: WidgetStateProperty.resolveWith(
@@ -1540,8 +1540,8 @@ class _PlayerBottomNavigation extends StatelessWidget {
               ? FontWeight.w700
               : FontWeight.w500,
           color: states.contains(WidgetState.selected)
-              ? ToneColors.cherry
-              : ToneColors.playerMuted,
+              ? MeloColors.cherry
+              : MeloColors.playerMuted,
         ),
       ),
     ),
