@@ -17,6 +17,7 @@ import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 /// Tone's home is a discovery surface; playback and destinations stay in the
@@ -197,16 +198,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _openCuratedPreset(BuildContext context, _CuratedPlaylistPreset preset) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CuratedPlaylistSheet(
-        preset: preset,
-        audioHandler: audioHandler,
-        library: library,
+  void _openCuratedPreset(BuildContext context, CuratedPlaylistPreset preset) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: audioHandler,
+          library: library,
+        ),
       ),
     );
   }
@@ -1151,7 +1150,7 @@ class _TopPicksShelf extends StatelessWidget {
   });
 
   final ValueChanged<SmartVibe> onPlayVibe;
-  final ValueChanged<_CuratedPlaylistPreset> onPlayPreset;
+  final ValueChanged<CuratedPlaylistPreset> onPlayPreset;
 
   @override
   Widget build(BuildContext context) {
@@ -2497,24 +2496,6 @@ class _LiveDiscoverySectionState extends State<_LiveDiscoverySection> {
   }
 }
 
-class _CuratedPlaylistPreset {
-  const _CuratedPlaylistPreset({
-    required this.title,
-    required this.curatorSubtitle,
-    required this.badge,
-    required this.searchQuery,
-    required this.gradient,
-    required this.icon,
-  });
-
-  final String title;
-  final String curatorSubtitle;
-  final String badge;
-  final String searchQuery;
-  final List<Color> gradient;
-  final IconData icon;
-}
-
 class _RecommendedPlaylistsSection extends StatelessWidget {
   const _RecommendedPlaylistsSection({
     required this.audioHandler,
@@ -2524,8 +2505,8 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
 
-  static const List<_CuratedPlaylistPreset> _playlists = [
-    _CuratedPlaylistPreset(
+  static const List<CuratedPlaylistPreset> _playlists = [
+    CuratedPlaylistPreset(
       title: "Today's Top Hits",
       curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
       badge: 'UPDATED TODAY',
@@ -2533,7 +2514,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
       gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
       icon: Icons.local_fire_department_rounded,
     ),
-    _CuratedPlaylistPreset(
+    CuratedPlaylistPreset(
       title: 'Afrobeats Essentials',
       curatorSubtitle: 'Lagos to the World · Burna, Rema, Tems, Asake',
       badge: 'ESSENTIALS',
@@ -2541,7 +2522,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
       gradient: [Color(0xFFFF6B35), Color(0xFF9E2A2B)],
       icon: Icons.bolt_rounded,
     ),
-    _CuratedPlaylistPreset(
+    CuratedPlaylistPreset(
       title: 'Late Night R&B',
       curatorSubtitle: 'Smooth Soul & Midnight Moods',
       badge: 'CHILL & SOUL',
@@ -2549,7 +2530,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
       gradient: [Color(0xFF5F0F40), Color(0xFF310E68)],
       icon: Icons.nightlight_round,
     ),
-    _CuratedPlaylistPreset(
+    CuratedPlaylistPreset(
       title: 'Amapiano Grooves',
       curatorSubtitle: 'Log Drums & Private School Piano',
       badge: 'DANCE FLOOR',
@@ -2557,7 +2538,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
       gradient: [Color(0xFF007991), Color(0xFF222E50)],
       icon: Icons.graphic_eq_rounded,
     ),
-    _CuratedPlaylistPreset(
+    CuratedPlaylistPreset(
       title: 'Rap Life',
       curatorSubtitle: 'Heavyweight Bars & Street Anthems',
       badge: 'HIP-HOP',
@@ -2565,7 +2546,7 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
       gradient: [Color(0xFF232526), Color(0xFF414345)],
       icon: Icons.mic_external_on_rounded,
     ),
-    _CuratedPlaylistPreset(
+    CuratedPlaylistPreset(
       title: 'Pure Focus',
       curatorSubtitle: 'Instrumental Beats for Deep Work',
       badge: 'INSTRUMENTAL',
@@ -2575,16 +2556,14 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
     ),
   ];
 
-  void _openPlaylist(BuildContext context, _CuratedPlaylistPreset preset) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CuratedPlaylistSheet(
-        preset: preset,
-        audioHandler: audioHandler,
-        library: library,
+  void _openPlaylist(BuildContext context, CuratedPlaylistPreset preset) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: audioHandler,
+          library: library,
+        ),
       ),
     );
   }
@@ -2778,342 +2757,4 @@ class _RecommendedPlaylistsSection extends StatelessWidget {
   }
 }
 
-class _CuratedPlaylistSheet extends StatefulWidget {
-  const _CuratedPlaylistSheet({
-    required this.preset,
-    required this.audioHandler,
-    required this.library,
-  });
 
-  final _CuratedPlaylistPreset preset;
-  final AudioHandler? audioHandler;
-  final MusicLibrary? library;
-
-  @override
-  State<_CuratedPlaylistSheet> createState() => _CuratedPlaylistSheetState();
-}
-
-class _CuratedPlaylistSheetState extends State<_CuratedPlaylistSheet> {
-  static final Map<String, List<YoutubeTrack>> _cache = {};
-  List<YoutubeTrack> _tracks = const [];
-  bool _loading = true;
-  final Map<String, double> _downloadProgress = {};
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_loadTracks());
-  }
-
-  Future<void> _loadTracks() async {
-    final cached = _cache[widget.preset.title];
-    if (cached != null && cached.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _tracks = cached;
-          _loading = false;
-        });
-      }
-      return;
-    }
-    try {
-      final results = await YoutubeAudioService.instance.search(
-        widget.preset.searchQuery,
-      );
-      final valid = results
-          .where((t) => t.duration.inSeconds == 0 || t.duration.inSeconds >= 30)
-          .take(12)
-          .toList(growable: false);
-      _cache[widget.preset.title] = valid;
-      if (mounted) {
-        setState(() {
-          _tracks = valid;
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _streamPlaylist({required bool shuffle, int startIndex = 0}) async {
-    final handler = widget.audioHandler;
-    if (handler == null || _tracks.isEmpty) return;
-    final ordered = [..._tracks];
-    if (shuffle) {
-      ordered.shuffle();
-    } else if (startIndex > 0 && startIndex < ordered.length) {
-      final lead = ordered.removeAt(startIndex);
-      ordered.insert(0, lead);
-    }
-    final items = ordered.map((t) {
-      final local = widget.library?.findMatchingLocalTrack(
-        providerTrackId: t.id,
-        title: t.title,
-        artist: t.author,
-      );
-      return local != null ? local.toMediaItem() : t.toMediaItem();
-    }).toList(growable: false);
-    await handler.updateQueue(items);
-    await handler.skipToQueueItem(0);
-    await handler.play();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Streaming "${widget.preset.title}"'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-  }
-
-  Future<void> _downloadSingleTrack(YoutubeTrack track) async {
-    final library = widget.library;
-    if (library == null || _downloadProgress.containsKey(track.id)) return;
-    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
-      context,
-      title: track.title,
-      artist: track.author,
-    );
-    if (chosenQuality == null || !mounted) return;
-    setState(() => _downloadProgress[track.id] = 0.02);
-    try {
-      await YoutubeAudioService.instance.downloadTrack(
-        track: track,
-        library: library,
-        qualityOverride: chosenQuality,
-        onProgress: (p) {
-          if (mounted) setState(() => _downloadProgress[track.id] = p);
-        },
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'Saved "${track.title}" (${chosenQuality.shortLabel})',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not download "${track.title}": $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    } finally {
-      if (mounted) setState(() => _downloadProgress.remove(track.id));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.84,
-      child: Material(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 14, 16, 18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    widget.preset.gradient.first.withValues(alpha: 0.42),
-                    colors.surface,
-                  ],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 38,
-                      height: 4.5,
-                      decoration: BoxDecoration(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Container(
-                        width: 68,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: LinearGradient(
-                            colors: widget.preset.gradient,
-                          ),
-                        ),
-                        child: Icon(
-                          widget.preset.icon,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.preset.badge,
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: MeloColors.cherry,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.preset.title,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.preset.curatorSubtitle,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: colors.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _tracks.isEmpty
-                              ? null
-                              : () => _streamPlaylist(shuffle: false),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: const Text('Stream Playlist'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: _tracks.isEmpty
-                              ? null
-                              : () => _streamPlaylist(shuffle: true),
-                          icon: const Icon(Icons.shuffle_rounded),
-                          label: const Text('Shuffle'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _tracks.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Could not load playlist tracks. Check your connection.',
-                        style: TextStyle(color: colors.onSurfaceVariant),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                      itemCount: _tracks.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) {
-                        final track = _tracks[index];
-                        final progress = _downloadProgress[track.id];
-                        final isDownloaded =
-                            widget.library?.isTrackDownloaded(
-                              providerTrackId: track.id,
-                              title: track.title,
-                              artist: track.author,
-                            ) ??
-                            false;
-                        return ListTile(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          tileColor: colors.surfaceContainerLow,
-                          leading: AlbumArtwork(
-                            size: 46,
-                            title: track.title,
-                            artworkUri: track.thumbnailUrl != null
-                                ? Uri.tryParse(track.thumbnailUrl!)
-                                : null,
-                            borderRadius: 10,
-                          ),
-                          title: Text(
-                            track.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            '${track.author} · ${track.durationFormatted}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () =>
-                              _streamPlaylist(shuffle: false, startIndex: index),
-                          onLongPress: () => TrackDetailsSheet.show(
-                            context,
-                            track.toMediaItem(),
-                          ),
-                          trailing: progress != null
-                              ? SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    value: progress > 0.05 ? progress : null,
-                                    strokeWidth: 2.2,
-                                  ),
-                                )
-                              : isDownloaded
-                              ? const Icon(
-                                  Icons.download_done_rounded,
-                                  color: Colors.greenAccent,
-                                )
-                              : widget.library != null
-                              ? IconButton(
-                                  tooltip: 'Download song',
-                                  onPressed: () => _downloadSingleTrack(track),
-                                  icon: const Icon(
-                                    Icons.download_for_offline_outlined,
-                                  ),
-                                )
-                              : null,
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

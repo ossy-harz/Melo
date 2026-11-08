@@ -204,12 +204,91 @@ class YoutubeAudioService {
     }
   }
 
+  /// Upgrades low-res thumbnails to crisp 800x800 square cover art or maxresdefault.
+  static String cleanThumbnailUrl(String? url, {String? videoId}) {
+    if (url != null && url.isNotEmpty) {
+      if (url.contains('googleusercontent.com') || url.contains('ggpht.com')) {
+        return url.replaceAll(RegExp(r'=w\d+-h\d+.*'), '=w800-h800-l90-rj');
+      }
+      if (url.contains('i.ytimg.com')) {
+        return url
+            .replaceAll('hqdefault.jpg', 'maxresdefault.jpg')
+            .replaceAll('mqdefault.jpg', 'maxresdefault.jpg')
+            .replaceAll('default.jpg', 'maxresdefault.jpg');
+      }
+      return url;
+    }
+    if (videoId != null && videoId.isNotEmpty) {
+      return 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
+    }
+    return '';
+  }
+
+  /// Detects whether a title or duration corresponds to a long nonstop compilation,
+  /// full album rip, DJ mix, or multi-hour set rather than a single song.
+  static bool isMixtapeOrNonstop(String title, Duration duration) {
+    // If duration is longer than 11 minutes (660 seconds), it's a mix or album.
+    if (duration.inSeconds > 660) return true;
+    // If duration is shorter than 40 seconds, it's a teaser or snippet.
+    if (duration.inSeconds > 0 && duration.inSeconds < 40) return true;
+
+    final lower = title.toLowerCase();
+    const blacklist = [
+      'nonstop',
+      'non-stop',
+      'non stop',
+      'mixtape',
+      'mix tape',
+      'dj mix',
+      'dj set',
+      'club mix',
+      'party mix',
+      'live set',
+      'full set',
+      'continuous mix',
+      'full album',
+      'complete album',
+      'megamix',
+      'mega mix',
+      'audio jukebox',
+      'jukebox',
+      'compilation',
+      'all songs',
+      'best songs of',
+      'top songs of',
+      'greatest hits full',
+      'hour mix',
+      '1 hour',
+      '2 hour',
+      '3 hour',
+      '10 hour',
+      'mashup mix',
+      'extended mix set',
+    ];
+    for (final word in blacklist) {
+      if (lower.contains(word)) return true;
+    }
+    return false;
+  }
+
   /// Searches YouTube Music (official studio songs with album metadata & square artwork)
   /// and YouTube in parallel, returning fast, deduplicated results.
-  Future<List<YoutubeTrack>> search(String query) async {
+  Future<List<YoutubeTrack>> search(
+    String query, {
+    bool filterMixtapes = true,
+  }) async {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return const [];
     unawaited(_getVisitorData());
+
+    // If user explicitly queried for a mix or set, do not filter mixtapes.
+    final queryLower = cleanQuery.toLowerCase();
+    final shouldFilter = filterMixtapes &&
+        !queryLower.contains('mix') &&
+        !queryLower.contains('dj') &&
+        !queryLower.contains('set') &&
+        !queryLower.contains('album') &&
+        !queryLower.contains('nonstop');
 
     try {
       final resultsPair = await Future.wait([
@@ -224,6 +303,9 @@ class YoutubeAudioService {
       final seenIds = <String>{};
 
       for (final track in ytmSongs) {
+        if (shouldFilter && isMixtapeOrNonstop(track.title, track.duration)) {
+          continue;
+        }
         if (track.duration.inSeconds > 0 && track.duration.inSeconds < 30) {
           continue;
         }
@@ -232,6 +314,9 @@ class YoutubeAudioService {
         }
       }
       for (final track in webVideos) {
+        if (shouldFilter && isMixtapeOrNonstop(track.title, track.duration)) {
+          continue;
+        }
         if (track.duration.inSeconds > 0 && track.duration.inSeconds < 30) {
           continue;
         }
@@ -392,13 +477,10 @@ class YoutubeAudioService {
             if (thumbs != null && thumbs.isNotEmpty) {
               final rawUrl = thumbs.last['url'] as String?;
               if (rawUrl != null) {
-                thumbUrl = rawUrl.replaceAll(
-                  RegExp(r'=w\d+-h\d+'),
-                  '=w544-h544',
-                );
+                thumbUrl = cleanThumbnailUrl(rawUrl, videoId: videoId);
               }
             }
-            thumbUrl ??= 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+            thumbUrl ??= cleanThumbnailUrl(null, videoId: videoId);
 
             results.add(
               YoutubeTrack(
@@ -479,9 +561,10 @@ class YoutubeAudioService {
             final duration = _parseDuration(lengthText);
 
             final thumbnails = renderer['thumbnail']?['thumbnails'] as List?;
-            final thumbUrl = thumbnails?.isNotEmpty == true
+            final rawThumb = thumbnails?.isNotEmpty == true
                 ? thumbnails!.last['url'] as String?
-                : 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+                : null;
+            final thumbUrl = cleanThumbnailUrl(rawThumb, videoId: videoId);
 
             final viewText =
                 renderer['shortViewCountText']?['simpleText'] as String?;

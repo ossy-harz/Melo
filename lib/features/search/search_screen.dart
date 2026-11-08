@@ -32,6 +32,7 @@ class _SearchScreenState extends State<SearchScreen> {
   int _searchRequest = 0;
   String? _playingOnlineId;
   final Map<String, double> _downloadProgress = {};
+  int _selectedCategoryIndex = 0;
 
   @override
   void initState() {
@@ -342,6 +343,35 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                   ),
                 ),
+                if (hasQuery) ...[
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        FilterChip(
+                          label: const Text('All Results'),
+                          selected: _selectedCategoryIndex == 0,
+                          onSelected: (_) => setState(() => _selectedCategoryIndex = 0),
+                        ),
+                        const SizedBox(width: 8),
+                        FilterChip(
+                          avatar: const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1ED760)),
+                          label: Text('On Device (${_searchResults.length})'),
+                          selected: _selectedCategoryIndex == 1,
+                          onSelected: (_) => setState(() => _selectedCategoryIndex = 1),
+                        ),
+                        const SizedBox(width: 8),
+                        FilterChip(
+                          avatar: const Icon(Icons.stream_rounded, size: 16),
+                          label: Text('Lossless Streams (${_onlineResults.length})'),
+                          selected: _selectedCategoryIndex == 2,
+                          onSelected: (_) => setState(() => _selectedCategoryIndex = 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (!hasQuery) ...[
                   const SizedBox(height: 18),
                   _BrowseDestinationCard(
@@ -382,7 +412,48 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           if (hasQuery) ...[
-            if (_searchResults.isNotEmpty || _searchError != null)
+            // Top Result Card (Apple / Spotify hero result)
+            if (_selectedCategoryIndex == 0 &&
+                !_isSearchLoading &&
+                (_searchResults.isNotEmpty || _onlineResults.isNotEmpty)) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                sliver: SliverToBoxAdapter(
+                  child: Builder(
+                    builder: (context) {
+                      if (_searchResults.isNotEmpty) {
+                        final topLocal = _searchResults.first;
+                        return _TopResultCard(
+                          title: topLocal.title,
+                          subtitle: '${topLocal.artist} · ${topLocal.album}',
+                          artUri: topLocal.artworkUri == null
+                              ? null
+                              : Uri.tryParse(topLocal.artworkUri!),
+                          sourceUri: Uri.tryParse(topLocal.path),
+                          isOnDevice: true,
+                          onPlay: () => _playTrack(0),
+                        );
+                      } else {
+                        final topOnline = _onlineResults.first;
+                        return _TopResultCard(
+                          title: topOnline.title,
+                          subtitle: '${topOnline.author} · ${topOnline.displaySubtitle}',
+                          artUri: topOnline.thumbnailUrl == null
+                              ? null
+                              : Uri.tryParse(topOnline.thumbnailUrl!),
+                          isOnDevice: false,
+                          onPlay: () => _playOnlineTrack(topOnline),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+
+            // On Device Results
+            if ((_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) &&
+                (_searchResults.isNotEmpty || _searchError != null)) ...[
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 sliver: SliverToBoxAdapter(
@@ -395,31 +466,35 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
               ),
-            if (!_isSearchLoading &&
-                _searchError == null &&
-                _searchResults.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _SearchResultTile(
-                      track: _searchResults[index],
-                      onTap: () => _playTrack(index),
+              if (!_isSearchLoading &&
+                  _searchError == null &&
+                  _searchResults.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _SearchResultTile(
+                        track: _searchResults[index],
+                        onTap: () => _playTrack(index),
+                      ),
+                      childCount: _searchResults.length > 100
+                          ? 100
+                          : _searchResults.length,
                     ),
-                    childCount: _searchResults.length > 100
-                        ? 100
-                        : _searchResults.length,
                   ),
                 ),
-              ),
-            if (_isOnlineLoading || _onlineResults.isNotEmpty)
+            ],
+
+            // Streaming / Lossless Catalog Results
+            if ((_selectedCategoryIndex == 0 || _selectedCategoryIndex == 2) &&
+                (_isOnlineLoading || _onlineResults.isNotEmpty)) ...[
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
                 sliver: SliverToBoxAdapter(
                   child: Row(
                     children: [
                       Text(
-                        'Songs to stream or download',
+                        'Lossless Streams & Catalog',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
@@ -435,35 +510,37 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
               ),
-            if (_onlineResults.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 4, 24, 96),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final track = _onlineResults[index];
-                      final isDownloaded =
-                          widget.library?.isTrackDownloaded(
-                            providerTrackId: track.id,
-                            title: track.title,
-                            artist: track.author,
-                          ) ??
-                          false;
-                      return _OnlineSearchResultTile(
-                        track: track,
-                        isPlaying: _playingOnlineId == track.id,
-                        isDownloaded: isDownloaded,
-                        downloadProgress: _downloadProgress[track.id],
-                        onTap: () => _playOnlineTrack(track),
-                        onDownload: widget.library == null
-                            ? null
-                            : () => _downloadOnlineTrack(track),
-                      );
-                    },
-                    childCount: _onlineResults.length,
+              if (_onlineResults.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 96),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final track = _onlineResults[index];
+                        final isDownloaded =
+                            widget.library?.isTrackDownloaded(
+                              providerTrackId: track.id,
+                              title: track.title,
+                              artist: track.author,
+                            ) ??
+                            false;
+                        return _OnlineSearchResultTile(
+                          track: track,
+                          isPlaying: _playingOnlineId == track.id,
+                          isDownloaded: isDownloaded,
+                          downloadProgress: _downloadProgress[track.id],
+                          onTap: () => _playOnlineTrack(track),
+                          onDownload: widget.library == null
+                              ? null
+                              : () => _downloadOnlineTrack(track),
+                        );
+                      },
+                      childCount: _onlineResults.length,
+                    ),
                   ),
                 ),
-              ),
+            ],
+
             if (!_isSearchLoading &&
                 !_isOnlineLoading &&
                 _searchError == null &&
@@ -850,6 +927,135 @@ class _OnlineSearchResultTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _TopResultCard extends StatelessWidget {
+  const _TopResultCard({
+    required this.title,
+    required this.subtitle,
+    this.artUri,
+    this.sourceUri,
+    required this.isOnDevice,
+    required this.onPlay,
+  });
+
+  final String title;
+  final String subtitle;
+  final Uri? artUri;
+  final Uri? sourceUri;
+  final bool isOnDevice;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'TOP RESULT',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: MeloColors.cherry,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isOnDevice
+                      ? const Color(0xFF1ED760).withValues(alpha: 0.15)
+                      : colors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isOnDevice ? 'ON DEVICE' : 'STREAMING',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isOnDevice ? const Color(0xFF1ED760) : colors.primary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: AlbumArtwork(
+                    size: 58,
+                    title: title,
+                    artworkUri: artUri,
+                    sourceUri: sourceUri,
+                    borderRadius: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                style: IconButton.styleFrom(
+                  backgroundColor: isOnDevice
+                      ? const Color(0xFF1ED760)
+                      : MeloColors.cherry,
+                  foregroundColor: isOnDevice ? Colors.black : Colors.white,
+                  padding: const EdgeInsets.all(12),
+                ),
+                onPressed: onPlay,
+                icon: const Icon(Icons.play_arrow_rounded, size: 26),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

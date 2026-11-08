@@ -490,7 +490,56 @@ class LyricsRepository {
           }
         }
       }
+
+      // Secondary fallback: query Apple Music synced lyrics mirror (api.lrc.red)
+      final lrcRedLyrics = await _queryLrcRedFallback(item);
+      if (lrcRedLyrics != null) return lrcRedLyrics;
     }
+    return null;
+  }
+
+  static Future<SongLyrics?> _queryLrcRedFallback(MediaItem item) async {
+    final title = item.title.trim();
+    final artist = item.artist?.trim() ?? '';
+    if (title.isEmpty) return null;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+      final uri = Uri.https('api.lrc.red', '/get', {
+        'title': title,
+        if (artist.isNotEmpty && !artist.toLowerCase().contains('unknown'))
+          'artist': artist,
+        if (item.duration != null && item.duration!.inSeconds > 0)
+          'duration': '${item.duration!.inSeconds}',
+      });
+      final request = await client.getUrl(uri).timeout(const Duration(seconds: 8));
+      request.headers.set(
+        HttpHeaders.userAgentHeader,
+        'Melo/1.3.0 (mobile audio player)',
+      );
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      if (response.statusCode != HttpStatus.ok) {
+        await response.drain<void>();
+        return null;
+      }
+      final body = await response.transform(utf8.decoder).join();
+      final json = jsonDecode(body);
+      if (json is Map<String, dynamic>) {
+        final synced = json['syncedLyrics'] as String? ?? json['lyrics'] as String?;
+        final plain = json['plainLyrics'] as String?;
+        final lyrics = SongLyrics.parse(synchronized: synced, plain: plain);
+        if (lyrics != null) {
+          final cacheValue = synced?.trim().isNotEmpty == true ? synced! : plain!;
+          final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(cacheKey, cacheValue);
+          await prefs.setString(
+            _canonicalSongKey(item.title, item.artist),
+            cacheValue,
+          );
+          return lyrics;
+        }
+      }
+    } catch (_) {}
     return null;
   }
 
