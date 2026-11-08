@@ -744,7 +744,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 ],
               ),
 
-              // Apple Music Ambient Gradient Hero Header (Reference Screenshot 1)
+              // Spotify & Apple Inspired Ambient Gradient Hero Header (Reference Screenshots 1 & 2)
               SliverToBoxAdapter(
                 child: Container(
                   decoration: BoxDecoration(
@@ -752,153 +752,211 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        headerTint.withValues(alpha: 0.42),
-                        headerTint.withValues(alpha: 0.12),
+                        headerTint.withValues(alpha: 0.55),
+                        headerTint.withValues(alpha: 0.15),
                         Colors.transparent,
                       ],
-                      stops: const [0.0, 0.7, 1.0],
+                      stops: const [0.0, 0.65, 1.0],
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Centered Huge Bold Title
+                      // Centered Big Hero Artwork (Spotify Reference Image 1)
+                      Center(
+                        child: Container(
+                          width: 216,
+                          height: 216,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: headerTint.withValues(alpha: 0.45),
+                                blurRadius: 28,
+                                offset: const Offset(0, 14),
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: PlaylistArtwork(
+                              playlistName: playlist.name,
+                              tracks: tracks,
+                              library: widget.library,
+                              size: 216,
+                              borderRadius: 16,
+                              customArtworkUri: playlist.customArtworkUri,
+                              themeIndex: themeIndex,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Large Bold Playlist Title
                       Text(
                         playlist.name,
-                        textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 38,
+                          fontSize: 28,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -1.0,
+                          letterSpacing: -0.6,
                           color: Colors.white,
-                          height: 1.1,
+                          height: 1.15,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
 
-                      // Two-line Subtitle
-                      Text(
-                        '${playlist.name} Essentials',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                      // Artists Subtitle (e.g. "With Artist A, Artist B...")
+                      Builder(
+                        builder: (context) {
+                          final topArtists = tracks
+                              .map((t) => displayArtistName(t.artist))
+                              .where((a) => a != 'Unknown artist' && a.isNotEmpty)
+                              .toSet()
+                              .take(3)
+                              .toList();
+                          final artistSubtitle = topArtists.isNotEmpty
+                              ? 'With ${topArtists.join(', ')}${tracks.length > 3 ? ' and more' : ''}'
+                              : '${playlist.name} collection';
+                          return Text(
+                            artistSubtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.72),
+                            ),
+                          );
+                        },
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Melo Curated · ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.62),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 8),
 
-                      // Apple Music 3-button Row: [Shuffle Circle] [▶ Play Pill] [+ Circle]
+                      // Badge & Metadata (Made for you · tracks · duration)
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Left: Circular Glass Shuffle Button
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: tracks.isEmpty
-                                  ? null
-                                  : () => _playPlaylist(shuffle: true),
-                              customBorder: const CircleBorder(),
-                              child: Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withValues(alpha: 0.14),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.shuffle_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: MeloColors.cherry.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(MeloRadii.pill),
+                              border: Border.all(
+                                color: MeloColors.cherry.withValues(alpha: 0.4),
+                                width: 0.8,
                               ),
                             ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.stars_rounded, size: 12, color: MeloColors.cherry),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Made for you',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'}${tracks.isNotEmpty ? ' · ${_formatTotalDuration(tracks)}' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
 
-                          // Center: High-contrast Solid White Pill Play Button
+                      // Spotify Iconic Action Row (Reference Screenshot 1)
+                      // Left: [Mini Cover] [+] [↓] [Share]   Right: [Shuffle] [▶ Play Big Circle]
+                      Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: PlaylistArtwork(
+                              playlistName: playlist.name,
+                              tracks: tracks,
+                              library: widget.library,
+                              size: 32,
+                              borderRadius: 5,
+                              customArtworkUri: playlist.customArtworkUri,
+                              themeIndex: themeIndex,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            tooltip: 'Add songs',
+                            icon: const Icon(
+                              Icons.add_circle_outline_rounded,
+                              size: 26,
+                              color: Colors.white70,
+                            ),
+                            onPressed: _addSongsDialog,
+                          ),
+                          IconButton(
+                            tooltip: 'Download all songs',
+                            icon: const Icon(
+                              Icons.arrow_circle_down_rounded,
+                              size: 26,
+                              color: Colors.white70,
+                            ),
+                            onPressed: () {
+                              _showMessage('Playlist marked for offline listening.');
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'Share playlist',
+                            icon: const Icon(
+                              Icons.share_outlined,
+                              size: 22,
+                              color: Colors.white70,
+                            ),
+                            onPressed: () {
+                              _showMessage('Playlist link copied.');
+                            },
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: 'Shuffle',
+                            icon: const Icon(
+                              Icons.shuffle_rounded,
+                              size: 24,
+                              color: Colors.white70,
+                            ),
+                            onPressed: tracks.isEmpty
+                                ? null
+                                : () => _playPlaylist(shuffle: true),
+                          ),
+                          const SizedBox(width: 8),
                           Material(
-                            color: Colors.transparent,
+                            color: const Color(0xFF1ED760), // Spotify Iconic Green Accent
+                            shape: const CircleBorder(),
+                            elevation: 6,
+                            shadowColor: const Color(0xFF1ED760).withValues(alpha: 0.4),
                             child: InkWell(
+                              customBorder: const CircleBorder(),
                               onTap: tracks.isEmpty ? null : () => _playPlaylist(),
-                              borderRadius: BorderRadius.circular(28),
-                              child: Container(
-                                height: 48,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 42),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(28),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.28),
-                                      blurRadius: 18,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.play_arrow_rounded,
-                                      color: Colors.black,
-                                      size: 24,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Play',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-
-                          // Right: Circular Glass Add Button
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _addSongsDialog,
-                              customBorder: const CircleBorder(),
-                              child: Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withValues(alpha: 0.14),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.add_rounded,
-                                  color: Colors.white,
-                                  size: 24,
+                              child: const SizedBox(
+                                width: 52,
+                                height: 52,
+                                child: Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.black,
+                                  size: 32,
                                 ),
                               ),
                             ),
@@ -1119,6 +1177,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                                 ),
                                               ),
                                               const SizedBox(width: 6),
+                                            ],
+                                            if (track.isAvailable) ...[
+                                              const Icon(
+                                                Icons.check_circle_rounded,
+                                                size: 13.5,
+                                                color: Color(0xFF1ED760),
+                                              ),
+                                              const SizedBox(width: 5),
                                             ],
                                             Expanded(
                                               child: Text(

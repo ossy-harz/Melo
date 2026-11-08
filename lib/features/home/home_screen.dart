@@ -174,8 +174,9 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 24),
               ],
 
-              // Shelf 4: Stations for You (Reimagined Endless Radio)
+              // Shelf 4: Stations for You (Continuous Radio Flow with Real Art)
               _StationsForYouShelf(
+                library: library,
                 onPlayVibe: (vibe) => _playSmartVibe(context, vibe),
               ),
               const SizedBox(height: 24),
@@ -187,11 +188,6 @@ class HomeScreen extends StatelessWidget {
                   library: library,
                 ),
                 const SizedBox(height: 24),
-              ],
-
-              if (library?.isEmpty != false) ...[
-                const SizedBox(height: 24),
-                _LibraryCard(onTap: onOpenLibrary),
               ],
             ],
           ),
@@ -1146,81 +1142,6 @@ class _DiscoveryPickCard extends StatelessWidget {
 }
 
 
-class _LibraryCard extends StatelessWidget {
-  const _LibraryCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return MeloGlass(
-      borderRadius: MeloRadii.lg,
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(MeloRadii.lg),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [colors.primary, MeloColors.cherryDeep],
-                    ),
-                    borderRadius: BorderRadius.circular(17),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors.primary.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.library_music_rounded,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Bring your music in',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Start with the songs you already love.',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: colors.onSurfaceVariant,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 
 class _TopPicksShelf extends StatelessWidget {
@@ -1526,12 +1447,26 @@ class _RecentlyPlayedShelf extends StatelessWidget {
 }
 
 class _StationsForYouShelf extends StatelessWidget {
-  const _StationsForYouShelf({required this.onPlayVibe});
+  const _StationsForYouShelf({
+    required this.onPlayVibe,
+    this.library,
+  });
 
   final ValueChanged<SmartVibe> onPlayVibe;
+  final MusicLibrary? library;
 
   @override
   Widget build(BuildContext context) {
+    final tracks = library?.tracks ?? const [];
+    final favorites = library?.favoriteTracks ?? const [];
+
+    final personalTrack = favorites.isNotEmpty
+        ? favorites.first
+        : (tracks.isNotEmpty ? tracks.first : null);
+    final discoveryTrack = tracks.length > 1 ? tracks[1] : null;
+    final focusTrack = tracks.length > 2 ? tracks[2] : null;
+    final chillTrack = tracks.length > 3 ? tracks[3] : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1584,6 +1519,7 @@ class _StationsForYouShelf extends StatelessWidget {
               _StationTile(
                 title: "Personal Station",
                 subtitle: 'Radio Station · Personal flow',
+                artworkTrack: personalTrack,
                 gradient: const [
                   Color(0xFFE52D27),
                   Color(0xFFB31217),
@@ -1596,6 +1532,7 @@ class _StationsForYouShelf extends StatelessWidget {
               _StationTile(
                 title: 'Discovery Station',
                 subtitle: 'Radio Station · Exploration',
+                artworkTrack: discoveryTrack,
                 gradient: const [
                   Color(0xFF4A00E0),
                   Color(0xFF8E2DE2),
@@ -1608,6 +1545,7 @@ class _StationsForYouShelf extends StatelessWidget {
               _StationTile(
                 title: 'Deep Focus & Study',
                 subtitle: 'Radio Station · Instrumental',
+                artworkTrack: focusTrack,
                 gradient: const [
                   Color(0xFF134E5E),
                   Color(0xFF71B280),
@@ -1620,6 +1558,7 @@ class _StationsForYouShelf extends StatelessWidget {
               _StationTile(
                 title: 'Late Night Chill',
                 subtitle: 'Radio Station · Midnight soul',
+                artworkTrack: chillTrack,
                 gradient: const [
                   Color(0xFF3A1C71),
                   Color(0xFFD76D77),
@@ -1643,6 +1582,7 @@ class _StationTile extends StatelessWidget {
     required this.gradient,
     required this.icon,
     required this.onTap,
+    this.artworkTrack,
   });
 
   final String title;
@@ -1650,6 +1590,7 @@ class _StationTile extends StatelessWidget {
   final List<Color> gradient;
   final IconData icon;
   final VoidCallback onTap;
+  final ImportedTrack? artworkTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -1681,46 +1622,93 @@ class _StationTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _FoldedPrismPainter(
-                          color: Colors.white.withValues(alpha: 0.14),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Stack(
+                    children: [
+                      if (artworkTrack != null)
+                        Positioned.fill(
+                          child: AlbumArtwork(
+                            size: 136,
+                            title: artworkTrack!.title,
+                            artworkUri: artworkTrack!.artworkUri != null
+                                ? Uri.tryParse(artworkTrack!.artworkUri!)
+                                : null,
+                            sourceUri: Uri.tryParse(artworkTrack!.path),
+                            borderRadius: 0,
+                          ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(4),
+                      if (artworkTrack != null)
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.72),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _FoldedPrismPainter(
+                              color: Colors.white.withValues(alpha: 0.14),
+                            ),
+                          ),
                         ),
-                        child: const Text(
-                          'melo',
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 0.4,
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'melo',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.4,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: 12,
-                      bottom: 12,
-                      child: Icon(
-                        icon,
-                        color: Colors.white,
-                        size: 24,
+                      Positioned(
+                        left: 12,
+                        bottom: 12,
+                        child: Icon(
+                          icon,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.black,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),

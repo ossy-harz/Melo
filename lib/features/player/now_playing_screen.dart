@@ -463,6 +463,18 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
       setState(() {
         _lyrics = lyrics;
       });
+
+      // Automatically search and fetch lyrics online in background when enabled
+      if (lyrics == null && await LyricsRepository.onlineLookupEnabled) {
+        unawaited(() async {
+          try {
+            final online = await LyricsRepository.findOnlineFor(item);
+            if (mounted && widget.item.id == item.id && online != null) {
+              setState(() => _lyrics = online);
+            }
+          } catch (_) {}
+        }());
+      }
     } on LyricsServiceUnavailableException {
       // Online lookup is optional; the player simply keeps local lyrics.
     } on Object catch (error, stackTrace) {

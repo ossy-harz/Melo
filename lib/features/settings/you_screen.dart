@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_appearance.dart';
@@ -729,22 +730,38 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                           ),
                           if (latest.preferredApkAsset != null) ...[
                             const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.icon(
-                                onPressed: _updater.isDownloading
-                                    ? null
-                                    : () => _downloadAndInstall(latest),
-                                icon: const Icon(
-                                  Icons.system_update_alt_rounded,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  isUpdateAvailable
-                                      ? 'Download & Install ${latest.tagName} (${latest.preferredApkAsset!.formattedSize})'
-                                      : 'Reinstall ${latest.tagName} APK (${latest.preferredApkAsset!.formattedSize})',
-                                ),
-                              ),
+                            FutureBuilder<File?>(
+                              future: _updater.getDownloadedApkFile(latest),
+                              builder: (context, snapshot) {
+                                final isAlreadyDownloaded = snapshot.data != null;
+                                return SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _updater.isDownloading
+                                        ? null
+                                        : () => _downloadAndInstall(latest),
+                                    style: isAlreadyDownloaded
+                                        ? FilledButton.styleFrom(
+                                            backgroundColor: const Color(0xFF1DB954),
+                                            foregroundColor: Colors.white,
+                                          )
+                                        : null,
+                                    icon: Icon(
+                                      isAlreadyDownloaded
+                                          ? Icons.system_update_rounded
+                                          : Icons.system_update_alt_rounded,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      isAlreadyDownloaded
+                                          ? 'Install ${latest.tagName} (Already downloaded)'
+                                          : isUpdateAvailable
+                                              ? 'Download & Install ${latest.tagName} (${latest.preferredApkAsset!.formattedSize})'
+                                              : 'Reinstall ${latest.tagName} APK (${latest.preferredApkAsset!.formattedSize})',
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ],

@@ -15,7 +15,6 @@ import 'package:melo_player/features/library/library_track_filters.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/universal_link_sheet.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
-import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -1013,117 +1012,206 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Your library',
+                        if (library == null || library.tracks.isEmpty) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Your library',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.8,
+                                      ),
+                                ),
+                              ),
+                              if (widget.onSearch != null)
+                                IconButton(
+                                  tooltip: 'Search',
+                                  onPressed: widget.onSearch,
+                                  icon: const Icon(Icons.search_rounded),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Everything you love, together.',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: colors.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 18),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: library?.isImporting == true
+                                    ? null
+                                    : _scanDevice,
+                                icon: library?.isImporting == true
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.library_music_outlined),
+                                label: Text(
+                                  library?.isImporting == true
+                                      ? 'Scanning…'
+                                      : 'Scan device',
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: library?.isImporting == true
+                                    ? null
+                                    : _addSongs,
+                                icon: const Icon(Icons.file_open_outlined),
+                                label: const Text('Import files'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: library?.isImporting == true
+                                    ? null
+                                    : _addMusicFolder,
+                                icon: const Icon(
+                                  Icons.create_new_folder_outlined,
+                                ),
+                                label: const Text('Add folder'),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          // Clean Apple Music / Spotify Style Header (No clutter, pull-to-refresh active)
+                          Row(
+                            children: [
+                              Text(
+                                'Library',
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineMedium
                                     ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.8,
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.0,
                                     ),
                               ),
-                            ),
-                            IconButton(
-                              tooltip: 'YouTube Music',
-                              icon: const Icon(
-                                Icons.play_circle_fill_rounded,
-                                color: Colors.red,
-                              ),
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => YoutubeSearchScreen(
-                                    audioHandler: widget.audioHandler,
-                                    library: widget.library,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Import Online Playlist',
-                              icon: const Icon(
-                                Icons.playlist_add_rounded,
-                                color: MeloColors.cherry,
-                              ),
-                              onPressed: () => SpotifyImportSheet.show(
-                                context,
-                                library: widget.library,
-                                audioHandler: widget.audioHandler,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Download Lossless FLAC & Links',
-                              icon: const Icon(
-                                Icons.link_rounded,
-                                color: MeloColors.cherry,
-                              ),
-                              onPressed: () => UniversalLinkSheet.show(
-                                context,
-                                library: widget.library,
-                                audioHandler: widget.audioHandler,
-                              ),
-                            ),
-                            if (widget.onSearch != null)
+                              const Spacer(),
                               IconButton(
-                                tooltip: 'Search',
-                                onPressed: widget.onSearch,
-                                icon: const Icon(Icons.search_rounded),
+                                tooltip: 'Create playlist',
+                                icon: const Icon(Icons.add_rounded, size: 26),
+                                onPressed: _createPlaylist,
                               ),
+                              if (widget.onSearch != null)
+                                IconButton(
+                                  tooltip: 'Search',
+                                  onPressed: widget.onSearch,
+                                  icon: const Icon(Icons.search_rounded),
+                                ),
+                              PopupMenuButton<String>(
+                                tooltip: 'More options',
+                                icon: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                  child: const Icon(Icons.more_horiz_rounded, size: 20),
+                                ),
+                                onSelected: (val) {
+                                  if (val == 'scan') _scanDevice();
+                                  if (val == 'folder') _addMusicFolder();
+                                  if (val == 'import_files') _addSongs();
+                                  if (val == 'import_m3u') _importPlaylist();
+                                  if (val == 'import_link') {
+                                    SpotifyImportSheet.show(
+                                      context,
+                                      library: widget.library,
+                                      audioHandler: widget.audioHandler,
+                                    );
+                                  }
+                                  if (val == 'rip') {
+                                    UniversalLinkSheet.show(
+                                      context,
+                                      library: widget.library,
+                                      audioHandler: widget.audioHandler,
+                                    );
+                                  }
+                                },
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'scan',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.refresh_rounded, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Scan Device Library'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'folder',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.create_new_folder_outlined, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Add Music Folder'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'import_files',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.file_open_outlined, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Import Audio Files'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'import_m3u',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.queue_music_rounded, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Import M3U Playlist'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'import_link',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.playlist_add_rounded, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Import Online Playlist'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'rip',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.link_rounded, size: 20),
+                                        SizedBox(width: 10),
+                                        Text('Download Lossless FLAC / Links'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          if (library.isImporting) ...[
+                            const SizedBox(height: 8),
+                            const LinearProgressIndicator(color: MeloColors.cherry),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Everything you love, together.',
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: colors.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 22),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            FilledButton.icon(
-                              onPressed: library?.isImporting == true
-                                  ? null
-                                  : _scanDevice,
-                              icon: library?.isImporting == true
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.library_music_outlined),
-                              label: Text(
-                                library?.isImporting == true
-                                    ? 'Scanning…'
-                                    : 'Scan device',
-                              ),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: library?.isImporting == true
-                                  ? null
-                                  : _addSongs,
-                              icon: const Icon(Icons.file_open_outlined),
-                              label: const Text('Import files'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: library?.isImporting == true
-                                  ? null
-                                  : _addMusicFolder,
-                              icon: const Icon(
-                                Icons.create_new_folder_outlined,
-                              ),
-                              label: const Text('Add folder'),
-                            ),
-                          ],
-                        ),
+                        ],
                         if (library?.musicFolders.isNotEmpty == true) ...[
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           Wrap(
                             spacing: 8,
                             runSpacing: 4,
@@ -1142,51 +1230,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             ],
                           ),
                         ],
-                        if (_selectedFilter == 'Playlists' &&
-                            selectedPlaylist == null) ...[
-                          const SizedBox(height: 18),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 8,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: _createPlaylist,
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text('Create playlist'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: () => SpotifyImportSheet.show(
-                                  context,
-                                  library: widget.library,
-                                  audioHandler: widget.audioHandler,
-                                ),
-                                icon: const Icon(
-                                  Icons.playlist_add_rounded,
-                                  color: MeloColors.cherry,
-                                ),
-                                label: const Text('Import link'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: () => UniversalLinkSheet.show(
-                                  context,
-                                  library: widget.library,
-                                  audioHandler: widget.audioHandler,
-                                ),
-                                icon: const Icon(
-                                  Icons.link_rounded,
-                                  color: MeloColors.cherry,
-                                ),
-                                label: const Text('Rip FLAC / Links'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _importPlaylist,
-                                icon: const Icon(Icons.file_upload_outlined),
-                                label: const Text('Import file'),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 16),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -1212,6 +1256,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               ),
                           ],
                         ),
+                        if (_selectedFilter == 'Playlists' &&
+                            selectedPlaylist == null) ...[
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            onPressed: _createPlaylist,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Create playlist'),
+                          ),
+                        ],
                         if (canBrowseTracks) ...[
                           const SizedBox(height: 16),
                           Row(
@@ -1563,9 +1616,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
           ],
         );
+        final refreshablePage = RefreshIndicator(
+          color: MeloColors.cherry,
+          backgroundColor: colors.surfaceContainerHigh,
+          onRefresh: () async {
+            if (widget.library != null) {
+              await widget.library!.scanDeviceMusic();
+            }
+          },
+          child: page,
+        );
         return selectedAlbum == null
-            ? page
-            : Material(color: colors.surface, child: page);
+            ? refreshablePage
+            : Material(color: colors.surface, child: refreshablePage);
       },
     );
   }

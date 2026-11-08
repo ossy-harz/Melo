@@ -377,7 +377,34 @@ class AppUpdateService extends ChangeNotifier {
     return (nums, buildNumber);
   }
 
+  /// Checks whether an APK file for [release] has already been downloaded and is ready to install.
+  Future<File?> getDownloadedApkFile(GithubReleaseInfo release) async {
+    try {
+      final asset = release.preferredApkAsset;
+      if (asset == null) return null;
+      final tempDir = await getTemporaryDirectory();
+      final safeTag = release.cleanVersion.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      
+      final candidates = [
+        File('${tempDir.path}/melo_update_$safeTag.apk'),
+        File('${tempDir.path}/tone_update_$safeTag.apk'),
+      ];
+
+      for (final file in candidates) {
+        if (await file.exists()) {
+          final len = await file.length();
+          if (len > 1024 * 500) {
+            _downloadedApkPath = file.path;
+            return file;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Downloads the APK asset from GitHub Releases into cache and triggers the Android Package Installer.
+  /// If the release APK has already been downloaded previously, it launches installation immediately without re-downloading.
   Future<String> downloadAndInstallRelease(GithubReleaseInfo release) async {
     final asset = release.preferredApkAsset;
     if (asset == null) {
@@ -385,6 +412,16 @@ class AppUpdateService extends ChangeNotifier {
         'Release ${release.tagName} does not have an .apk file attached yet.',
       );
     }
+
+    // Check if the APK has already been downloaded to avoid unnecessary re-downloading.
+    final existingApk = await getDownloadedApkFile(release);
+    if (existingApk != null) {
+      _downloadedApkPath = existingApk.path;
+      _downloadProgress = 1.0;
+      notifyListeners();
+      return installAlreadyDownloadedApk(existingApk.path);
+    }
+
     if (_isDownloading) {
       throw StateError('An update download is already in progress.');
     }
@@ -397,10 +434,10 @@ class AppUpdateService extends ChangeNotifier {
     try {
       final tempDir = await getTemporaryDirectory();
       final safeTag = release.cleanVersion.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final outFile = File('${tempDir.path}/tone_update_$safeTag.apk');
+      final outFile = File('${tempDir.path}/melo_update_$safeTag.apk');
 
       final req = http.Request('GET', Uri.parse(asset.downloadUrl));
-      req.headers['User-Agent'] = 'Tone-Music-Player-Updater';
+      req.headers['User-Agent'] = 'Melo-Music-Player-Updater';
       final res = await client.send(req).timeout(const Duration(seconds: 30));
       if (res.statusCode != 200 && res.statusCode != 206) {
         throw StateError('Download failed (HTTP ${res.statusCode})');
