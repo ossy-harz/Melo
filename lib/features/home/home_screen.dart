@@ -10,6 +10,7 @@ import 'package:tone_player/features/library/imported_track.dart';
 import 'package:tone_player/features/library/data/library_repository.dart'
     show MostPlayedTrack;
 import 'package:tone_player/features/library/music_library.dart';
+import 'package:tone_player/features/library/playlist_detail_screen.dart';
 import 'package:tone_player/features/mix/local_discovery.dart';
 import 'package:tone_player/features/mix/smart_playlist_service.dart';
 import 'package:tone_player/features/player/mini_player.dart';
@@ -103,6 +104,7 @@ class HomeScreen extends StatelessWidget {
                   if (library!.playlists.isNotEmpty) const SizedBox(height: 12),
                   _SavedPlaylists(
                     library: library!,
+                    audioHandler: audioHandler,
                     onPlay: (playlistId) => _playPlaylist(context, playlistId),
                   ),
                   const SizedBox(height: 18),
@@ -676,10 +678,15 @@ class _ListeningCard extends StatelessWidget {
 }
 
 class _SavedPlaylists extends StatelessWidget {
-  const _SavedPlaylists({required this.library, required this.onPlay});
+  const _SavedPlaylists({
+    required this.library,
+    required this.onPlay,
+    this.audioHandler,
+  });
 
   final MusicLibrary library;
   final ValueChanged<String> onPlay;
+  final AudioHandler? audioHandler;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -691,89 +698,100 @@ class _SavedPlaylists extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionHeader(title: 'Your playlists'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 84,
+            height: 198,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: playlists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
                 final playlist = playlists[index];
                 final playlistTracks = library.tracksForPlaylist(playlist.id);
-                final playableTracks = playlistTracks
-                    .where((track) => track.isAvailable)
-                    .toList(growable: false);
-                final artwork = playableTracks.isEmpty
-                    ? null
-                    : playableTracks.first;
+                final count = playlistTracks.length;
+                final themeIndex = playlist.coverStyle != null ? int.tryParse(playlist.coverStyle!) : null;
+
                 return SizedBox(
-                  width: 232,
+                  width: 142,
                   child: Material(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(ToneRadii.md),
-                    clipBehavior: Clip.antiAlias,
+                    color: Colors.transparent,
                     child: InkWell(
-                      onTap: playableTracks.isEmpty
-                          ? null
-                          : () => onPlay(playlist.id),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Row(
-                          children: [
-                            if (artwork == null)
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(Icons.queue_music_rounded),
-                              )
-                            else
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => onPlay(playlist.id),
+                      onLongPress: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PlaylistDetailScreen(
+                              playlist: playlist,
+                              library: library,
+                              audioHandler: audioHandler,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Apple Music Style Square Cover with Play Badge
+                          Stack(
+                            children: [
                               PlaylistArtwork(
                                 playlistName: playlist.name,
-                                tracks: playableTracks,
+                                tracks: playlistTracks,
                                 library: library,
-                                size: 60,
-                                borderRadius: 10,
+                                size: 142,
+                                borderRadius: 14,
+                                customArtworkUri: playlist.customArtworkUri,
+                                themeIndex: themeIndex,
                               ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    playlist.name,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '${playlist.trackIds.length} songs',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurfaceVariant,
+                              if (count > 0)
+                                Positioned(
+                                  right: 8,
+                                  bottom: 8,
+                                  child: Material(
+                                    color: ToneColors.cherry,
+                                    shape: const CircleBorder(),
+                                    elevation: 4,
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: () => onPlay(playlist.id),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(7),
+                                        child: Icon(
+                                          Icons.play_arrow_rounded,
+                                          color: Colors.white,
+                                          size: 18,
                                         ),
+                                      ),
+                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Playlist Title & Count
+                          Text(
+                            playlist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
                             ),
-                            const Icon(Icons.play_arrow_rounded, size: 20),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$count ${count == 1 ? 'song' : 'songs'}',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

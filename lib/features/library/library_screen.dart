@@ -10,6 +10,7 @@ import 'package:tone_player/features/library/duplicate_track_selection.dart';
 import 'package:tone_player/features/library/imported_track.dart';
 import 'package:tone_player/features/library/music_library.dart';
 import 'package:tone_player/features/library/music_playlist.dart';
+import 'package:tone_player/features/library/playlist_detail_screen.dart';
 import 'package:tone_player/features/library/library_track_filters.dart';
 import 'package:tone_player/features/player/mini_player.dart';
 import 'package:tone_player/features/sources/universal_link_sheet.dart';
@@ -1478,8 +1479,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 tracksFor: (playlist) => library.tracksForPlaylist(playlist.id),
                 trackCount: (playlist) =>
                     library.tracksForPlaylist(playlist.id).length,
-                onSelect: (playlist) =>
-                    setState(() => _selectedPlaylistId = playlist.id),
+                onSelect: (playlist) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PlaylistDetailScreen(
+                        playlist: playlist,
+                        library: library,
+                        audioHandler: widget.audioHandler,
+                      ),
+                    ),
+                  );
+                },
                 onPlay: _playPlaylist,
                 onRename: _renamePlaylist,
                 onDelete: _deletePlaylist,
@@ -2474,52 +2484,113 @@ class _PlaylistList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SliverPadding(
-    padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-    sliver: SliverList(
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 48),
+    sliver: SliverGrid(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 20,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.74,
+      ),
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final playlist = playlists[index];
           final playlistTracks = tracksFor(playlist);
           final count = trackCount(playlist);
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(vertical: 4),
-            leading: PlaylistArtwork(
-              playlistName: playlist.name,
-              tracks: playlistTracks,
-              library: library,
-              size: 48,
-              borderRadius: ToneRadii.sm,
-            ),
-            title: Text(
-              playlist.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text('$count ${count == 1 ? 'song' : 'songs'}'),
-            onTap: () => onSelect(playlist),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Play ${playlist.name}',
-                  onPressed: count == 0 ? null : () => onPlay(playlist),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Playlist options',
-                  onSelected: (value) {
-                    if (value == 'rename') onRename(playlist);
-                    if (value == 'delete') onDelete(playlist);
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'rename', child: Text('Rename')),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete playlist'),
+          final themeIndex = playlist.coverStyle != null ? int.tryParse(playlist.coverStyle!) : null;
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => onSelect(playlist),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Apple Music Square Artwork
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        PlaylistArtwork(
+                          playlistName: playlist.name,
+                          tracks: playlistTracks,
+                          library: library,
+                          size: 180,
+                          borderRadius: 14,
+                          customArtworkUri: playlist.customArtworkUri,
+                          themeIndex: themeIndex,
+                        ),
+                        if (count > 0)
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            child: Material(
+                              color: ToneColors.cherry,
+                              shape: const CircleBorder(),
+                              elevation: 4,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => onPlay(playlist),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Title & Count
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          playlist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
+                        tooltip: 'Playlist options',
+                        onSelected: (value) {
+                          if (value == 'rename') onRename(playlist);
+                          if (value == 'delete') onDelete(playlist);
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'rename', child: Text('Rename')),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete playlist', style: TextStyle(color: Colors.redAccent)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '$count ${count == 1 ? 'song' : 'songs'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

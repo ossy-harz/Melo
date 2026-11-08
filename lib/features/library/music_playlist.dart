@@ -6,18 +6,40 @@ class MusicPlaylist {
     required this.name,
     required this.trackIds,
     required this.createdAt,
+    this.coverStyle,
+    this.customArtworkUri,
   });
 
   final String id;
   final String name;
   final List<String> trackIds;
   final DateTime createdAt;
+  final String? coverStyle;
+  final String? customArtworkUri;
+
+  MusicPlaylist copyWith({
+    String? id,
+    String? name,
+    List<String>? trackIds,
+    DateTime? createdAt,
+    String? coverStyle,
+    String? customArtworkUri,
+  }) => MusicPlaylist(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    trackIds: trackIds ?? this.trackIds,
+    createdAt: createdAt ?? this.createdAt,
+    coverStyle: coverStyle ?? this.coverStyle,
+    customArtworkUri: customArtworkUri ?? this.customArtworkUri,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'trackIds': trackIds,
     'createdAt': createdAt.toIso8601String(),
+    if (coverStyle != null) 'coverStyle': coverStyle,
+    if (customArtworkUri != null) 'customArtworkUri': customArtworkUri,
   };
 
   factory MusicPlaylist.fromJson(Map<String, Object?> json) {
@@ -30,6 +52,8 @@ class MusicPlaylist {
       name: json['name']! as String,
       trackIds: List.unmodifiable(trackIds.cast<String>()),
       createdAt: DateTime.parse(json['createdAt']! as String),
+      coverStyle: json['coverStyle'] as String?,
+      customArtworkUri: json['customArtworkUri'] as String?,
     );
   }
 

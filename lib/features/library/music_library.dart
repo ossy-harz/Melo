@@ -752,6 +752,25 @@ class MusicLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updatePlaylistCover(
+    String playlistId, {
+    String? coverStyle,
+    String? customArtworkUri,
+  }) async {
+    final index = _playlists.indexWhere((playlist) => playlist.id == playlistId);
+    if (index < 0) {
+      throw StateError('This playlist no longer exists.');
+    }
+    final updated = List<MusicPlaylist>.from(_playlists);
+    updated[index] = updated[index].copyWith(
+      coverStyle: coverStyle,
+      customArtworkUri: customArtworkUri,
+    );
+    await _savePlaylists(updated);
+    _playlists = List.unmodifiable(updated);
+    notifyListeners();
+  }
+
   Future<void> addTracksToPlaylist(
     String playlistId,
     Iterable<String> trackIds,
