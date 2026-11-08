@@ -98,7 +98,7 @@ class AppUpdateService extends ChangeNotifier {
   AppUpdateService._();
   static final AppUpdateService instance = AppUpdateService._();
 
-  static const String defaultGithubRepo = 'ossy-harz/Tone';
+  static const String defaultGithubRepo = 'ossy-harz/Melo';
   static const String _repoPrefKey = 'tone_github_update_repo';
   static const String _autoCheckPrefKey = 'tone_github_auto_check_updates';
   static const String _includePrereleasesPrefKey = 'tone_github_include_prereleases';

@@ -35,7 +35,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
   bool _isSubmitting = false;
 
   static const String _buyMeACoffeeUrl = 'https://buymeacoffee.com/ossyharz';
-  static const String _githubRepoUrl = 'https://github.com/ossy-harz/Tone';
+  static const String _githubRepoUrl = 'https://github.com/ossy-harz/Melo';
   static const String _githubSponsorUrl = 'https://github.com/sponsors/ossy-harz';
 
   @override
@@ -376,7 +376,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
           onTap: () {
             Clipboard.setData(
               const ClipboardData(
-                text: 'Check out Melo - High-res lossless audio player for Android: https://github.com/ossy-harz/Tone',
+                text: 'Check out Melo - High-res lossless audio player for Android: https://github.com/ossy-harz/Melo',
               ),
             );
             ScaffoldMessenger.of(context).showSnackBar(
