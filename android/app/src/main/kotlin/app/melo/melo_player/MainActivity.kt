@@ -86,6 +86,7 @@ class MainActivity : AudioServiceActivity() {
             "convertToLosslessFlac" -> convertToLosslessFlac(call, result)
             "getAppVersion" -> getAppVersion(result)
             "installUpdateApk" -> installUpdateApk(call, result)
+            "openUrl" -> openUrl(call, result)
             else -> result.notImplemented()
         }
     }
@@ -160,6 +161,26 @@ class MainActivity : AudioServiceActivity() {
             result.success("INSTALLER_LAUNCHED")
         } catch (e: Exception) {
             result.error("INSTALL_FAILED", e.message ?: "Failed to launch APK installer.", null)
+        }
+    }
+
+    private fun openUrl(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val url = call.argument<String>("url")?.trim()
+        if (url.isNullOrEmpty()) {
+            result.error("INVALID_ARGS", "url is required.", null)
+            return
+        }
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("OPEN_FAILED", e.message ?: "Could not open URL.", null)
         }
     }
 

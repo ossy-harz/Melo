@@ -11,6 +11,7 @@ import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/settings/audio_settings_screen.dart';
 import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
+import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/youtube_settings_screen.dart';
 import 'package:melo_player/features/sources/addons_screen.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
@@ -161,8 +162,8 @@ class YouScreen extends StatelessWidget {
                         : Icons.info_outline_rounded,
                     title: 'About Melo',
                     subtitle: hasUpdate
-                        ? 'Update available ($latestTag) on GitHub · Tap to install'
-                        : 'v${updater.currentVersion} · GitHub updates & versions',
+                        ? 'Update available ($latestTag) · Tap to install'
+                        : 'v${updater.currentVersion} · Support, feedback & updates',
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => const AboutToneScreen(),
@@ -606,6 +607,79 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
             'your music flows.',
             style: textTheme.bodyLarge,
           ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  MeloColors.cherry.withValues(alpha: 0.15),
+                  colors.surfaceContainerLow,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: MeloColors.cherry.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.favorite_rounded, color: MeloColors.cherry, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      '100% Free & Community-Driven',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'No paywalls, ads, or locked codecs. If you enjoy Melo, you can fuel continuous development or suggest features you want to see next!',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SupportFeedbackScreen(initialTab: 0),
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFDD00),
+                        foregroundColor: Colors.black,
+                      ),
+                      icon: const Icon(Icons.coffee_rounded, size: 16),
+                      label: const Text(
+                        'Buy Me a Coffee',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SupportFeedbackScreen(initialTab: 1),
+                        ),
+                      ),
+                      icon: const Icon(Icons.lightbulb_outline_rounded, size: 16),
+                      label: const Text('Suggest a Feature'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           Text(
             'APP UPDATES & VERSIONS (GITHUB)',
@@ -734,6 +808,61 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                               future: _updater.getDownloadedApkFile(latest),
                               builder: (context, snapshot) {
                                 final isAlreadyDownloaded = snapshot.data != null;
+                                if (!isUpdateAvailable) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Colors.green.withValues(alpha: 0.35),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.verified_rounded,
+                                              color: Colors.greenAccent,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                'You are on the latest version (${latest.tagName})',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                  color: Colors.greenAccent,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isAlreadyDownloaded) ...[
+                                        const SizedBox(height: 8),
+                                        OutlinedButton.icon(
+                                          onPressed: _updater.isDownloading
+                                              ? null
+                                              : () => _downloadAndInstall(latest),
+                                          icon: const Icon(
+                                            Icons.install_mobile_rounded,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            'Install cached APK (${latest.preferredApkAsset!.formattedSize})',
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                }
                                 return SizedBox(
                                   width: double.infinity,
                                   child: FilledButton.icon(
@@ -755,9 +884,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> {
                                     label: Text(
                                       isAlreadyDownloaded
                                           ? 'Install ${latest.tagName} (Already downloaded)'
-                                          : isUpdateAvailable
-                                              ? 'Download & Install ${latest.tagName} (${latest.preferredApkAsset!.formattedSize})'
-                                              : 'Reinstall ${latest.tagName} APK (${latest.preferredApkAsset!.formattedSize})',
+                                          : 'Download & Install ${latest.tagName} (${latest.preferredApkAsset!.formattedSize})',
                                     ),
                                   ),
                                 );

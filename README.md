@@ -77,7 +77,15 @@
 
 ## 📋 Release Changelog
 
-### Version 1.0.1 (Latest)
+### Version 1.2.0 (Latest)
+- **Support Melo & Buy Me a Coffee**: Added dedicated community support screen with one-tap sponsorship, Buy Me a Coffee integration, and GitHub starring.
+- **Listener Feedback & Feature Requests**: Built-in feature recommendation submission tool with category tags (Feature Idea, UI Design, Sound/EQ, Performance, Bug) and GitHub issue synchronization.
+- **Intelligent Version-Aware Updater**: App now knows your exact installed version (`v1.2.0`) and never prompts you to download a release you already have; cached APK files launch installation directly.
+- **Apple Music & Spotify Hybrid Hero Playlist Detail View**: 216x216 album cover card, curator pill badge, artist summaries, and Spotify-style circular green play button.
+- **Clean Pull-to-Scan Library**: Pull down to refresh anywhere in the library; streamlined 3-dots popup menu for secondary imports.
+- **Automatic Lyrics Synchronization**: Background LRCLIB retrieval with syllable and word highlighting without manual taps.
+
+### Version 1.1.0
 - **Spotify & Apple-Inspired Playlist Detail View**: Added hero 216x216 cover card, artist summary subtitle, curator pill badge, and Spotify-style green circular play button.
 - **Clean Pull-to-Scan Library**: Replaced cluttered button walls with a modern Apple Music header and pull-to-refresh library scanning.
 - **Cached APK Update Awareness**: App updater now detects already downloaded APKs when returning from system permission prompts and triggers installation directly.
