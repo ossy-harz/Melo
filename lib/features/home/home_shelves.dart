@@ -9,15 +9,6 @@ import 'package:melo_player/features/mix/smart_playlist_service.dart';
 
 const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
   CuratedPlaylistPreset(
-    title: "Today's Top Hits",
-    curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
-    badge: 'UPDATED TODAY',
-    searchQuery: 'Top Pop Global Hits 2025 Official Audio',
-    gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
-    icon: Icons.local_fire_department_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
-  ),
-  CuratedPlaylistPreset(
     title: 'Afrobeats Essentials',
     curatorSubtitle: 'Lagos to the World · Burna, Rema, Tems, Asake',
     badge: 'ESSENTIALS',
@@ -25,24 +16,17 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     gradient: [Color(0xFFFF6B35), Color(0xFF9E2A2B)],
     icon: Icons.bolt_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+    genre: 'Afrobeats',
   ),
   CuratedPlaylistPreset(
-    title: 'Late Night R&B',
-    curatorSubtitle: 'Smooth Soul & Midnight Moods',
-    badge: 'CHILL & SOUL',
-    searchQuery: 'Late Night R&B Soul Hits Official Audio',
-    gradient: [Color(0xFF5F0F40), Color(0xFF310E68)],
-    icon: Icons.nightlight_round,
-    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
-  ),
-  CuratedPlaylistPreset(
-    title: 'Amapiano Grooves',
-    curatorSubtitle: 'Log Drums & Private School Piano',
-    badge: 'DANCE FLOOR',
-    searchQuery: 'Amapiano Hits 2025 Official Audio',
-    gradient: [Color(0xFF007991), Color(0xFF222E50)],
-    icon: Icons.graphic_eq_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+    title: "Today's Top Hits",
+    curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
+    badge: 'UPDATED TODAY',
+    searchQuery: 'Top Pop Global Hits 2025 Official Audio',
+    gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
+    icon: Icons.local_fire_department_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    genre: 'Pop',
   ),
   CuratedPlaylistPreset(
     title: 'Rap Life',
@@ -52,6 +36,67 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     gradient: [Color(0xFF232526), Color(0xFF414345)],
     icon: Icons.mic_external_on_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+    genre: 'Hip-Hop',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Late Night R&B',
+    curatorSubtitle: 'Smooth Soul & Midnight Moods',
+    badge: 'CHILL & SOUL',
+    searchQuery: 'Late Night R&B Soul Hits Official Audio',
+    gradient: [Color(0xFF5F0F40), Color(0xFF310E68)],
+    icon: Icons.nightlight_round,
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    genre: 'R&B',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Amapiano Grooves',
+    curatorSubtitle: 'Log Drums & Private School Piano',
+    badge: 'DANCE FLOOR',
+    searchQuery: 'Amapiano Hits 2025 Official Audio',
+    gradient: [Color(0xFF007991), Color(0xFF222E50)],
+    icon: Icons.graphic_eq_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+    genre: 'Amapiano',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Reggae & Dancehall Energy',
+    curatorSubtitle: 'Kingston Anthems & Island Heat',
+    badge: 'ISLAND SOUNDS',
+    searchQuery: 'Dancehall Reggae Hits 2025 Official Audio',
+    gradient: [Color(0xFF1B5E20), Color(0xFFF57F17)],
+    icon: Icons.wb_sunny_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+    genre: 'Dancehall',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Electronic & Dance Floor',
+    curatorSubtitle: 'Peak Time Club & Synth Waves',
+    badge: 'ELECTRONIC',
+    searchQuery: 'EDM Electronic Dance Hits 2025 Official Audio',
+    gradient: [Color(0xFF8A2387), Color(0xFFE94057)],
+    icon: Icons.speaker_group_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    genre: 'Dance',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Rock Classics & Alt',
+    curatorSubtitle: 'Heavy Riffs & Timeless Anthems',
+    badge: 'ROCK & ALT',
+    searchQuery: 'Classic Rock Alternative Hits Official Audio',
+    gradient: [Color(0xFF3E2723), Color(0xFF212121)],
+    icon: Icons.electric_bolt_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&q=80',
+    genre: 'Rock',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Gospel & Elevation',
+    curatorSubtitle: 'Soulful Worship & Uplifting Praise',
+    badge: 'SPIRITUAL',
+    searchQuery: 'Contemporary Gospel Praise Worship Hits',
+    gradient: [Color(0xFF4A148C), Color(0xFF880E4F)],
+    icon: Icons.favorite_border_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1445743432342-eac500ce72b7?w=600&q=80',
+    genre: 'Gospel',
   ),
   CuratedPlaylistPreset(
     title: 'Pure Focus',
@@ -61,6 +106,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     gradient: [Color(0xFF134E5E), Color(0xFF71B280)],
     icon: Icons.headphones_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
+    genre: 'Focus',
   ),
 ];
 
@@ -483,6 +529,7 @@ class StationsForYouShelf extends StatelessWidget {
                 title: "Personal Station",
                 subtitle: 'Radio Station · Personal flow',
                 artworkTrack: personalTrack,
+                defaultArtworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
                 gradient: const [
                   Color(0xFFE52D27),
                   Color(0xFFB31217),
@@ -496,6 +543,7 @@ class StationsForYouShelf extends StatelessWidget {
                 title: 'Discovery Station',
                 subtitle: 'Radio Station · Exploration',
                 artworkTrack: discoveryTrack,
+                defaultArtworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
                 gradient: const [
                   Color(0xFF4A00E0),
                   Color(0xFF8E2DE2),
@@ -509,6 +557,7 @@ class StationsForYouShelf extends StatelessWidget {
                 title: 'Deep Focus & Study',
                 subtitle: 'Radio Station · Instrumental',
                 artworkTrack: focusTrack,
+                defaultArtworkUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
                 gradient: const [
                   Color(0xFF134E5E),
                   Color(0xFF71B280),
@@ -522,6 +571,7 @@ class StationsForYouShelf extends StatelessWidget {
                 title: 'Late Night Chill',
                 subtitle: 'Radio Station · Midnight soul',
                 artworkTrack: chillTrack,
+                defaultArtworkUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
                 gradient: const [
                   Color(0xFF3A1C71),
                   Color(0xFFD76D77),
@@ -546,6 +596,7 @@ class StationTile extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.artworkTrack,
+    this.defaultArtworkUrl,
     super.key,
   });
 
@@ -555,6 +606,7 @@ class StationTile extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final ImportedTrack? artworkTrack;
+  final String? defaultArtworkUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -601,18 +653,15 @@ class StationTile extends StatelessWidget {
                             sourceUri: Uri.tryParse(artworkTrack!.path),
                             borderRadius: 0,
                           ),
-                        ),
-                      if (artworkTrack != null)
+                        )
+                      else if (defaultArtworkUrl != null)
                         Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.72),
-                                ],
+                          child: Image.network(
+                            defaultArtworkUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => CustomPaint(
+                              painter: FoldedPrismPainter(
+                                color: Colors.white.withValues(alpha: 0.14),
                               ),
                             ),
                           ),
@@ -625,6 +674,20 @@ class StationTile extends StatelessWidget {
                             ),
                           ),
                         ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.72),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                       Positioned(
                         top: 10,
                         right: 10,
@@ -793,7 +856,7 @@ class FoldedPrismPainter extends AppleStationWavePainter {
   const FoldedPrismPainter({required super.color, super.accentColor});
 }
 
-class RecommendedPlaylistsSection extends StatelessWidget {
+class RecommendedPlaylistsSection extends StatefulWidget {
   const RecommendedPlaylistsSection({
     required this.audioHandler,
     required this.library,
@@ -803,13 +866,36 @@ class RecommendedPlaylistsSection extends StatelessWidget {
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
 
+  @override
+  State<RecommendedPlaylistsSection> createState() =>
+      _RecommendedPlaylistsSectionState();
+}
+
+class _RecommendedPlaylistsSectionState
+    extends State<RecommendedPlaylistsSection> {
+  String _selectedGenre = 'All';
+
+  static const List<String> _genres = [
+    'All',
+    'Afrobeats',
+    'Pop',
+    'Hip-Hop',
+    'R&B',
+    'Amapiano',
+    'Dancehall',
+    'Dance',
+    'Rock',
+    'Gospel',
+    'Focus',
+  ];
+
   void _openPlaylist(BuildContext context, CuratedPlaylistPreset preset) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CuratedPlaylistScreen(
           preset: preset,
-          audioHandler: audioHandler,
-          library: library,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
         ),
       ),
     );
@@ -818,6 +904,12 @@ class RecommendedPlaylistsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final filteredPlaylists = _selectedGenre == 'All'
+        ? kRecommendedPlaylists
+        : kRecommendedPlaylists
+            .where((p) => p.genre.toLowerCase() == _selectedGenre.toLowerCase())
+            .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -847,16 +939,70 @@ class RecommendedPlaylistsSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 204,
+          height: 34,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
-            itemCount: kRecommendedPlaylists.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemCount: _genres.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
-              final preset = kRecommendedPlaylists[index];
+              final genre = _genres[index];
+              final isSelected = genre == _selectedGenre;
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(17),
+                  onTap: () => setState(() => _selectedGenre = genre),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(17),
+                      color: isSelected
+                          ? MeloColors.cherry
+                          : colors.surfaceContainerHigh.withValues(alpha: 0.6),
+                      border: Border.all(
+                        color: isSelected
+                            ? MeloColors.cherrySoft
+                            : Colors.white.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        genre,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? Colors.white : Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 204,
+          child: filteredPlaylists.isEmpty
+              ? Center(
+                  child: Text(
+                    'No playlists found for $_selectedGenre',
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                )
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  itemCount: filteredPlaylists.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) {
+                    final preset = filteredPlaylists[index];
               return SizedBox(
                 width: 156,
                 child: Material(

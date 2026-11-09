@@ -827,8 +827,7 @@ class _SavedPlaylists extends StatelessWidget {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
-                      onTap: () => onPlay(playlist.id),
-                      onLongPress: () {
+                      onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => PlaylistDetailScreen(

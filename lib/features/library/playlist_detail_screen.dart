@@ -1013,74 +1013,111 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       ),
                       const SizedBox(height: 18),
 
-                      // Apple Music Centered Action Row (Screenshot 1)
-                      // Centered: [ 🔀 Circular Shuffle ]  [ ▶ White Stadium Play Pill ]  [ + Circular Add ]
+                      // Spotify Signature Action Bar: [↓ Download All] [+] [↗ Share] ... [🔀 Shuffle] [▶ Play]
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          // Download All (↓)
                           Container(
-                            width: 48,
-                            height: 48,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.14),
+                              color: Colors.white.withValues(alpha: 0.12),
                             ),
                             child: IconButton(
-                              tooltip: 'Shuffle',
+                              tooltip: 'Download All Songs',
                               icon: const Icon(
-                                Icons.shuffle_rounded,
-                                size: 22,
+                                Icons.arrow_circle_down_rounded,
+                                size: 24,
                                 color: Colors.white,
                               ),
-                              onPressed: tracks.isEmpty
-                                  ? null
-                                  : () => _playPlaylist(shuffle: true),
+                              onPressed: _downloadAllTracks,
                             ),
                           ),
-                          const SizedBox(width: 20),
-                          SizedBox(
-                            height: 50,
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                                shape: const StadiumBorder(),
-                                elevation: 0,
-                              ),
-                              onPressed: tracks.isEmpty ? null : () => _playPlaylist(),
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.black,
-                                size: 28,
-                              ),
-                              label: const Text(
-                                'Play',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
+                          const SizedBox(width: 10),
+
+                          // Add songs (+)
                           Container(
-                            width: 48,
-                            height: 48,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.14),
+                              color: Colors.white.withValues(alpha: 0.12),
                             ),
                             child: IconButton(
                               tooltip: 'Add songs',
                               icon: const Icon(
                                 Icons.add_rounded,
-                                size: 26,
+                                size: 24,
                                 color: Colors.white,
                               ),
                               onPressed: _addSongsDialog,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Share
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                            child: IconButton(
+                              tooltip: 'Share',
+                              icon: const Icon(
+                                Icons.share_outlined,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => _showMessage('Sharing "${playlist.name}"'),
+                            ),
+                          ),
+
+                          const Spacer(),
+
+                          // Shuffle (🔀)
+                          IconButton(
+                            tooltip: 'Shuffle',
+                            icon: const Icon(
+                              Icons.shuffle_rounded,
+                              size: 24,
+                              color: Colors.white70,
+                            ),
+                            onPressed: tracks.isEmpty
+                                ? null
+                                : () => _playPlaylist(shuffle: true),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Play Button (Spotify green Stadium Pill)
+                          SizedBox(
+                            height: 48,
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF1ED760),
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                                shape: const StadiumBorder(),
+                                elevation: 4,
+                                shadowColor: const Color(0xFF1ED760).withValues(alpha: 0.4),
+                              ),
+                              onPressed: tracks.isEmpty ? null : () => _playPlaylist(),
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.black,
+                                size: 26,
+                              ),
+                              label: const Text(
+                                'Play',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
                             ),
                           ),
                         ],

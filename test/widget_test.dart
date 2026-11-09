@@ -15,6 +15,7 @@ import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/mix/local_discovery.dart';
 import 'package:melo_player/features/shell/app_shell.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 
@@ -1395,7 +1396,12 @@ void main() {
     expect(find.text('Mornye downloads'), findsOneWidget);
     await tester.tap(find.text('Mornye downloads'));
     await tester.pumpAndSettle();
+    expect(find.byType(PlaylistDetailScreen), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Play'));
+    await tester.pumpAndSettle();
     expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('FAVORITES'));
     await tester.tap(find.text('FAVORITES'));
     await tester.pumpAndSettle();

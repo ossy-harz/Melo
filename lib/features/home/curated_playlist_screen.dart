@@ -20,6 +20,10 @@ class CuratedPlaylistPreset {
     required this.icon,
     this.coverUrl,
     this.vibe,
+    this.genre = 'All',
+    this.isArtistRadio = false,
+    this.artistAvatars = const [],
+    this.artistName,
   });
 
   final String title;
@@ -30,6 +34,10 @@ class CuratedPlaylistPreset {
   final IconData icon;
   final String? coverUrl;
   final SmartVibe? vibe;
+  final String genre;
+  final bool isArtistRadio;
+  final List<String> artistAvatars;
+  final String? artistName;
 }
 
 /// Full-screen Apple Music & Spotify-inspired curated playlist view.
@@ -79,7 +87,24 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
     try {
       List<YoutubeTrack> valid;
-      if (widget.preset.vibe != null) {
+      if (widget.preset.artistName != null && widget.preset.artistName!.isNotEmpty) {
+        final radio = await SmartPlaylistService.instance.generateArtistRadio(
+          artist: widget.preset.artistName!,
+          library: widget.library,
+          artworkUri: widget.preset.coverUrl,
+        );
+        valid = radio.tracks.map((m) {
+          final pId = m.extras?['providerTrackId'] as String? ?? m.id;
+          return YoutubeTrack(
+            id: pId,
+            title: m.title,
+            author: m.artist ?? widget.preset.artistName!,
+            duration: m.duration ?? const Duration(minutes: 3, seconds: 20),
+            thumbnailUrl: m.artUri?.toString(),
+            album: m.album,
+          );
+        }).toList(growable: false);
+      } else if (widget.preset.vibe != null) {
         final smart = await SmartPlaylistService.instance.generateVibeMix(
           vibe: widget.preset.vibe!,
           library: widget.library,
@@ -320,14 +345,26 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
       if (existing != null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('"${widget.preset.title}" is already in your Melo Library Playlists.'),
-              behavior: SnackBarBehavior.floating,
-            ),
+        final unDownloaded = _tracks.where((t) {
+          return !library.isTrackDownloaded(
+            providerTrackId: t.id,
+            title: t.title,
+            artist: t.author,
           );
+        }).length;
+
+        if (unDownloaded > 0) {
+          unawaited(_downloadAllTracks());
+        } else {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text('"${widget.preset.title}" is saved and fully downloaded!'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+        }
         return;
       }
 
@@ -364,29 +401,34 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
       if (!mounted) return;
       setState(() {});
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Color(0xFF1ED760), size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Saved "${widget.preset.title}" (${registeredTracks.length} tracks) to Library Playlists',
-                  ),
-                ),
-              ],
-            ),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Download All',
-              textColor: MeloColors.cherrySoft,
-              onPressed: _downloadAllTracks,
-            ),
+
+      final shouldDownload = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Download "${widget.preset.title}"?'),
+          content: Text(
+            'Saved "${widget.preset.title}" (${registeredTracks.length} tracks) to your Melo Library.\n\nDownload all tracks to phone storage (Music/Tone) now for genuine offline playback?',
           ),
-        );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Save Only'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1ED760),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Download All to Phone'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldDownload == true && mounted) {
+        await _downloadAllTracks();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -519,15 +561,135 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Large Single Hero Artwork (Apple Music & Spotify Signature)
+                          // Hero Artwork: Triple Circular Avatars for Radio/Station (Image 1) OR Big Square (Image 2)
                           Builder(
                             builder: (context) {
                               final heroCoverUrl = widget.preset.coverUrl ?? thumbs.firstOrNull;
+                              final bool showTripleAvatars = widget.preset.isArtistRadio ||
+                                  widget.preset.artistAvatars.isNotEmpty ||
+                                  widget.preset.badge.contains('RADIO') ||
+                                  widget.preset.vibe != null;
+
+                              if (showTripleAvatars) {
+                                final avatarList = widget.preset.artistAvatars.isNotEmpty
+                                    ? widget.preset.artistAvatars
+                                    : (thumbs.isNotEmpty
+                                        ? thumbs
+                                        : [
+                                            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+                                            'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+                                            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+                                          ]);
+
+                                final centerAvatar = avatarList.first;
+                                final leftAvatar = avatarList.length > 1 ? avatarList[1] : avatarList.first;
+                                final rightAvatar = avatarList.length > 2
+                                    ? avatarList[2]
+                                    : (avatarList.length > 1 ? avatarList[1] : avatarList.first);
+
+                                return SizedBox(
+                                  height: 180,
+                                  width: double.infinity,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      // Left Circle
+                                      Positioned(
+                                        left: 18,
+                                        top: 30,
+                                        child: Container(
+                                          width: 105,
+                                          height: 105,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.5),
+                                                blurRadius: 16,
+                                                offset: const Offset(0, 8),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: Image.network(
+                                              leftAvatar,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(color: Colors.white24),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Right Circle
+                                      Positioned(
+                                        right: 18,
+                                        top: 30,
+                                        child: Container(
+                                          width: 105,
+                                          height: 105,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.5),
+                                                blurRadius: 16,
+                                                offset: const Offset(0, 8),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: Image.network(
+                                              rightAvatar,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(color: Colors.white24),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Center Main Circle (Prominent in foreground)
+                                      Positioned(
+                                        top: 8,
+                                        child: Container(
+                                          width: 155,
+                                          height: 155,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.white.withValues(alpha: 0.9),
+                                              width: 2.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: headerColor.withValues(alpha: 0.6),
+                                                blurRadius: 28,
+                                                offset: const Offset(0, 10),
+                                              ),
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.7),
+                                                blurRadius: 18,
+                                                offset: const Offset(0, 8),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: Image.network(
+                                              centerAvatar,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(color: headerColor),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
                               return Container(
                                 width: 216,
                                 height: 216,
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
                                       color: headerColor.withValues(alpha: 0.5),
@@ -542,7 +704,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                   ],
                                 ),
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(16),
                                   child: heroCoverUrl != null && heroCoverUrl.isNotEmpty
                                       ? Image.network(
                                           heroCoverUrl,
@@ -584,55 +746,66 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                               );
                             },
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 16),
 
-                          // Playlist Title
-                          Text(
-                            widget.preset.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.6,
+                          // Playlist / Radio Title (Spotify Bold Style)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              widget.preset.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.6,
+                                height: 1.15,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
 
-                          // Curator subtitle
-                          Text(
-                            widget.preset.curatorSubtitle,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.75),
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w500,
+                          // Curator subtitle ("With B2c, Dax Vibez...")
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              widget.preset.curatorSubtitle,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
 
-                          // Pill metadata line (Apple/Spotify aesthetic)
+                          // Spotify Made for you row
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(6),
+                              const Icon(
+                                Icons.graphic_eq_rounded,
+                                size: 16,
+                                color: Color(0xFF1ED760),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Made for you',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                child: Text(
-                                  widget.preset.badge,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: 0.8,
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 3,
+                                height: 3,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white38,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -641,7 +814,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.6),
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -655,95 +828,99 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             ),
           ),
 
-          // Apple Music Action row: Centered [ 🔀 Shuffle ]  [ ▶ Play ]  [ ➕ Save ]  [ ⬇ Download ]
+          // Spotify Signature Action Bar: [Mini Cover] [+] [↓] [Share] ... [🔀] [Big Circular Play Button]
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Circular glass Shuffle button
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.14),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.shuffle_rounded, color: Colors.white, size: 20),
-                      tooltip: 'Shuffle',
-                      onPressed: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: true),
+                  // Mini Cover Art square
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 38,
+                      height: 38,
+                      child: (widget.preset.coverUrl ?? thumbs.firstOrNull) != null
+                          ? Image.network(
+                              widget.preset.coverUrl ?? thumbs.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(color: headerColor),
+                            )
+                          : Container(color: headerColor),
                     ),
                   ),
                   const SizedBox(width: 14),
 
-                  // Center solid White Stadium Play Pill (Apple Music signature)
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-                        shape: const StadiumBorder(),
-                        elevation: 0,
-                      ),
-                      onPressed: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: false),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 26, color: Colors.black),
-                      label: const Text(
-                        'Play',
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
+                  // Save to Library (+) or (✓)
+                  IconButton(
+                    tooltip: isPlaylistSaved ? 'Saved to Library' : 'Save Playlist to Phone',
+                    onPressed: _savePlaylistToPhone,
+                    icon: Icon(
+                      isPlaylistSaved ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                      color: isPlaylistSaved ? const Color(0xFF1ED760) : Colors.white70,
+                      size: 28,
+                    ),
+                  ),
+
+                  // Download All to Phone (↓)
+                  IconButton(
+                    tooltip: 'Download All Songs to Phone',
+                    onPressed: _isDownloadingAll ? null : _downloadAllTracks,
+                    icon: _isDownloadingAll
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(
+                            Icons.arrow_circle_down_rounded,
+                            color: Colors.white70,
+                            size: 28,
+                          ),
+                  ),
+
+                  // Share button
+                  IconButton(
+                    tooltip: 'Share',
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Sharing "${widget.preset.title}"'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.share_outlined, color: Colors.white70, size: 22),
+                  ),
+
+                  const Spacer(),
+
+                  // Shuffle (🔀)
+                  IconButton(
+                    tooltip: 'Shuffle',
+                    onPressed: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: true),
+                    icon: const Icon(Icons.shuffle_rounded, color: Colors.white70, size: 26),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Spotify Big Circular Vibrant Play Button
+                  Material(
+                    shape: const CircleBorder(),
+                    color: const Color(0xFF1ED760),
+                    elevation: 6,
+                    shadowColor: const Color(0xFF1ED760).withValues(alpha: 0.5),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: false),
+                      child: const SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          size: 34,
                           color: Colors.black,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-
-                  // Circular glass Save to Library button
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPlaylistSaved
-                          ? MeloColors.cherry.withValues(alpha: 0.3)
-                          : Colors.white.withValues(alpha: 0.14),
-                    ),
-                    child: IconButton(
-                      tooltip: isPlaylistSaved ? 'Saved to Melo Library' : 'Save Playlist to Phone',
-                      onPressed: _savePlaylistToPhone,
-                      icon: Icon(
-                        isPlaylistSaved ? Icons.check_rounded : Icons.add_rounded,
-                        color: isPlaylistSaved ? MeloColors.cherrySoft : Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Circular glass Download All button
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.14),
-                    ),
-                    child: IconButton(
-                      tooltip: 'Download All Songs',
-                      onPressed: _isDownloadingAll ? null : _downloadAllTracks,
-                      icon: _isDownloadingAll
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 22),
                     ),
                   ),
                 ],
