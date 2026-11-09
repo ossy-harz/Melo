@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
@@ -36,6 +37,11 @@ class MeloServices {
       );
       return session;
     }();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await Permission.notification.request();
+      } catch (_) {}
+    }
     final handler = await AudioService.init<MeloAudioHandler>(
       builder: MeloAudioHandler.new,
       config: const AudioServiceConfig(
@@ -44,8 +50,8 @@ class MeloServices {
         androidNotificationChannelDescription:
             'Playback controls for music playing in Melo.',
         androidNotificationIcon: 'drawable/ic_stat_music',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
       ),
     );
     final session = await sessionFuture;

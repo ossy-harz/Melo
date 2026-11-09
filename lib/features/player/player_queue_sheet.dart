@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/player/player_formatters.dart';
 import 'package:melo_player/features/player/player_glass_icon_button.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
@@ -361,34 +362,50 @@ class _CurrentQueueItem extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: const Color(0xFFFA243C).withValues(alpha: 0.12),
+      color: const Color(0xFFFA243C).withValues(alpha: 0.14),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFFA243C).withValues(alpha: 0.4)),
+      border: Border.all(color: const Color(0xFFFA243C).withValues(alpha: 0.45)),
     ),
     child: Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFA243C).withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(13),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: AlbumArtwork(
+              size: 52,
+              title: item.title,
+              artworkUri: item.artUri,
+              sourceUri: Uri.tryParse(item.id),
+              borderRadius: 12,
+              iconSize: 22,
+            ),
           ),
-          child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFFFF827A)),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'NOW PLAYING',
-                style: TextStyle(
-                  color: Color(0xFFFF827A),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
+              Row(
+                children: [
+                  const Text(
+                    'NOW PLAYING',
+                    style: TextStyle(
+                      color: Color(0xFFFF827A),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.graphic_eq_rounded,
+                    size: 14,
+                    color: Color(0xFFFF827A),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -398,6 +415,7 @@ class _CurrentQueueItem extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
+                  fontSize: 15,
                 ),
               ),
               const SizedBox(height: 2),
@@ -410,7 +428,7 @@ class _CurrentQueueItem extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ],
           ),
@@ -447,60 +465,88 @@ class _UpcomingQueueItem extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     key: key,
     color: Colors.transparent,
-    child: ListTile(
+    child: InkWell(
       onTap: onTap,
-      leading: Text(
-        '${index + 1}'.padLeft(2, '0'),
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.48),
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      ),
-      title: Text(
-        item.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        displayArtistName(
-          item.artist,
-          fallback: item.album == null || item.album == 'Unknown album'
-              ? 'On-device audio'
-              : item.album,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (item.duration != null)
-            Text(
-              formatPlaybackTime(item.duration!.inMilliseconds),
-              style: _queueTimeStyle,
-            ),
-          IconButton(
-            tooltip: 'Remove from queue',
-            onPressed: onRemove,
-            icon: const Icon(
-              Icons.remove_circle_outline_rounded,
-              color: Colors.white70,
-            ),
-          ),
-          if (canReorder)
-            ReorderableDragStartListener(
-              index: index,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.drag_handle_rounded, color: Colors.white54),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: AlbumArtwork(
+                  size: 44,
+                  title: item.title,
+                  artworkUri: item.artUri,
+                  sourceUri: Uri.tryParse(item.id),
+                  borderRadius: 10,
+                  iconSize: 18,
+                ),
               ),
             ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    displayArtistName(
+                      item.artist,
+                      fallback: item.album == null || item.album == 'Unknown album'
+                          ? 'On-device audio'
+                          : item.album,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (item.duration != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                formatPlaybackTime(item.duration!.inMilliseconds),
+                style: _queueTimeStyle,
+              ),
+            ],
+            IconButton(
+              tooltip: 'Remove from queue',
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+              onPressed: onRemove,
+              icon: const Icon(
+                Icons.remove_circle_outline_rounded,
+                color: Colors.white54,
+              ),
+            ),
+            if (canReorder)
+              ReorderableDragStartListener(
+                index: index,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4, right: 6),
+                  child: Icon(Icons.drag_handle_rounded, color: Colors.white38, size: 20),
+                ),
+              ),
+          ],
+        ),
       ),
     ),
   );

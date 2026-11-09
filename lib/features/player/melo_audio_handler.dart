@@ -1264,7 +1264,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await _audioEngine.stopDeck(AudioDeck.a);
     await _unloadDeckBBeforeQueueChange();
-    await _deactivateAudioSession();
+    if (!playWhenReady) await _deactivateAudioSession();
     _items = List.unmodifiable(items);
     _currentIndex = initialIndex;
     _automaticTransitionAttempt = null;

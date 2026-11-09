@@ -15,6 +15,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Top Pop Global Hits 2025 Official Audio',
     gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
     icon: Icons.local_fire_department_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
   ),
   CuratedPlaylistPreset(
     title: 'Afrobeats Essentials',
@@ -23,6 +24,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Afrobeats Hits 2025 Official Audio',
     gradient: [Color(0xFFFF6B35), Color(0xFF9E2A2B)],
     icon: Icons.bolt_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
   ),
   CuratedPlaylistPreset(
     title: 'Late Night R&B',
@@ -31,6 +33,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Late Night R&B Soul Hits Official Audio',
     gradient: [Color(0xFF5F0F40), Color(0xFF310E68)],
     icon: Icons.nightlight_round,
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
   ),
   CuratedPlaylistPreset(
     title: 'Amapiano Grooves',
@@ -39,6 +42,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Amapiano Hits 2025 Official Audio',
     gradient: [Color(0xFF007991), Color(0xFF222E50)],
     icon: Icons.graphic_eq_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
   ),
   CuratedPlaylistPreset(
     title: 'Rap Life',
@@ -47,6 +51,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Hip Hop Rap Hits 2025 Official Audio',
     gradient: [Color(0xFF232526), Color(0xFF414345)],
     icon: Icons.mic_external_on_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
   ),
   CuratedPlaylistPreset(
     title: 'Pure Focus',
@@ -55,6 +60,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     searchQuery: 'Chill Lofi Study Beats Instrumental',
     gradient: [Color(0xFF134E5E), Color(0xFF71B280)],
     icon: Icons.headphones_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
   ),
 ];
 
@@ -94,6 +100,7 @@ class TopPicksShelf extends StatelessWidget {
                 description: 'Heavyweight bars and modern street anthems.',
                 gradient: const [Color(0xFF2C3E50), Color(0xFF000000)],
                 icon: Icons.local_fire_department_rounded,
+                coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80',
                 onTap: () => onPlayPreset(kRecommendedPlaylists[4]),
               ),
               const SizedBox(width: 14),
@@ -117,6 +124,7 @@ class TopPicksShelf extends StatelessWidget {
                 description: 'Global heat: Burna, Rema, Tems, Asake & more.',
                 gradient: const [Color(0xFFF37335), Color(0xFFFDC830)],
                 icon: Icons.bolt_rounded,
+                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
                 onTap: () => onPlayPreset(kRecommendedPlaylists[1]),
               ),
               const SizedBox(width: 14),
@@ -126,6 +134,7 @@ class TopPicksShelf extends StatelessWidget {
                 description: 'Ambient lofi and calm instrumental grooves.',
                 gradient: const [Color(0xFF0B486B), Color(0xFFF56217)],
                 icon: Icons.headphones_rounded,
+                coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80',
                 onTap: () => onPlayVibe(SmartVibe.deepFocus),
               ),
             ],
@@ -144,6 +153,7 @@ class TopPickCard extends StatelessWidget {
     required this.gradient,
     required this.icon,
     required this.onTap,
+    this.coverUrl,
     super.key,
   });
 
@@ -153,6 +163,7 @@ class TopPickCard extends StatelessWidget {
   final List<Color> gradient;
   final IconData icon;
   final VoidCallback onTap;
+  final String? coverUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +175,6 @@ class TopPickCard extends StatelessWidget {
         child: Container(
           width: 250,
           height: 195,
-          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             gradient: LinearGradient(
@@ -180,59 +190,96 @@ class TopPickCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    categoryBadge,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white.withValues(alpha: 0.72),
-                      letterSpacing: 0.8,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (coverUrl != null)
+                  Image.network(
+                    coverUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.35),
+                        Colors.black.withValues(alpha: 0.85),
+                      ],
+                      stops: const [0.0, 1.0],
                     ),
                   ),
-                  Icon(
-                    icon,
-                    color: Colors.white.withValues(alpha: 0.8),
-                    size: 20,
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              categoryBadge,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white.withValues(alpha: 0.9),
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            icon,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              height: 1.15,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.8),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      height: 1.15,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.7),
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

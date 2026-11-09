@@ -12,34 +12,22 @@ Future<Map<String, Object?>?> _audioQualityFor(MediaItem item) =>
         };
       }
 
-      if (item.id.startsWith('youtube:') ||
+      final isOnline = item.id.startsWith('youtube:') ||
+          item.id.startsWith('spotify:') ||
+          item.id.startsWith('http://') ||
+          item.id.startsWith('https://') ||
           extras?['source'] == 'youtube' ||
-          extras?['downloadProvider'] == 'YouTube') {
-        return {
-          'mimeType': 'audio/mp4',
-          'bitRate': 128000,
-          'sampleRate': 44100,
-          'channelCount': 2,
-        };
-      }
-
-      if (item.id.startsWith('spotify:') ||
           extras?['source'] == 'spotify' ||
-          extras?['downloadProvider'] == 'Spotify') {
+          extras?['isLiveStream'] == true;
+      if (isOnline) {
+        final isFlac = extras?['quality'] == 'flacHiRes' ||
+            item.title.contains('FLAC') ||
+            (extras?['isLossless'] == true);
         return {
-          'mimeType': 'audio/mp4',
-          'bitRate': 128000,
-          'sampleRate': 44100,
+          'mimeType': isFlac ? 'audio/flac' : 'audio/mp4a-latm',
+          'sampleRate': isFlac ? 48000 : 44100,
           'channelCount': 2,
-        };
-      }
-
-      if (item.id.startsWith('http://') || item.id.startsWith('https://')) {
-        return {
-          'mimeType': 'audio/mp4',
-          'bitRate': 128000,
-          'sampleRate': 44100,
-          'channelCount': 2,
+          'bitRate': isFlac ? 1411200 : 320000,
         };
       }
 
@@ -104,6 +92,7 @@ String _audioQualityLabel(Map<String, Object?> details) {
   final sampleRate = (details['sampleRate'] as num?)?.toInt();
   final channels = (details['channelCount'] as num?)?.toInt();
   final bitRate = (details['bitRate'] as num?)?.toInt();
+
   return [
     codec,
     if (sampleRate != null && sampleRate > 0)
@@ -114,7 +103,10 @@ String _audioQualityLabel(Map<String, Object?> details) {
           : channels == 2
           ? 'Stereo'
           : '$channels ch',
-    if (bitRate != null && bitRate > 0) '${bitRate ~/ 1000} kbps',
+    if (bitRate != null && bitRate > 0)
+      bitRate >= 1000000
+          ? '${(bitRate / 1000000).toStringAsFixed(1)} Mbps'
+          : '${bitRate ~/ 1000} kbps',
   ].join(' · ');
 }
 
@@ -147,7 +139,7 @@ class _AudioQualityBadges extends StatelessWidget {
           children: [
             _QualityBadge(
               label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-              highlighted: isStream,
+              highlighted: false,
             ),
             const _QualityBadge(label: 'Quality unavailable'),
           ],
@@ -157,27 +149,48 @@ class _AudioQualityBadges extends StatelessWidget {
       if (details == null) {
         return _QualityBadge(
           label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-          highlighted: isStream,
+          highlighted: false,
         );
       }
       final quality = _audioQualityLabel(details);
       if (quality == 'Unavailable') {
         return _QualityBadge(
           label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-          highlighted: isStream,
+          highlighted: false,
         );
       }
-      return Wrap(
-        spacing: 6,
-        runSpacing: 5,
-        children: [
-          _QualityBadge(
-            label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-            highlighted: isStream,
-          ),
-          for (final label in quality.split(' · ').take(3))
-            _QualityBadge(label: label),
-        ],
+
+      final mime = (details['mimeType'] as String?)?.toLowerCase() ?? '';
+      final isLossless = mime.contains('flac') ||
+          mime.contains('alac') ||
+          mime.contains('wav') ||
+          mime.contains('raw');
+      final sampleRate = (details['sampleRate'] as num?)?.toInt() ?? 0;
+      final isHiRes = isLossless && sampleRate >= 48000;
+
+      return InkWell(
+        onTap: () => TrackDetailsSheet.show(context, item),
+        borderRadius: BorderRadius.circular(MeloRadii.pill),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 5,
+          children: [
+            if (isLossless)
+              _QualityBadge(
+                label: isHiRes ? 'HI-RES LOSSLESS' : 'LOSSLESS',
+                highlighted: true,
+              ),
+            _QualityBadge(
+              label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
+              highlighted: false,
+            ),
+            for (final label in quality.split(' · ').take(3))
+              _QualityBadge(
+                label: label,
+                highlighted: label == 'FLAC' || label == 'ALAC',
+              ),
+          ],
+        ),
       );
     },
   );

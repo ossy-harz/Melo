@@ -1095,89 +1095,137 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
               // Apple Music Track List
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final track = filtered[index];
-                        final isLossless = track.path.toLowerCase().endsWith('.flac') ||
-                            track.path.toLowerCase().endsWith('.wav');
+                StreamBuilder<MediaItem?>(
+                  stream: widget.audioHandler?.mediaItem,
+                  initialData: widget.audioHandler?.mediaItem.value,
+                  builder: (context, mediaSnapshot) {
+                    final currentItem = mediaSnapshot.data;
+                    return SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final track = filtered[index];
+                            final isLossless =
+                                track.path.toLowerCase().endsWith('.flac') ||
+                                    track.path.toLowerCase().endsWith('.wav');
+                            final isPlaying = currentItem != null &&
+                                (currentItem.id == track.path ||
+                                    currentItem.id == track.id ||
+                                    (currentItem.title.trim().toLowerCase() ==
+                                            track.title.trim().toLowerCase() &&
+                                        currentItem.artist?.trim().toLowerCase() ==
+                                            track.artist.trim().toLowerCase()));
 
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _playPlaylist(startTrackId: track.id),
-                            onLongPress: () => SongDetailsSheet.show(
-                              context,
-                              track: track,
-                              audioHandler: widget.audioHandler,
-                              library: widget.library,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 7,
-                              ),
-                              child: Row(
-                                children: [
-                                  // Apple Music Track Artwork Thumbnail
-                                  AlbumArtwork(
-                                    size: 48,
-                                    title: track.title,
-                                    artworkUri: track.artworkUri != null
-                                        ? Uri.tryParse(track.artworkUri!)
-                                        : null,
-                                    sourceUri: Uri.tryParse(track.path),
-                                    borderRadius: 8,
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () => _playPlaylist(startTrackId: track.id),
+                                onLongPress: () => SongDetailsSheet.show(
+                                  context,
+                                  track: track,
+                                  audioHandler: widget.audioHandler,
+                                  library: widget.library,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
                                   ),
-                                  const SizedBox(width: 14),
-
-                                  // Title & Subtitle
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          track.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 15.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Row(
-                                          children: [
-                                            if (isLossless) ...[
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 4.5,
-                                                  vertical: 1.5,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.12),
-                                                ),
-                                                child: const Text(
-                                                  'LOSSLESS',
-                                                  style: TextStyle(
-                                                    fontSize: 8.5,
-                                                    fontWeight: FontWeight.w800,
-                                                    letterSpacing: 0.3,
-                                                    color: Colors.white70,
+                                  child: Row(
+                                    children: [
+                                      // Apple Music Track Artwork Thumbnail with playing overlay
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: SizedBox(
+                                          width: 48,
+                                          height: 48,
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              AlbumArtwork(
+                                                size: 48,
+                                                title: track.title,
+                                                artworkUri: track.artworkUri != null
+                                                    ? Uri.tryParse(track.artworkUri!)
+                                                    : null,
+                                                sourceUri: Uri.tryParse(track.path),
+                                                borderRadius: 8,
+                                              ),
+                                              if (isPlaying)
+                                                Container(
+                                                  color: Colors.black.withValues(alpha: 0.55),
+                                                  child: const Center(
+                                                    child: Icon(
+                                                      Icons.graphic_eq_rounded,
+                                                      color: MeloColors.cherry,
+                                                      size: 22,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                              const SizedBox(width: 6),
                                             ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+
+                                      // Title & Subtitle
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              track.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 15.5,
+                                                fontWeight: isPlaying
+                                                    ? FontWeight.w800
+                                                    : FontWeight.w600,
+                                                color: isPlaying
+                                                    ? MeloColors.cherrySoft
+                                                    : Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              children: [
+                                                if (isPlaying) ...[
+                                                  const Icon(
+                                                    Icons.volume_up_rounded,
+                                                    size: 14,
+                                                    color: MeloColors.cherrySoft,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                ],
+                                                if (isLossless) ...[
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                      horizontal: 4.5,
+                                                      vertical: 1.5,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(4),
+                                                      color: Colors.white
+                                                          .withValues(alpha: 0.12),
+                                                    ),
+                                                    child: const Text(
+                                                      'LOSSLESS',
+                                                      style: TextStyle(
+                                                        fontSize: 8.5,
+                                                        fontWeight: FontWeight.w800,
+                                                        letterSpacing: 0.3,
+                                                        color: Colors.white70,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                ],
                                             if (track.isAvailable) ...[
                                               const Icon(
                                                 Icons.check_circle_rounded,
@@ -1288,7 +1336,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       childCount: filtered.length,
                     ),
                   ),
-                ),
+                );
+              },
+            ),
             ],
           ),
         ],

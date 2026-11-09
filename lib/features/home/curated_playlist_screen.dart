@@ -17,6 +17,7 @@ class CuratedPlaylistPreset {
     required this.searchQuery,
     required this.gradient,
     required this.icon,
+    this.coverUrl,
     this.vibe,
   });
 
@@ -26,6 +27,7 @@ class CuratedPlaylistPreset {
   final String searchQuery;
   final List<Color> gradient;
   final IconData icon;
+  final String? coverUrl;
   final SmartVibe? vibe;
 }
 
@@ -300,6 +302,90 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     );
   }
 
+  Future<void> _savePlaylistToPhone() async {
+    final library = widget.library;
+    if (library == null) return;
+
+    try {
+      final existing = library.playlists.where(
+        (p) => p.name.toLowerCase() == widget.preset.title.toLowerCase(),
+      ).firstOrNull;
+
+      if (existing != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('"${widget.preset.title}" is already in your Melo Library Playlists.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        return;
+      }
+
+      final playlist = await library.createPlaylist(widget.preset.title);
+      final firstThumb = _tracks.map((t) => t.thumbnailUrl).whereType<String>().firstOrNull;
+      if (firstThumb != null) {
+        await library.updatePlaylistCover(
+          playlist.id,
+          customArtworkUri: firstThumb,
+        );
+      }
+
+      final matchedIds = <String>[];
+      for (final t in _tracks) {
+        final local = library.findMatchingLocalTrack(
+          providerTrackId: t.id,
+          title: t.title,
+          artist: t.author,
+        );
+        if (local != null) {
+          matchedIds.add(local.id);
+        }
+      }
+      if (matchedIds.isNotEmpty) {
+        await library.addTracksToPlaylist(playlist.id, matchedIds);
+      }
+
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF1ED760), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Saved "${widget.preset.title}" to Library Playlists (${matchedIds.length} tracks matched)',
+                  ),
+                ),
+              ],
+            ),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Download All',
+              textColor: MeloColors.cherrySoft,
+              onPressed: _downloadAllTracks,
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not save playlist: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
   void _showTrackDetails(YoutubeTrack track) {
     SongDetailsSheet.show(
       context,
@@ -313,6 +399,10 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   Widget build(BuildContext context) {
     final primaryGradient = widget.preset.gradient;
     final headerColor = primaryGradient.first;
+    final isPlaylistSaved = widget.library?.playlists.any(
+          (p) => p.name.toLowerCase() == widget.preset.title.toLowerCase(),
+        ) ??
+        false;
 
     // Pick 4 artwork urls for 2x2 collage
     final thumbs = _tracks
@@ -542,46 +632,46 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             ),
           ),
 
-          // Apple Music Action row: Centered [ 🔀 Shuffle ]  [ ▶ Play ]  [ + Add/Download ]
+          // Apple Music Action row: Centered [ 🔀 Shuffle ]  [ ▶ Play ]  [ ➕ Save ]  [ ⬇ Download ]
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Circular glass Shuffle button
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.14),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.shuffle_rounded, color: Colors.white, size: 22),
+                      icon: const Icon(Icons.shuffle_rounded, color: Colors.white, size: 20),
                       tooltip: 'Shuffle',
                       onPressed: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: true),
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 14),
 
                   // Center solid White Stadium Play Pill (Apple Music signature)
                   SizedBox(
-                    height: 50,
+                    height: 48,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
                         shape: const StadiumBorder(),
                         elevation: 0,
                       ),
                       onPressed: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: false),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 28, color: Colors.black),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 26, color: Colors.black),
                       label: const Text(
                         'Play',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.2,
                           color: Colors.black,
@@ -589,18 +679,40 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 14),
 
-                  // Circular glass Download/Add button
+                  // Circular glass Save to Library button
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPlaylistSaved
+                          ? MeloColors.cherry.withValues(alpha: 0.3)
+                          : Colors.white.withValues(alpha: 0.14),
+                    ),
+                    child: IconButton(
+                      tooltip: isPlaylistSaved ? 'Saved to Melo Library' : 'Save Playlist to Phone',
+                      onPressed: _savePlaylistToPhone,
+                      icon: Icon(
+                        isPlaylistSaved ? Icons.check_rounded : Icons.add_rounded,
+                        color: isPlaylistSaved ? MeloColors.cherrySoft : Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Circular glass Download All button
+                  Container(
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.14),
                     ),
                     child: IconButton(
-                      tooltip: 'Download All',
+                      tooltip: 'Download All Songs',
                       onPressed: _isDownloadingAll ? null : _downloadAllTracks,
                       icon: _isDownloadingAll
                           ? const SizedBox(
@@ -608,7 +720,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Icon(Icons.add_rounded, color: Colors.white, size: 26),
+                          : const Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 22),
                     ),
                   ),
                 ],
@@ -668,104 +780,141 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
           // Track List: Apple / Spotify style transparent seamless rows
           if (!_loading && _tracks.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final track = _tracks[index];
-                    final isDownloaded = widget.library?.isTrackDownloaded(
-                          providerTrackId: track.id,
-                          title: track.title,
-                          artist: track.author,
-                        ) ??
-                        false;
-                    final progress = _downloadProgress[track.id];
+            StreamBuilder<MediaItem?>(
+              stream: widget.audioHandler?.mediaItem,
+              initialData: widget.audioHandler?.mediaItem.value,
+              builder: (context, mediaSnapshot) {
+                final currentItem = mediaSnapshot.data;
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final track = _tracks[index];
+                        final isDownloaded = widget.library?.isTrackDownloaded(
+                              providerTrackId: track.id,
+                              title: track.title,
+                              artist: track.author,
+                            ) ??
+                            false;
+                        final progress = _downloadProgress[track.id];
+                        final isPlaying = currentItem != null &&
+                            (currentItem.id == track.id ||
+                                currentItem.extras?['providerTrackId'] == track.id ||
+                                (currentItem.title.trim().toLowerCase() ==
+                                        track.title.trim().toLowerCase() &&
+                                    currentItem.artist?.trim().toLowerCase() ==
+                                        track.author.trim().toLowerCase()));
 
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _playPlaylist(shuffle: false, startIndex: index),
-                        onLongPress: () => _showTrackDetails(track),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                          child: Row(
-                            children: [
-                              // Track index or cover art
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: track.thumbnailUrl != null
-                                      ? Image.network(
-                                          track.thumbnailUrl!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) => Container(
-                                            color: Colors.white10,
-                                            child: const Icon(
-                                              Icons.music_note_rounded,
-                                              color: Colors.white38,
-                                              size: 20,
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _playPlaylist(shuffle: false, startIndex: index),
+                            onLongPress: () => _showTrackDetails(track),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                              child: Row(
+                                children: [
+                                  // Track index or cover art with active playing overlay
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          track.thumbnailUrl != null
+                                              ? Image.network(
+                                                  track.thumbnailUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, _, _) => Container(
+                                                    color: Colors.white10,
+                                                    child: const Icon(
+                                                      Icons.music_note_rounded,
+                                                      color: Colors.white38,
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                )
+                                              : Container(
+                                                  color: Colors.white10,
+                                                  child: const Icon(
+                                                    Icons.music_note_rounded,
+                                                    color: Colors.white38,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                          if (isPlaying)
+                                            Container(
+                                              color: Colors.black.withValues(alpha: 0.55),
+                                              child: const Center(
+                                                child: Icon(
+                                                  Icons.graphic_eq_rounded,
+                                                  color: MeloColors.cherry,
+                                                  size: 22,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        )
-                                      : Container(
-                                          color: Colors.white10,
-                                          child: const Icon(
-                                            Icons.music_note_rounded,
-                                            color: Colors.white38,
-                                            size: 20,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-
-                              // Title & Artist
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      track.title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: -0.2,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Row(
-                                      children: [
-                                        if (isDownloaded) ...[
-                                          const Icon(
-                                            Icons.check_circle_rounded,
-                                            size: 14,
-                                            color: Color(0xFF1ED760), // Spotify Green
-                                          ),
-                                          const SizedBox(width: 4),
                                         ],
-                                        Expanded(
-                                          child: Text(
-                                            track.author,
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(alpha: 0.6),
-                                              fontSize: 13,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+
+                                  // Title & Artist
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          track.title,
+                                          style: TextStyle(
+                                            color: isPlaying ? MeloColors.cherrySoft : Colors.white,
+                                            fontSize: 15,
+                                            fontWeight:
+                                                isPlaying ? FontWeight.w800 : FontWeight.w600,
+                                            letterSpacing: -0.2,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          children: [
+                                            if (isPlaying) ...[
+                                              const Icon(
+                                                Icons.volume_up_rounded,
+                                                size: 14,
+                                                color: MeloColors.cherrySoft,
+                                              ),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            if (isDownloaded) ...[
+                                              const Icon(
+                                                Icons.check_circle_rounded,
+                                                size: 14,
+                                                color: Color(0xFF1ED760), // Spotify Green
+                                              ),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            Expanded(
+                                              child: Text(
+                                                track.author,
+                                                style: TextStyle(
+                                                  color: Colors.white.withValues(alpha: 0.6),
+                                                  fontSize: 13,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                              ),
+                                  ),
                               const SizedBox(width: 8),
 
                               // Duration or download progress
@@ -883,7 +1032,9 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                   childCount: _tracks.length,
                 ),
               ),
-            ),
+            );
+          },
+        ),
         ],
       ),
     );
