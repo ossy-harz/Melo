@@ -19,7 +19,7 @@ import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
-import 'package:melo_player/features/youtube/youtube_search_screen.dart';
+import 'package:melo_player/features/search/search_screen.dart';
 
 /// Tone's home is a discovery surface; playback and destinations stay in the
 /// persistent player and app navigation.
@@ -84,14 +84,18 @@ class HomeScreen extends StatelessWidget {
                         );
                       }
                       if (val == 'stream') {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => YoutubeSearchScreen(
-                              audioHandler: audioHandler,
-                              library: library,
+                        if (onSearch != null) {
+                          onSearch!();
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SearchScreen(
+                                audioHandler: audioHandler,
+                                library: library,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       }
                       if (val == 'library') onOpenLibrary();
                     },
@@ -110,9 +114,9 @@ class HomeScreen extends StatelessWidget {
                         value: 'stream',
                         child: Row(
                           children: [
-                            Icon(Icons.stream_rounded, size: 20),
+                            Icon(Icons.search_rounded, size: 20),
                             SizedBox(width: 10),
-                            Text('Search Streaming Music'),
+                            Text('Search Online & Library'),
                           ],
                         ),
                       ),
@@ -129,6 +133,43 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: onSearch,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Search songs, artists, online or library...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
 

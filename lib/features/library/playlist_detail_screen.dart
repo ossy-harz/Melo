@@ -1102,9 +1102,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     final currentItem = mediaSnapshot.data;
                     return SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
+                      sliver: SliverList.separated(
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          thickness: 0.5,
+                          indent: 72,
+                          endIndent: 8,
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                        itemBuilder: (context, index) {
                             final track = filtered[index];
                             final isLossless =
                                 track.path.toLowerCase().endsWith('.flac') ||
@@ -1333,12 +1340,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           ),
                         );
                       },
-                      childCount: filtered.length,
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
             ],
           ),
         ],

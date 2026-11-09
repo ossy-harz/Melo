@@ -99,8 +99,14 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
           widget.preset.searchQuery,
           filterMixtapes: true,
         );
-        // Take top 25 individual tracks for the playlist
-        valid = results.take(25).toList(growable: false);
+        // Strictly filter out long mixtapes, nonstop DJ sets, and compilation rips
+        final filtered = results.where((t) {
+          if (t.duration.inSeconds > 660) return false;
+          if (t.duration.inSeconds > 0 && t.duration.inSeconds < 40) return false;
+          if (YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) return false;
+          return true;
+        }).take(25).toList(growable: false);
+        valid = filtered;
       }
       _cache[widget.preset.title] = valid;
 
@@ -417,7 +423,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 390,
+            expandedHeight: 440,
             pinned: true,
             stretch: true,
             backgroundColor: const Color(0xFF0F0F12),
@@ -505,61 +511,70 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Artwork Hero: 2x2 collage if tracks available, or iconic preset cover
-                          Container(
-                            width: 178,
-                            height: 178,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: headerColor.withValues(alpha: 0.45),
-                                  blurRadius: 28,
-                                  offset: const Offset(0, 12),
+                          // Large Single Hero Artwork (Apple Music & Spotify Signature)
+                          Builder(
+                            builder: (context) {
+                              final heroCoverUrl = widget.preset.coverUrl ?? thumbs.firstOrNull;
+                              return Container(
+                                width: 216,
+                                height: 216,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: headerColor.withValues(alpha: 0.5),
+                                      blurRadius: 32,
+                                      offset: const Offset(0, 14),
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.7),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
                                 ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: thumbs.length >= 4
-                                  ? GridView.count(
-                                      crossAxisCount: 2,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      padding: EdgeInsets.zero,
-                                      children: [
-                                        for (final url in thumbs)
-                                          Image.network(
-                                            url,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) => Container(
-                                              color: headerColor.withValues(alpha: 0.3),
-                                              child: const Icon(Icons.music_note, color: Colors.white54),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: heroCoverUrl != null && heroCoverUrl.isNotEmpty
+                                      ? Image.network(
+                                          heroCoverUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Container(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: primaryGradient,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Icon(
+                                                widget.preset.icon,
+                                                size: 80,
+                                                color: Colors.white.withValues(alpha: 0.9),
+                                              ),
                                             ),
                                           ),
-                                      ],
-                                    )
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: primaryGradient,
+                                        )
+                                      : Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: primaryGradient,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Icon(
+                                              widget.preset.icon,
+                                              size: 80,
+                                              color: Colors.white.withValues(alpha: 0.9),
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      child: Center(
-                                        child: Icon(
-                                          widget.preset.icon,
-                                          size: 72,
-                                          color: Colors.white.withValues(alpha: 0.9),
-                                        ),
-                                      ),
-                                    ),
-                            ),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 18),
 
@@ -568,7 +583,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                             widget.preset.title,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 24,
+                              fontSize: 26,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -0.6,
                             ),
@@ -583,7 +598,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                             widget.preset.curatorSubtitle,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.75),
-                              fontSize: 13,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w500,
                             ),
                             textAlign: TextAlign.center,
@@ -787,9 +802,16 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                 final currentItem = mediaSnapshot.data;
                 return SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
+                  sliver: SliverList.separated(
+                    itemCount: _tracks.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      indent: 70,
+                      endIndent: 8,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                    itemBuilder: (context, index) {
                         final track = _tracks[index];
                         final isDownloaded = widget.library?.isTrackDownloaded(
                               providerTrackId: track.id,
@@ -829,12 +851,16 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                               ? Image.network(
                                                   track.thumbnailUrl!,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (_, _, _) => Container(
-                                                    color: Colors.white10,
-                                                    child: const Icon(
-                                                      Icons.music_note_rounded,
-                                                      color: Colors.white38,
-                                                      size: 20,
+                                                  errorBuilder: (_, _, _) => Image.network(
+                                                    'https://i.ytimg.com/vi/${track.id}/hqdefault.jpg',
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, _, _) => Container(
+                                                      color: Colors.white10,
+                                                      child: const Icon(
+                                                        Icons.music_note_rounded,
+                                                        color: Colors.white38,
+                                                        size: 20,
+                                                      ),
                                                     ),
                                                   ),
                                                 )
@@ -1029,12 +1055,10 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                       ),
                     );
                   },
-                  childCount: _tracks.length,
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
         ],
       ),
     );
