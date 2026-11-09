@@ -9,7 +9,6 @@ import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
-import 'package:melo_player/features/youtube/youtube_search_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({this.library, this.audioHandler, super.key});
@@ -310,6 +309,77 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
+  bool get _isUrlQuery {
+    final query = _controller.text.trim().toLowerCase();
+    return query.startsWith('http://') ||
+        query.startsWith('https://') ||
+        query.contains('spotify.com') ||
+        query.contains('youtube.com') ||
+        query.contains('youtu.be');
+  }
+
+  Widget _buildUrlActionCard(BuildContext context) {
+    final query = _controller.text.trim();
+    final isSpotify = query.toLowerCase().contains('spotify');
+    final isYt = query.toLowerCase().contains('youtu');
+    final platform = isSpotify ? 'Spotify' : (isYt ? 'YouTube' : 'Web');
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1ED760).withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1ED760).withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.link_rounded, color: Color(0xFF1ED760), size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$platform Link Detected',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Import and stream all tracks from this link directly in Melo:',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1ED760),
+                foregroundColor: Colors.black,
+              ),
+              icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
+              label: const Text(
+                'Import & Stream Playlist',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              onPressed: () => SpotifyImportSheet.show(
+                context,
+                library: widget.library,
+                audioHandler: widget.audioHandler,
+                initialUrl: query,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasQuery = _controller.text.trim().isNotEmpty;
@@ -380,7 +450,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   onChanged: _onQueryChanged,
                   onSubmitted: (q) => _refreshSearchResults(q),
                   decoration: InputDecoration(
-                    hintText: 'Songs, albums, artists',
+                    hintText: 'Search songs, artists, or paste playlist link...',
                     prefixIcon: const Icon(Icons.search_rounded),
                     suffixIcon: _controller.text.isEmpty
                         ? null
@@ -395,6 +465,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                   ),
                 ),
+                if (_isUrlQuery)
+                  _buildUrlActionCard(context),
                 if (hasQuery) ...[
                   const SizedBox(height: 12),
                   SingleChildScrollView(
@@ -424,39 +496,28 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                 ],
-                if (!hasQuery) ...[
-                  const SizedBox(height: 18),
-                  _BrowseDestinationCard(
-                    icon: Icons.graphic_eq_rounded,
-                    title: 'Browse & stream catalog',
-                    subtitle: 'Search millions of songs or save them to your device',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => YoutubeSearchScreen(
-                          audioHandler: widget.audioHandler,
-                          library: widget.library,
+                if (!hasQuery && !_isUrlQuery) ...[
+                  const SizedBox(height: 28),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.travel_explore_rounded,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _BrowseDestinationCard(
-                    icon: Icons.playlist_add_rounded,
-                    title: 'Import playlist',
-                    subtitle: 'Bring in any public Spotify or YouTube playlist link',
-                    onTap: () => SpotifyImportSheet.show(
-                      context,
-                      library: widget.library,
-                      audioHandler: widget.audioHandler,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    widget.library?.isEmpty == false
-                        ? 'Search your library or stream any song above.'
-                        : 'Type a song or artist above to listen or save to your device.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        const SizedBox(height: 12),
+                        Text(
+                          'Search library, stream online, or paste any playlist link',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -630,86 +691,6 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _BrowseDestinationCard extends StatelessWidget {
-  const _BrowseDestinationCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      label: '$title. $subtitle',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(MeloRadii.lg),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(MeloRadii.lg),
-              color: colors.surfaceContainerLow,
-              border: Border.all(
-                color: colors.outlineVariant.withValues(alpha: 0.35),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(icon, color: colors.primary),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

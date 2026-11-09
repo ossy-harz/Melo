@@ -1162,3 +1162,245 @@ class _RecommendedPlaylistsSectionState
     );
   }
 }
+
+class ArtistRadioItem {
+  const ArtistRadioItem({
+    required this.name,
+    required this.avatarUrl,
+    required this.genres,
+  });
+
+  final String name;
+  final String avatarUrl;
+  final String genres;
+}
+
+/// Dynamic horizontal artist radio carousel (Spotify Signature Artist Stations)
+class ArtistRadioShelf extends StatelessWidget {
+  const ArtistRadioShelf({
+    required this.onOpenArtistRadio,
+    this.library,
+    super.key,
+  });
+
+  final ValueChanged<String> onOpenArtistRadio;
+  final MusicLibrary? library;
+
+  static const List<ArtistRadioItem> _defaultArtists = [
+    ArtistRadioItem(
+      name: 'King Saha',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
+      genres: 'Afro-Pop · Uganda',
+    ),
+    ArtistRadioItem(
+      name: 'Joshua Baraka',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
+      genres: 'R&B · Afrobeats',
+    ),
+    ArtistRadioItem(
+      name: 'Burna Boy',
+      avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&q=80',
+      genres: 'Afro-Fusion · Lagos',
+    ),
+    ArtistRadioItem(
+      name: 'Kendrick Lamar',
+      avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&q=80',
+      genres: 'Hip-Hop · Rap Life',
+    ),
+    ArtistRadioItem(
+      name: 'Asake',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80',
+      genres: 'Amapiano · Fujipiano',
+    ),
+    ArtistRadioItem(
+      name: 'SZA',
+      avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80',
+      genres: 'Contemporary R&B',
+    ),
+    ArtistRadioItem(
+      name: 'Drake',
+      avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&q=80',
+      genres: 'Hip-Hop · Melodic Rap',
+    ),
+    ArtistRadioItem(
+      name: 'Tems',
+      avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80',
+      genres: 'Soul · Afrobeats',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    // Collect distinct artist names from library if available
+    final libraryArtists = library?.tracks
+            .map((t) => t.artist.trim())
+            .where((a) => a.isNotEmpty && a.toLowerCase() != 'unknown artist')
+            .toSet()
+            .take(6)
+            .toList() ??
+        const <String>[];
+
+    final artists = <ArtistRadioItem>[
+      ...libraryArtists.map(
+        (a) => ArtistRadioItem(
+          name: a,
+          avatarUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
+          genres: 'From Your Library',
+        ),
+      ),
+      ..._defaultArtists.where((d) => !libraryArtists.contains(d.name)),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.sensors_rounded,
+              size: 20,
+              color: Color(0xFF1ED760),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Artist Radio',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                      letterSpacing: -0.5,
+                    ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1ED760).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.radio_rounded, size: 12, color: Color(0xFF1ED760)),
+                  SizedBox(width: 4),
+                  Text(
+                    'ENDLESS STATIONS',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1ED760),
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 168,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: artists.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final artist = artists[index];
+              return SizedBox(
+                width: 112,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onOpenArtistRadio(artist.name),
+                    child: Column(
+                      children: [
+                        // Circular Artist Avatar with Ambient Glow
+                        Container(
+                          width: 104,
+                          height: 104,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF1ED760).withValues(alpha: 0.5),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF1ED760).withValues(alpha: 0.25),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(
+                                  artist.avatarUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                    color: colors.surfaceContainerHigh,
+                                    child: const Icon(Icons.person_rounded, size: 40, color: Colors.white54),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 4,
+                                  right: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF1ED760),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.play_arrow_rounded,
+                                      size: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          artist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          artist.genres,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}

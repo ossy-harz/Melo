@@ -91,12 +91,6 @@ class YouScreen extends StatelessWidget {
                 ),
               ),
               _SettingsRow(
-                icon: Icons.auto_awesome_outlined,
-                title: 'Personal mixes',
-                subtitle: 'Build a set from your own library',
-                onTap: onOpenMix,
-              ),
-              _SettingsRow(
                 icon: Icons.sync_alt_outlined,
                 title: 'AutoMix transitions',
                 subtitle: 'Crossfade between tracks in your queue',

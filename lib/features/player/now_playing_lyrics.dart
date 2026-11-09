@@ -26,10 +26,11 @@ class _LyricsPeek extends StatelessWidget {
       stream: playbackPositionStream(audioHandler),
       builder: (context, snapshot) {
         final position = snapshot.data ?? Duration.zero;
-        final resolved = lyrics.isSynchronized
+        final hasStarted = position > Duration.zero;
+        final resolved = (hasStarted && lyrics.isSynchronized)
             ? lyrics.activeLineAt(position)
-            : 0;
-        final active = resolved < 0 ? 0 : resolved;
+            : -1;
+        final active = resolved < 0 ? -1 : resolved;
         return Material(
           color: Colors.white.withValues(alpha: 0.05),
           shape: RoundedRectangleBorder(
@@ -488,17 +489,20 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
       stream: playbackPositionStream(widget.audioHandler),
       builder: (context, snapshot) {
         final rawPosition = snapshot.data ?? Duration.zero;
-        final leadInMs = widget.audioHandler is MeloAudioHandler ? 120 : 0;
+        final hasStarted = rawPosition > Duration.zero;
+        final leadInMs = (hasStarted && widget.audioHandler is MeloAudioHandler) ? 120 : 0;
         final adjustedMs =
             (rawPosition.inMilliseconds + _syncOffsetMs + leadInMs).clamp(
               0,
               86400000,
             );
         final position = Duration(milliseconds: adjustedMs);
-        final activeIndex = lyrics.isSynchronized
+        final activeIndex = (hasStarted && lyrics.isSynchronized)
             ? lyrics.activeLineAt(position)
             : -1;
-        _scrollToActiveLine(activeIndex);
+        if (activeIndex >= 0) {
+          _scrollToActiveLine(activeIndex);
+        }
         return LayoutBuilder(
           builder: (context, constraints) {
             final verticalPadding = constraints.maxHeight * 0.34;

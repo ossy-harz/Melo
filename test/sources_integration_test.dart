@@ -351,5 +351,30 @@ void main() {
       expect(release.preferredApkAsset!.name, 'Tone-v1.1.0-arm64-v8a.apk');
       expect(release.preferredApkAsset!.formattedSize, '23.0 MB');
     });
+
+    test('prefers universal release apk for all-device compatibility', () {
+      const release = GithubReleaseInfo(
+        tagName: 'v1.3.7',
+        title: 'Melo v1.3.7',
+        body: 'Release notes',
+        htmlUrl: 'https://github.com/ossy-harz/Melo/releases/tag/v1.3.7',
+        publishedAt: null,
+        isPrerelease: false,
+        assets: [
+          GithubReleaseAsset(
+            name: 'melo-v1.3.7-arm64-v8a.apk',
+            downloadUrl: 'https://example.com/arm64.apk',
+            sizeBytes: 20000000,
+          ),
+          GithubReleaseAsset(
+            name: 'app-release.apk',
+            downloadUrl: 'https://example.com/app-release.apk',
+            sizeBytes: 45000000,
+          ),
+        ],
+      );
+      expect(release.preferredApkAsset, isNotNull);
+      expect(release.preferredApkAsset!.name, 'app-release.apk');
+    });
   });
 }

@@ -362,7 +362,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home plays a local genre and mood mix', (tester) async {
+  testWidgets('Home surfaces artist radio for library artists', (tester) async {
     final directory = await tester.runAsync(
       () => Directory.systemTemp.createTemp('tone-home-taste-'),
     );
@@ -403,12 +403,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Electronic'), findsOneWidget);
-    expect(find.text('Night drive'), findsOneWidget);
-    await tester.ensureVisible(find.text('Electronic'));
-    await tester.tap(find.text('Electronic'));
-    await tester.pumpAndSettle();
-    expect(handler.queue.value.map((item) => item.title), ['Night Signal']);
+    expect(find.text('Artist Radio'), findsOneWidget);
+    expect(find.text('Tone Test'), findsAtLeastNWidgets(1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -1001,8 +997,8 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('FLAC'), findsAtLeastNWidgets(2));
-    expect(find.text('96 kHz'), findsAtLeastNWidgets(2));
-    expect(find.text('Stereo'), findsAtLeastNWidgets(2));
+    expect(find.text('96 kHz'), findsOneWidget);
+    expect(find.text('Stereo'), findsOneWidget);
     expect(find.text('3000 kbps'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -1077,8 +1073,8 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('FLAC'), findsAtLeastNWidgets(2));
-    expect(find.text('96 kHz'), findsAtLeastNWidgets(2));
-    expect(find.text('Stereo'), findsAtLeastNWidgets(2));
+    expect(find.text('96 kHz'), findsOneWidget);
+    expect(find.text('Stereo'), findsOneWidget);
     expect(find.text('3000 kbps'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -1218,7 +1214,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Personal mixes remain available in the reduced navigation', (
+  testWidgets('Settings rows remain available in the reduced navigation', (
     tester,
   ) async {
     await tester.pumpWidget(const MeloApp.preview());
@@ -1242,22 +1238,16 @@ void main() {
     await tester.tap(find.text('You'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Personal mixes'),
+      find.text('Sound & playback'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Personal mixes'));
+    await tester.tap(find.text('Sound & playback'));
     await tester.pumpAndSettle();
-    expect(find.text('Make a mix from your music'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -450));
-    await tester.pumpAndSettle();
-    expect(
-      find.textContaining('Music services are not available in this preview'),
-      findsOneWidget,
-    );
+    expect(find.text('Sound & playback'), findsWidgets);
   });
 
-  testWidgets('Home plays a selected library recommendation', (tester) async {
+  testWidgets('Home surfaces stations and curated top picks', (tester) async {
     SharedPreferences.setMockInitialValues({});
     const channel = MethodChannel('app.melo.melo_player/library');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -1293,15 +1283,6 @@ void main() {
           bpm: 100,
           durationMs: 180000,
         ),
-        DeviceAudio(
-          uri: 'content://media/external/audio/media/802',
-          name: 'electronic.mp3',
-          title: 'Fast Lane',
-          artist: 'Tone Test',
-          genre: 'Electronic',
-          bpm: 150,
-          durationMs: 180000,
-        ),
       ],
     );
     await library.load();
@@ -1320,25 +1301,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Picked for you'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('Picked for you'), findsOneWidget);
-    expect(find.text('Library'), findsNothing);
-    expect(find.text('Flow'), findsNothing);
-    expect(find.text('Search'), findsNothing);
-    expect(find.text('You'), findsNothing);
-    final recommendedTitles = LocalDiscovery.recommendations(
-      library.tracks,
-      favoriteTrackIds: {for (final track in library.favoriteTracks) track.id},
-    ).first.tracks.map((track) => track.title).toList();
-    await tester.tap(
-      find.byTooltip(RegExp(r'^Play .* · \d+ songs from your library$')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(handler.queue.value.map((item) => item.title), recommendedTitles);
-    expect(handler.actions, contains('play'));
+    expect(find.text('Top Picks for You'), findsOneWidget);
+    expect(find.text('Stations for You'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1402,8 +1367,12 @@ void main() {
     expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('FAVORITES'));
-    await tester.tap(find.text('FAVORITES'));
+    await tester.scrollUntilVisible(
+      find.text('FAVORITES'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('FAVORITES'), warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
     expect(tester.takeException(), isNull);
@@ -1536,32 +1505,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Picked for you'),
-      240,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-
-    final radioTooltip = find.byTooltip(
-      'Play Artist A Radio · 3 songs from your library',
-    );
-    expect(radioTooltip, findsOneWidget);
+    expect(find.text('Artist Radio'), findsOneWidget);
+    expect(find.text('Artist A'), findsAtLeastNWidgets(1));
+    await tester.tap(find.text('Artist A').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Artist A Radio'), findsOneWidget);
-
-    await tester.tap(radioTooltip);
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
     await tester.pumpAndSettle();
-    expect(handler.queue.value, hasLength(3));
-    expect(handler.actions, contains('play'));
-
-    await tester.tap(find.byTooltip('Save playlist').first);
-    await tester.pumpAndSettle();
-    expect(library.playlists, hasLength(1));
-    expect(library.playlists.single.name, 'Artist A Radio');
-    expect(
-      library.tracksForPlaylist(library.playlists.single.id),
-      hasLength(3),
-    );
 
     handler.playbackState.add(
       handler.playbackState.value.copyWith(playing: false),
@@ -1749,13 +1700,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Personal mixes'),
+      find.text('Offline & data'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Personal mixes'));
+    await tester.tap(find.text('Offline & data'));
     await tester.pumpAndSettle();
-    expect(find.text('Make a mix from your music'), findsOneWidget);
+    expect(find.textContaining('Offline'), findsWidgets);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();

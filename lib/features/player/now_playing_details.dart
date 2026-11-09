@@ -115,86 +115,26 @@ class _AudioQualityBadges extends StatelessWidget {
 
   final MediaItem item;
 
-  bool get _isStreaming {
-    final extras = item.extras;
-    if (item.id.startsWith('/') || item.id.startsWith('file:')) return false;
-    return extras?['isLiveStream'] == true ||
-        item.id.startsWith('youtube:') ||
-        item.id.startsWith('spotify:') ||
-        item.id.startsWith('http://') ||
-        item.id.startsWith('https://') ||
-        extras?['source'] == 'youtube' ||
-        extras?['source'] == 'spotify';
-  }
-
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, Object?>?>(
     future: _audioQualityFor(item),
     builder: (context, snapshot) {
-      final isStream = _isStreaming;
-      if (snapshot.hasError) {
-        return Wrap(
-          spacing: 6,
-          runSpacing: 5,
-          children: [
-            _QualityBadge(
-              label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-              highlighted: false,
-            ),
-            const _QualityBadge(label: 'Quality unavailable'),
-          ],
-        );
-      }
       final details = snapshot.data;
-      if (details == null) {
-        return _QualityBadge(
-          label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-          highlighted: false,
-        );
-      }
-      final quality = _audioQualityLabel(details);
-      if (quality == 'Unavailable') {
-        return _QualityBadge(
-          label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
-          highlighted: false,
-        );
-      }
-
-      final mime = (details['mimeType'] as String?)?.toLowerCase() ?? '';
+      final quality = (details != null) ? _audioQualityLabel(details) : 'Unavailable';
+      final mime = (details?['mimeType'] as String?)?.toLowerCase() ?? '';
       final isLossless = mime.contains('flac') ||
           mime.contains('alac') ||
           mime.contains('wav') ||
           mime.contains('raw');
-      final sampleRate = (details['sampleRate'] as num?)?.toInt() ?? 0;
-      final isHiRes = isLossless && sampleRate >= 48000;
+
+      final codec = quality != 'Unavailable' ? quality.split(' · ').first : 'AAC';
 
       return InkWell(
         onTap: () => TrackDetailsSheet.show(context, item),
         borderRadius: BorderRadius.circular(MeloRadii.pill),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 5,
-          children: [
-            if (isLossless)
-              _QualityBadge(
-                label: isHiRes ? 'HI-RES LOSSLESS' : 'LOSSLESS',
-                highlighted: true,
-              )
-            else
-              const _QualityBadge(
-                label: 'MELO STUDIO DSP',
-                highlighted: true,
-              ),
-            _QualityBadge(
-              label: isStream ? 'LOSSLESS STREAM' : 'ON DEVICE',
-              highlighted: false,
-            ),
-            for (final label in quality.split(' · ').take(3))
-              _QualityBadge(
-                label: label,
-                highlighted: label == 'FLAC' || label == 'ALAC' || label.contains('AAC'),
-              ),
-          ],
+        child: _QualityBadge(
+          label: codec,
+          highlighted: isLossless,
         ),
       );
     },

@@ -13,16 +13,19 @@ class SpotifyImportSheet extends StatefulWidget {
   const SpotifyImportSheet({
     this.library,
     this.audioHandler,
+    this.initialUrl,
     super.key,
   });
 
   final MusicLibrary? library;
   final AudioHandler? audioHandler;
+  final String? initialUrl;
 
   static Future<void> show(
     BuildContext context, {
     MusicLibrary? library,
     AudioHandler? audioHandler,
+    String? initialUrl,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -31,6 +34,7 @@ class SpotifyImportSheet extends StatefulWidget {
       builder: (_) => SpotifyImportSheet(
         library: library,
         audioHandler: audioHandler,
+        initialUrl: initialUrl,
       ),
     );
   }
@@ -48,6 +52,17 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
   bool _isDownloadingPlaylist = false;
   String? _downloadProgressMessage;
   String? _downloadingTrackId;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialUrl != null && widget.initialUrl!.trim().isNotEmpty) {
+      _urlController.text = widget.initialUrl!.trim();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fetchPlaylist(widget.initialUrl!.trim());
+      });
+    }
+  }
 
   @override
   void dispose() {

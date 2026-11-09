@@ -98,8 +98,8 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
-    expect(find.text('96 kHz'), findsAtLeastNWidgets(2));
-    expect(find.text('Stereo'), findsAtLeastNWidgets(2));
+    expect(find.text('96 kHz'), findsOneWidget);
+    expect(find.text('Stereo'), findsOneWidget);
     expect(find.text('960 kbps'), findsOneWidget);
     expect(
       calls.map((call) => call.method),

@@ -325,7 +325,9 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   Future<void> initialize() async {
     _ensureNotDisposed();
     try {
-      await _player.setSkipSilenceEnabled(true);
+      await _player.setSpeed(1.0);
+      await _player.setPitch(1.0);
+      await _player.setSkipSilenceEnabled(false);
     } catch (_) {}
   }
 
@@ -339,6 +341,8 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     _error = null;
     _publishState();
     try {
+      await _player.setSpeed(1.0);
+      await _player.setPitch(1.0);
       await _player.setAudioSource(
         AudioSource.uri(
           source.uri,

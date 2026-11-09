@@ -508,49 +508,6 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
             ),
           ),
         ),
-
-        const SizedBox(height: 32),
-
-        // Community Roadmap Preview
-        Text(
-          'COMMUNITY ROADMAP PROGRESS',
-          style: textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-            color: colors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _RoadmapTile(
-          title: 'Dual-Deck AutoMix Crossfade',
-          status: 'Shipped in v1.1.0',
-          isDone: true,
-        ),
-        _RoadmapTile(
-          title: 'Apple Music & Spotify Hybrid Hero Playlist',
-          status: 'Shipped in v1.1.0',
-          isDone: true,
-        ),
-        _RoadmapTile(
-          title: 'Pull-to-Refresh Device Library Scan',
-          status: 'Shipped in v1.1.0',
-          isDone: true,
-        ),
-        _RoadmapTile(
-          title: 'Smart In-App GitHub APK Updater (No Re-download)',
-          status: 'Shipped in v1.2.0',
-          isDone: true,
-        ),
-        _RoadmapTile(
-          title: 'Smart Sleep Timer with Gentle Audio Fade',
-          status: 'In Progress (v1.2.0)',
-          isDone: false,
-        ),
-        _RoadmapTile(
-          title: 'Custom Equalizer Profiles Per Audio Device',
-          status: 'Planned for v1.3.0',
-          isDone: false,
-        ),
       ],
     );
   }
@@ -619,59 +576,3 @@ class _SupportOptionTile extends StatelessWidget {
   }
 }
 
-class _RoadmapTile extends StatelessWidget {
-  const _RoadmapTile({
-    required this.title,
-    required this.status,
-    required this.isDone,
-  });
-
-  final String title;
-  final String status;
-  final bool isDone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(
-            isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-            color: isDone ? Colors.greenAccent : colors.outlineVariant,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: isDone ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 13,
-                color: isDone ? colors.onSurface : colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: isDone
-                  ? Colors.greenAccent.withValues(alpha: 0.15)
-                  : colors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isDone ? Colors.greenAccent : colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

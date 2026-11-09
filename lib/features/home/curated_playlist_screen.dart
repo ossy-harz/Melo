@@ -7,6 +7,7 @@ import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
@@ -1061,10 +1062,9 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                             Container(
                                               color: Colors.black.withValues(alpha: 0.55),
                                               child: const Center(
-                                                child: Icon(
-                                                  Icons.graphic_eq_rounded,
+                                                child: AnimatedEqualizerIndicator(
                                                   color: MeloColors.cherry,
-                                                  size: 22,
+                                                  size: 20,
                                                 ),
                                               ),
                                             ),

@@ -11,7 +11,6 @@ import 'package:melo_player/features/library/data/library_repository.dart'
     show MostPlayedTrack;
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
-import 'package:melo_player/features/mix/local_discovery.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 
@@ -173,7 +172,30 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Shelf 1: Listening Pulse (Your listening: FAVORITES, MOST PLAYED, YOUR SOUND)
+              // Shelf 1: Recommended Editorial Playlists (FIRST on Home)
+              if (!kIsWeb && Platform.isAndroid) ...[
+                RecommendedPlaylistsSection(
+                  audioHandler: audioHandler,
+                  library: library,
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Shelf 2: Dynamic Artist Radio Carousel (Spotify Style)
+              ArtistRadioShelf(
+                library: library,
+                onOpenArtistRadio: (artist) => _openArtistRadio(context, artist),
+              ),
+              const SizedBox(height: 24),
+
+              // Shelf 3: Top Picks for You (Hero Showcase Carousel)
+              TopPicksShelf(
+                onPlayVibe: (vibe) => _openStation(context, vibe),
+                onPlayPreset: (preset) => _openCuratedPreset(context, preset),
+              ),
+              const SizedBox(height: 24),
+
+              // Shelf 4: Listening Pulse & Your Playlists
               if (library != null && audioHandler != null && library!.tracks.isNotEmpty) ...[
                 _ListeningPulse(
                   library: library!,
@@ -189,25 +211,10 @@ class HomeScreen extends StatelessWidget {
                     onPlay: (playlistId) => _playPlaylist(context, playlistId),
                   ),
                 ],
-                const SizedBox(height: 14),
-                _LibraryPicks(
-                  library: library!,
-                  onPlay: (suggestion) =>
-                      _playDiscoveryPick(context, suggestion),
-                  onSaveSuggestion: (suggestion) =>
-                      _saveSuggestedPlaylist(context, suggestion),
-                ),
                 const SizedBox(height: 24),
               ],
 
-              // Shelf 2: Top Picks for You (Hero Showcase Carousel)
-              TopPicksShelf(
-                onPlayVibe: (vibe) => _openStation(context, vibe),
-                onPlayPreset: (preset) => _openCuratedPreset(context, preset),
-              ),
-              const SizedBox(height: 24),
-
-              // Shelf 3: Recently Played >
+              // Shelf 5: Recently Played
               if (library != null && library!.tracks.isNotEmpty) ...[
                 RecentlyPlayedShelf(
                   library: library!,
@@ -217,21 +224,12 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 24),
               ],
 
-              // Shelf 4: Stations for You (Continuous Radio Flow with Real Art)
+              // Shelf 6: Stations for You (Continuous Radio Flow with Real Art)
               StationsForYouShelf(
                 library: library,
                 onPlayVibe: (vibe) => _openStation(context, vibe),
               ),
               const SizedBox(height: 24),
-
-              // Shelf 5: Recommended Editorial Playlists
-              if (!kIsWeb && Platform.isAndroid) ...[
-                RecommendedPlaylistsSection(
-                  audioHandler: audioHandler,
-                  library: library,
-                ),
-                const SizedBox(height: 24),
-              ],
             ],
           ),
         ),
@@ -294,6 +292,29 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openCuratedPreset(BuildContext context, CuratedPlaylistPreset preset) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: audioHandler,
+          library: library,
+        ),
+      ),
+    );
+  }
+
+  void _openArtistRadio(BuildContext context, String artistName) {
+    final preset = CuratedPlaylistPreset(
+      title: '$artistName Radio',
+      curatorSubtitle: 'With similar artists & trending tracks',
+      badge: 'ARTIST RADIO',
+      searchQuery: '$artistName songs',
+      gradient: const [Color(0xFF1DB954), Color(0xFF191414), Color(0xFF121212)],
+      icon: Icons.sensors_rounded,
+      isArtistRadio: true,
+      artistName: artistName,
+    );
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CuratedPlaylistScreen(
@@ -384,74 +405,6 @@ class HomeScreen extends StatelessWidget {
         ..showSnackBar(
           SnackBar(
             content: Text('Could not play this playlist: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
-
-  Future<void> _playDiscoveryPick(
-    BuildContext context,
-    PlaylistSuggestion suggestion,
-  ) async {
-    final musicLibrary = library;
-    final handler = audioHandler;
-    if (musicLibrary == null || handler == null) return;
-    try {
-      if (suggestion.type == DiscoveryPickType.artistRadio) {
-        await musicLibrary.playArtistRadio(
-          handler,
-          suggestion.name.replaceFirst(RegExp(r' Radio$'), ''),
-        );
-      } else {
-        await musicLibrary.playMix(handler, suggestion.tracks);
-      }
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not play ${suggestion.name}: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
-
-  Future<void> _saveSuggestedPlaylist(
-    BuildContext context,
-    PlaylistSuggestion suggestion,
-  ) async {
-    final musicLibrary = library;
-    if (musicLibrary == null) return;
-    try {
-      final playlist = await musicLibrary.createPlaylist(suggestion.name);
-      try {
-        await musicLibrary.addTracksToPlaylist(
-          playlist.id,
-          suggestion.tracks.map((track) => track.id),
-        );
-      } on Object {
-        await musicLibrary.deletePlaylist(playlist.id);
-        rethrow;
-      }
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Added “${suggestion.name}” to your playlists.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not save this playlist: $error'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -557,21 +510,6 @@ class _ListeningPulseState extends State<_ListeningPulse> {
                 ? null
                 : topPlayedTracks.first;
             final favoriteTrack = favorites.isEmpty ? null : favorites.first;
-            final playCounts = {
-              for (final item in topPlayedTracks) item.track.id: item.playCount,
-            };
-            final favoriteIds = {for (final track in allFavorites) track.id};
-            final genres = LocalDiscovery.genreMixes(
-              widget.library.tracks,
-              favoriteTrackIds: favoriteIds,
-              playCounts: playCounts,
-              limit: 2,
-            );
-            final moods = LocalDiscovery.moodMixes(
-              widget.library.tracks,
-              favoriteTrackIds: favoriteIds,
-              playCounts: playCounts,
-            ).take(2);
             final loading = snapshot.connectionState != ConnectionState.done;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -619,54 +557,6 @@ class _ListeningPulseState extends State<_ListeningPulse> {
                     ),
                   ],
                 ),
-                if (genres.isNotEmpty || moods.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'YOUR SOUND',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      letterSpacing: 0.9,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final genre in genres)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 7),
-                            child: ActionChip(
-                              avatar: const Icon(
-                                Icons.library_music_rounded,
-                                size: 16,
-                              ),
-                              label: Text(genre.genre),
-                              onPressed: () => widget.onPlayMix(genre.tracks),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                        for (final mood in moods)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 7),
-                            child: ActionChip(
-                              avatar: const Icon(
-                                Icons.wb_twilight_rounded,
-                                size: 16,
-                              ),
-                              label: Text(mood.name),
-                              onPressed: () => widget.onPlayMix(mood.tracks),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             );
           },
@@ -917,11 +807,10 @@ class _SavedPlaylists extends StatelessWidget {
 /// A shared heading: a title, an optional one-line explanation, and an
 /// optional trailing action. Keeps section rhythm identical across Home.
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.subtitle, this.trailing});
+  const _SectionHeader({required this.title, this.subtitle});
 
   final String title;
   final String? subtitle;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -938,7 +827,6 @@ class _SectionHeader extends StatelessWidget {
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
-            ?trailing,
           ],
         ),
         if (subtitle != null) ...[
@@ -954,240 +842,4 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _LibraryPicks extends StatefulWidget {
-  const _LibraryPicks({
-    required this.library,
-    required this.onPlay,
-    required this.onSaveSuggestion,
-  });
-
-  final MusicLibrary library;
-  final ValueChanged<PlaylistSuggestion> onPlay;
-  final ValueChanged<PlaylistSuggestion> onSaveSuggestion;
-
-  @override
-  State<_LibraryPicks> createState() => _LibraryPicksState();
-}
-
-class _LibraryPicksState extends State<_LibraryPicks> {
-  int _rotation = 0;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.library,
-    builder: (context, _) {
-      final suggestions = LocalDiscovery.recommendations(
-        widget.library.tracks,
-        favoriteTrackIds: {
-          for (final track in widget.library.favoriteTracks) track.id,
-        },
-        rotation: _rotation,
-      );
-      if (suggestions.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(
-            title: 'Picked for you',
-            subtitle: 'One considered pick from the music you already love.',
-            trailing: IconButton(
-              tooltip: 'Refresh recommendations',
-              onPressed: () => setState(() => _rotation++),
-              icon: const Icon(Icons.refresh_rounded),
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _DiscoveryPickCard(
-            suggestion: suggestions.first,
-            isSaved: widget.library.playlists.any(
-              (playlist) =>
-                  playlist.name.toLowerCase() ==
-                  suggestions.first.name.toLowerCase(),
-            ),
-            onPlay: () => widget.onPlay(suggestions.first),
-            onSave: () => widget.onSaveSuggestion(suggestions.first),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-class _DiscoveryPickCard extends StatelessWidget {
-  const _DiscoveryPickCard({
-    required this.suggestion,
-    required this.isSaved,
-    required this.onPlay,
-    required this.onSave,
-  });
-
-  final PlaylistSuggestion suggestion;
-  final bool isSaved;
-  final VoidCallback onPlay;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    final artwork = suggestion.tracks.first;
-    final (label, icon) = switch (suggestion.type) {
-      DiscoveryPickType.artistRadio => ('ARTIST RADIO', Icons.radio_rounded),
-      DiscoveryPickType.moodMix => ('MOOD MIX', Icons.wb_twilight_rounded),
-      DiscoveryPickType.playlist => (
-        'FROM YOUR LIBRARY',
-        Icons.auto_awesome_rounded,
-      ),
-    };
-    final radius = BorderRadius.circular(MeloRadii.lg);
-    return Tooltip(
-      message:
-          'Play ${suggestion.name} · ${suggestion.tracks.length} songs from your library',
-      child: SizedBox(
-        width: double.infinity,
-        height: 224,
-        child: Material(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onPlay,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
-                  child: AlbumArtwork(
-                    size: 184,
-                    title: artwork.title,
-                    artworkUri: artwork.artworkUri == null
-                        ? null
-                        : Uri.tryParse(artwork.artworkUri!),
-                    sourceUri: Uri.tryParse(artwork.path),
-                    borderRadius: 0,
-                  ),
-                ),
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x22000000),
-                          Color(0x28000000),
-                          Color(0xF0000000),
-                        ],
-                        stops: [0, 0.34, 1],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 12,
-                  top: 12,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.52),
-                      borderRadius: BorderRadius.circular(MeloRadii.pill),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 7,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, size: 12, color: MeloColors.cherrySoft),
-                          const SizedBox(width: 5),
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: IconButton(
-                    tooltip: isSaved ? 'Already in playlists' : 'Save playlist',
-                    onPressed: isSaved ? null : onSave,
-                    icon: Icon(
-                      isSaved ? Icons.check_rounded : Icons.add_rounded,
-                      color: Colors.white,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.48),
-                      minimumSize: const Size(36, 36),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 16,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              suggestion.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              '${suggestion.tracks.length} songs · ${suggestion.description}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.76),
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: onPlay,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: Text(
-                          suggestion.type == DiscoveryPickType.artistRadio
-                              ? 'Radio'
-                              : 'Play mix',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: MeloColors.cherry,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 

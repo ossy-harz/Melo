@@ -667,12 +667,14 @@ class LyricsRepository {
     final cleanItemArtist = _cleanTitleForMatch(item.artist ?? '');
     if (cleanItemArtist.isNotEmpty && cleanCandidateArtist.isNotEmpty) {
       final artistMatches = cleanCandidateArtist == cleanItemArtist ||
-          cleanCandidateArtist.contains(cleanItemArtist) ||
-          cleanItemArtist.contains(cleanCandidateArtist);
+          cleanCandidateArtist.startsWith('$cleanItemArtist ') ||
+          cleanItemArtist.startsWith('$cleanCandidateArtist ') ||
+          cleanCandidateArtist.contains(' $cleanItemArtist') ||
+          cleanItemArtist.contains(' $cleanCandidateArtist');
       if (!artistMatches) return false;
     }
 
-    // Strict Title Validation: require matching root title without short substring accidents
+    // Strict Title Validation: require matching root title with word-boundary awareness
     final cleanCandidateTitle = _cleanTitleForMatch(title);
     final cleanItemTitle = _cleanTitleForMatch(item.title);
     if (cleanCandidateTitle.isEmpty || cleanItemTitle.isEmpty) return false;
@@ -680,8 +682,8 @@ class LyricsRepository {
     final titleMatches = cleanCandidateTitle == cleanItemTitle ||
         (cleanCandidateTitle.length >= 4 &&
             cleanItemTitle.length >= 4 &&
-            (cleanCandidateTitle.startsWith(cleanItemTitle) ||
-                cleanItemTitle.startsWith(cleanCandidateTitle)));
+            (cleanCandidateTitle.startsWith('$cleanItemTitle ') ||
+                cleanItemTitle.startsWith('$cleanCandidateTitle ')));
     if (!titleMatches) return false;
 
     // Strict Duration Validation (max 10 seconds difference if track duration is known)

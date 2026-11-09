@@ -50,12 +50,27 @@ class GithubReleaseInfo {
     return raw.startsWith('v') || raw.startsWith('V') ? raw.substring(1) : raw;
   }
 
-  /// Selects the best APK asset from the GitHub release (preferring arm64-v8a or universal .apk).
+  /// Selects the best universal compatible APK asset from the GitHub release.
+  /// Prefers a universal .apk (e.g. app-release.apk, melo-universal.apk) containing
+  /// all native architectures (armeabi-v7a, arm64-v8a) for maximum phone compatibility.
   GithubReleaseAsset? get preferredApkAsset {
     final apkAssets = assets
         .where((a) => a.name.toLowerCase().endsWith('.apk'))
         .toList();
     if (apkAssets.isEmpty) return null;
+
+    // 1. Prefer universal / default release apk (compatible with ALL phones)
+    for (final asset in apkAssets) {
+      final lower = asset.name.toLowerCase();
+      if (lower == 'app-release.apk' ||
+          lower.contains('universal') ||
+          lower == 'melo.apk' ||
+          (!lower.contains('arm') && !lower.contains('x86'))) {
+        return asset;
+      }
+    }
+
+    // 2. Fallback to arm64 if architecture-split APKs are published
     for (final asset in apkAssets) {
       final lower = asset.name.toLowerCase();
       if (lower.contains('arm64') || lower.contains('v8a')) {
@@ -105,8 +120,8 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.3.6';
-  int _currentBuildNumber = 9;
+  String _currentVersion = '1.3.7';
+  int _currentBuildNumber = 11;
 
   /// Opens an external web URL using the Android platform channel or intent.
   static Future<bool> openExternalUrl(String url) async {
