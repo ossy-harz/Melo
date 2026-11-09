@@ -9,12 +9,14 @@ class AnimatedEqualizerIndicator extends StatefulWidget {
     this.color = MeloColors.cherry,
     this.size = 20,
     this.barCount = 3,
+    this.isPlaying = true,
     super.key,
   });
 
   final Color color;
   final double size;
   final int barCount;
+  final bool isPlaying;
 
   @override
   State<AnimatedEqualizerIndicator> createState() =>
@@ -32,7 +34,22 @@ class _AnimatedEqualizerIndicatorState
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
-    )..repeat();
+    );
+    if (widget.isPlaying) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedEqualizerIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _controller.repeat();
+      } else {
+        _controller.stop();
+      }
+    }
   }
 
   @override

@@ -17,11 +17,8 @@ class _LyricsPeek extends StatelessWidget {
   final MeloPalette palette;
   final VoidCallback onExpand;
 
-  static const double _rowHeight = 21;
-
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
     return StreamBuilder<Duration>(
       stream: playbackPositionStream(audioHandler),
       builder: (context, snapshot) {
@@ -31,83 +28,39 @@ class _LyricsPeek extends StatelessWidget {
             ? lyrics.activeLineAt(position)
             : -1;
         final active = resolved < 0 ? -1 : resolved;
-        return Material(
-          color: Colors.white.withValues(alpha: 0.05),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onExpand,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _row(base, active - 1, active, slot: 0),
-                        _row(base, active, active, slot: 1),
-                        _row(base, active + 1, active, slot: 2),
-                      ],
+        final lineText = (active >= 0 && active < lyrics.lines.length)
+            ? lyrics.lines[active].text
+            : (lyrics.lines.isNotEmpty ? lyrics.lines.first.text : 'Tap to read lyrics');
+        return InkWell(
+          onTap: onExpand,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    lineText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.88),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.keyboard_arrow_up_rounded,
-                    size: 18,
-                    color: palette.accent.withValues(alpha: 0.85),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Colors.white.withValues(alpha: 0.55),
+                ),
+              ],
             ),
           ),
         );
       },
-    );
-  }
-
-  Widget _row(TextStyle base, int index, int active, {required int slot}) {
-    final hasLine = index >= 0 && index < lyrics.lines.length;
-    final text = hasLine ? lyrics.lines[index].text : '';
-    final isActive = index == active;
-    return SizedBox(
-      key: ValueKey('peek-slot-$slot'),
-      height: _rowHeight,
-      child: Center(
-        child: AnimatedSwitcher(
-          duration: MeloMotion.fast,
-          switchInCurve: Curves.easeOut,
-          transitionBuilder: _safeFadeSwitcherTransition,
-          layoutBuilder: _safeAnimatedSwitcherLayout,
-          child: Text(
-            text,
-            key: ValueKey<String>('slot-$slot-line-$index-$text'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: base.copyWith(
-              fontSize: isActive ? 14.5 : 13.5,
-              height: 1.1,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              letterSpacing: isActive ? -0.2 : 0,
-              color: isActive
-                  ? palette.accent
-                  : MeloColors.playerText.withValues(alpha: 0.4),
-              shadows: isActive
-                  ? [
-                      Shadow(
-                        color: palette.accent.withValues(alpha: 0.45),
-                        blurRadius: 16,
-                      ),
-                    ]
-                  : null,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

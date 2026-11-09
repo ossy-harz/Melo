@@ -25,8 +25,12 @@ import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/player/player_formatters.dart';
 import 'package:melo_player/features/player/player_glass_icon_button.dart';
 import 'package:melo_player/features/player/player_queue_sheet.dart';
+import 'package:melo_player/features/player/player_device_helper.dart';
+import 'package:melo_player/features/player/player_volume_slider.dart';
+import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/updates/app_update_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 part 'album_artwork.dart';
@@ -35,6 +39,7 @@ part 'now_playing_seek_bar.dart';
 part 'now_playing_controls.dart';
 part 'now_playing_lyrics.dart';
 part 'now_playing_screen.dart';
+part 'now_playing_more_sheet.dart';
 
 const _artworkChannel = MethodChannel('app.melo.melo_player/library');
 final Map<Uri, Future<Uint8List?>> _artworkCache = {};

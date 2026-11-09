@@ -1,6 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/home/curated_playlist_preview_sheet.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
@@ -890,14 +891,11 @@ class _RecommendedPlaylistsSectionState
   ];
 
   void _openPlaylist(BuildContext context, CuratedPlaylistPreset preset) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CuratedPlaylistScreen(
-          preset: preset,
-          audioHandler: widget.audioHandler,
-          library: widget.library,
-        ),
-      ),
+    showCuratedPlaylistPreviewSheet(
+      context: context,
+      preset: preset,
+      audioHandler: widget.audioHandler,
+      library: widget.library,
     );
   }
 

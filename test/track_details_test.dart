@@ -65,6 +65,11 @@ void main() {
         ),
       );
 
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
     );

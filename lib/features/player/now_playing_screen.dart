@@ -528,26 +528,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     return bpm != null && bpm > 0 ? bpm : null;
   }
 
-  Future<void> _startTrackRadio() async {
-    final item = widget.item;
-    _showMessage('Starting ${item.title} Radio (Continuous autoplay)...');
-    try {
-      final radio = await SmartPlaylistService.instance.generateTrackRadio(
-        seedTrack: item,
-        library: widget.musicLibrary,
-      );
-      await SmartPlaylistService.instance.playSmartPlaylist(
-        audioHandler: widget.audioHandler,
-        playlist: radio,
-      );
-      if (mounted) {
-        _showMessage('Radio started · ${radio.tracks.length} continuous tracks queued.');
-      }
-    } catch (e) {
-      if (mounted) _showMessage('Could not start track radio: $e');
-    }
-  }
-
   Future<void> _playArtistRadio() async {
     final artist = widget.item.artist?.trim();
     if (artist == null ||
@@ -793,26 +773,115 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     }
   }
 
-  Future<void> _handleMenu(String action) async {
-    if (action == 'lyrics') {
-      await _findLyrics();
-    } else if (action == 'online-lyrics') {
-      await _findLyricsOnline();
-    } else if (action == 'enrich-metadata') {
-      await _enrichTrackMetadata();
-    } else if (action == 'read-lyrics') {
-      _openLyrics();
-    } else if (action == 'queue') {
-      _openQueue();
-    } else if (action == 'details') {
-      _openTrackDetails();
-    } else if (action == 'track-radio') {
-      await _startTrackRadio();
-    } else if (action == 'artist-radio') {
-      await _playArtistRadio();
-    } else if (action == 'save-device') {
-      await _saveCurrentStreamToDevice();
+  String get _sourceStationTitle {
+    final album = widget.item.album?.trim();
+    if (album != null &&
+        album.isNotEmpty &&
+        album != 'Unknown album' &&
+        album != 'On-device audio') {
+      return 'Playing $album';
     }
+    final artist = widget.item.artist?.trim();
+    if (artist != null &&
+        artist.isNotEmpty &&
+        artist != 'Unknown artist' &&
+        artist != 'On-device audio') {
+      return 'Playing $artist Radio';
+    }
+    return 'Playing Energy Radio';
+  }
+
+  void _showMoreSheet() {
+    final trackId = widget.item.id;
+    final isFav = widget.musicLibrary?.isFavorite(trackId) ?? false;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => NowPlayingMoreSheet(
+        item: widget.item,
+        audioHandler: widget.audioHandler,
+        musicLibrary: widget.musicLibrary,
+        isFavorite: isFav,
+        onToggleFavorite: () => _toggleFavorite(trackId),
+        onOpenSongInfo: _openTrackDetails,
+        onStartRadio: () async {
+          await _playArtistRadio();
+        },
+        onOpenArtist: () async {
+          await _playArtistRadio();
+        },
+        onUpgradeQuality: () async {
+          await _enrichTrackMetadata();
+        },
+        onSaveToDevice: () async {
+          await _saveCurrentStreamToDevice();
+        },
+        onOpenLyrics: _openLyrics,
+        onFindLyricsOnline: _findLyricsOnline,
+        onOpenQueue: _openQueue,
+      ),
+    );
+  }
+
+  void _showDeviceDialog(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E151A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Audio Output',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const ListTile(
+              leading: Icon(Icons.phone_android_rounded, color: MeloColors.cherry),
+              title: Text('Phone Speaker', style: TextStyle(color: Colors.white)),
+              subtitle: Text('Active playback device', style: TextStyle(color: Colors.white60)),
+              trailing: Icon(Icons.check_circle_rounded, color: MeloColors.cherry, size: 20),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bluetooth_audio_rounded, color: Colors.white70),
+              title: const Text('Bluetooth Audio Devices', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('System audio output', style: TextStyle(color: Colors.white60)),
+              onTap: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Connected to system audio output'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _enrichTrackMetadata() async {
@@ -987,83 +1056,56 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                   child: Column(
                     children: [
                       // Subtle top drag handle affordance
-                      Center(
-                        child: Container(
-                          width: 38,
-                          height: 4.5,
-                          margin: const EdgeInsets.only(top: 6, bottom: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.28),
-                            borderRadius: BorderRadius.circular(MeloRadii.pill),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-                        child: MeloGlass(
-                          borderRadius: 24,
-                          tint: Colors.black.withValues(alpha: 0.32),
-                          borderColor: Colors.white.withValues(alpha: 0.08),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          child: Row(
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                tooltip: 'Close player',
-                                onPressed: () =>
-                                    Navigator.of(context).maybePop(),
-                                color: MeloColors.playerText,
-                                icon: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  size: 28,
+                              Container(
+                                width: 38,
+                                height: 4.5,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(99),
                                 ),
                               ),
-                              const Expanded(
-                                child: Text(
-                                  'NOW PLAYING',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: MeloColors.playerText,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.4,
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(width: 32),
+                                  Expanded(
+                                    child: Text(
+                                      _sourceStationTitle,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.65),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: _showLyrics
-                                    ? 'Show artwork'
-                                    : 'Show live lyrics',
-                                onPressed: () {
-                                  setState(() => _showLyrics = !_showLyrics);
-                                },
-                                style: IconButton.styleFrom(
-                                  backgroundColor: _showLyrics
-                                      ? MeloColors.cherry.withValues(
-                                          alpha: 0.22,
-                                        )
-                                      : null,
-                                ),
-                                color: _showLyrics
-                                    ? MeloColors.cherrySoft
-                                    : MeloColors.playerText,
-                                icon: Icon(
-                                  _showLyrics
-                                      ? Icons.album_rounded
-                                      : Icons.lyrics_rounded,
-                                  size: 22,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Up next',
-                                onPressed: _openQueue,
-                                color: MeloColors.playerText,
-                                icon: const Icon(
-                                  Icons.queue_music_rounded,
-                                  size: 22,
-                                ),
+                                  IconButton(
+                                    tooltip: _showLyrics
+                                        ? 'Show artwork'
+                                        : 'Show live lyrics',
+                                    iconSize: 18,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    color: _showLyrics
+                                        ? MeloColors.cherrySoft
+                                        : Colors.white54,
+                                    icon: Icon(_showLyrics
+                                        ? Icons.album_rounded
+                                        : Icons.lyrics_rounded),
+                                    onPressed: () => setState(
+                                      () => _showLyrics = !_showLyrics,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1296,68 +1338,18 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 );
                               },
                             ),
-                            PopupMenuButton<String>(
+                            IconButton(
                               tooltip: 'More options',
-                              onSelected: _handleMenu,
-                              itemBuilder: (context) => [
-                                if (widget.audioHandler.queue.value.length > 1)
-                                  const PopupMenuItem(
-                                    value: 'queue',
-                                    child: Text('Up next'),
-                                  ),
-                                const PopupMenuItem(
-                                  value: 'details',
-                                  child: Text('Track details'),
-                                ),
-                                if (_lyrics != null)
-                                  const PopupMenuItem(
-                                    value: 'read-lyrics',
-                                    child: Text('Read lyrics'),
-                                  ),
-                                PopupMenuItem(
-                                  value: 'online-lyrics',
-                                  enabled: !_isLoadingLyrics,
-                                  child: const Text('Find lyrics online'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'enrich-metadata',
-                                  enabled: !_isLoadingLyrics,
-                                  child: const Text('Download lyrics & metadata'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'lyrics',
-                                  enabled: !_isLoadingLyrics,
-                                  child: Text(
-                                    _lyrics == null
-                                        ? 'Choose lyrics file'
-                                        : 'Replace lyrics',
-                                  ),
-                                ),
-                                if (_isStreamTrack &&
-                                    widget.musicLibrary != null &&
-                                    !_isCurrentTrackAlreadyOnDevice)
-                                  const PopupMenuItem(
-                                    value: 'save-device',
-                                    child: Text('Save to device'),
-                                  ),
-                                const PopupMenuItem(
-                                  value: 'track-radio',
-                                  child: Text('Start track radio'),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'artist-radio',
-                                  child: Text('Start artist radio'),
-                                ),
-                              ],
-                              child: Container(
+                              onPressed: _showMoreSheet,
+                              icon: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Colors.white.withValues(alpha: 0.06),
+                                  color: Colors.white.withValues(alpha: 0.08),
                                 ),
                                 child: const Icon(
                                   Icons.more_horiz_rounded,
-                                  color: MeloColors.playerMuted,
+                                  color: Colors.white,
                                   size: 20,
                                 ),
                               ),
@@ -1481,9 +1473,64 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                       AudioServiceRepeatMode.none,
                                 ),
                               ),
+                              const SizedBox(height: 10),
+                              PlayerVolumeSlider(audioHandler: widget.audioHandler),
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Lyrics',
+                                      icon: const Icon(
+                                        Icons.chat_bubble_outline_rounded,
+                                        color: Colors.white70,
+                                        size: 22,
+                                      ),
+                                      onPressed: _openLyrics,
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Audio Output',
+                                      icon: const Icon(
+                                        Icons.speaker_group_outlined,
+                                        color: Colors.white70,
+                                        size: 22,
+                                      ),
+                                      onPressed: () => _showDeviceDialog(context),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Up next',
+                                      icon: const Icon(
+                                        Icons.format_list_bulleted_rounded,
+                                        color: Colors.white70,
+                                        size: 22,
+                                      ),
+                                      onPressed: _openQueue,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              FutureBuilder<String>(
+                                future: PlayerDeviceHelper.getDeviceName(),
+                                builder: (context, snapshot) {
+                                  final deviceName = snapshot.data ?? "Osman's Phone";
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                                    child: Text(
+                                      deviceName,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.45),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                               if (widget.audioHandler.queue.value.length > 1 ||
                                   _isTransitioning) ...[
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 4),
                                 _MixNextControl(
                                   transitioning: _isTransitioning,
                                   enabled: _isTransitioning || playing,
@@ -1513,7 +1560,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                           ),
                         )
                       else
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                     ],
                   ),
                 ),

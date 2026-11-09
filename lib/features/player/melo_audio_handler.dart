@@ -98,6 +98,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   bool _autoplayContinuous = true;
   bool _isExtendingAutoplay = false;
+  double _userVolume = 1.0;
 
   bool get autoplayContinuous => _autoplayContinuous;
 
@@ -241,6 +242,18 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (name == 'clearUpcomingQueue') {
       await clearUpcomingQueue();
       return null;
+    }
+    if (name == 'setVolume') {
+      final vol = (extras?['volume'] as num?)?.toDouble() ?? 1.0;
+      _userVolume = vol.clamp(0.0, 1.0);
+      final effectiveGain = _userVolume * _audioProfile.outputHeadroom;
+      if (_audioEngine.stateFor(AudioDeck.a).playing) {
+        await _audioEngine.setDeckGain(AudioDeck.a, effectiveGain);
+      }
+      return _userVolume;
+    }
+    if (name == 'getVolume') {
+      return _userVolume;
     }
     if (name == 'getAudioProfile') return _audioProfile.toJson();
     if (name == 'getAudioCapabilities') {

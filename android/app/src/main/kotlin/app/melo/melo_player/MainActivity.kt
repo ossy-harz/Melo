@@ -87,6 +87,7 @@ class MainActivity : AudioServiceActivity() {
             "getAppVersion" -> getAppVersion(result)
             "installUpdateApk" -> installUpdateApk(call, result)
             "openUrl" -> openUrl(call, result)
+            "getDeviceName" -> getDeviceName(result)
             else -> result.notImplemented()
         }
     }
@@ -115,6 +116,21 @@ class MainActivity : AudioServiceActivity() {
                     "packageName" to packageName,
                 ),
             )
+        }
+    }
+
+    private fun getDeviceName(result: MethodChannel.Result) {
+        try {
+            val model = android.os.Build.MODEL ?: "Phone"
+            val manufacturer = android.os.Build.MANUFACTURER ?: ""
+            val name = if (model.startsWith(manufacturer, ignoreCase = true)) {
+                model
+            } else {
+                "$manufacturer $model".trim()
+            }
+            result.success(name.ifEmpty { "Phone" })
+        } catch (_: Exception) {
+            result.success("Osman's Phone")
         }
     }
 
