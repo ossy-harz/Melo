@@ -417,8 +417,8 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1ED760),
-                foregroundColor: Colors.black,
+                backgroundColor: MeloColors.cherry,
+                foregroundColor: Colors.white,
               ),
               onPressed: () => Navigator.of(ctx).pop(true),
               child: const Text('Download All to Phone'),
@@ -566,10 +566,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                           Builder(
                             builder: (context) {
                               final heroCoverUrl = widget.preset.coverUrl ?? thumbs.firstOrNull;
-                              final bool showTripleAvatars = widget.preset.isArtistRadio ||
-                                  widget.preset.artistAvatars.isNotEmpty ||
-                                  widget.preset.badge.contains('RADIO') ||
-                                  widget.preset.vibe != null;
+                              final bool showTripleAvatars = widget.preset.isArtistRadio;
 
                               if (showTripleAvatars) {
                                 final avatarList = widget.preset.artistAvatars.isNotEmpty
@@ -789,7 +786,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                               const Icon(
                                 Icons.graphic_eq_rounded,
                                 size: 16,
-                                color: Color(0xFF1ED760),
+                                color: MeloColors.cherry,
                               ),
                               const SizedBox(width: 6),
                               const Text(
@@ -858,7 +855,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                     onPressed: _savePlaylistToPhone,
                     icon: Icon(
                       isPlaylistSaved ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                      color: isPlaylistSaved ? const Color(0xFF1ED760) : Colors.white70,
+                      color: isPlaylistSaved ? MeloColors.cherry : Colors.white70,
                       size: 28,
                     ),
                   ),
@@ -907,9 +904,9 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                   // Spotify Big Circular Vibrant Play Button
                   Material(
                     shape: const CircleBorder(),
-                    color: const Color(0xFF1ED760),
+                    color: MeloColors.cherry,
                     elevation: 6,
-                    shadowColor: const Color(0xFF1ED760).withValues(alpha: 0.5),
+                    shadowColor: MeloColors.cherry.withValues(alpha: 0.5),
                     child: InkWell(
                       customBorder: const CircleBorder(),
                       onTap: _tracks.isEmpty ? null : () => _playPlaylist(shuffle: false),
@@ -919,7 +916,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                         child: Icon(
                           Icons.play_arrow_rounded,
                           size: 34,
-                          color: Colors.black,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -1106,7 +1103,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                               const Icon(
                                                 Icons.check_circle_rounded,
                                                 size: 14,
-                                                color: Color(0xFF1ED760), // Spotify Green
+                                                color: MeloColors.cherrySoft,
                                               ),
                                               const SizedBox(width: 4),
                                             ],

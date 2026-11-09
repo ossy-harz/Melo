@@ -27,10 +27,8 @@ import 'package:melo_player/features/player/player_glass_icon_button.dart';
 import 'package:melo_player/features/player/player_queue_sheet.dart';
 import 'package:melo_player/features/player/player_device_helper.dart';
 import 'package:melo_player/features/player/player_volume_slider.dart';
-import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
-import 'package:melo_player/features/updates/app_update_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 part 'album_artwork.dart';

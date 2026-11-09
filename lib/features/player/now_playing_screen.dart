@@ -678,7 +678,14 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
 
   void _openLyrics() {
     final lyrics = _lyrics;
-    if (lyrics == null) return;
+    if (lyrics == null) {
+      if (_isLoadingLyrics) {
+        _showMessage('Loading lyrics...');
+      } else {
+        _findLyricsOnline();
+      }
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1073,39 +1080,14 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const SizedBox(width: 32),
-                                  Expanded(
-                                    child: Text(
-                                      _sourceStationTitle,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.65),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: _showLyrics
-                                        ? 'Show artwork'
-                                        : 'Show live lyrics',
-                                    iconSize: 18,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    color: _showLyrics
-                                        ? MeloColors.cherrySoft
-                                        : Colors.white54,
-                                    icon: Icon(_showLyrics
-                                        ? Icons.album_rounded
-                                        : Icons.lyrics_rounded),
-                                    onPressed: () => setState(
-                                      () => _showLyrics = !_showLyrics,
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                _sourceStationTitle,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -1357,19 +1339,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                           ],
                         ),
                       ),
-                      if (!_showLyrics && _lyrics != null && _lyrics!.lines.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-                          child: _LyricsPeek(
-                            key: ValueKey('lyrics-peek-$trackId'),
-                            lyrics: _lyrics!,
-                            audioHandler: widget.audioHandler,
-                            palette: _palette,
-                            onExpand: () {
-                              setState(() => _showLyrics = true);
-                            },
-                          ),
-                        ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
                         child: MeloGlass(
@@ -1482,13 +1451,21 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     IconButton(
-                                      tooltip: 'Lyrics',
-                                      icon: const Icon(
-                                        Icons.chat_bubble_outline_rounded,
-                                        color: Colors.white70,
+                                      tooltip: _showLyrics
+                                          ? 'Show artwork'
+                                          : 'Show live lyrics',
+                                      icon: Icon(
+                                        _showLyrics
+                                            ? Icons.chat_bubble_rounded
+                                            : Icons.chat_bubble_outline_rounded,
+                                        color: _showLyrics
+                                            ? MeloColors.cherry
+                                            : Colors.white70,
                                         size: 22,
                                       ),
-                                      onPressed: _openLyrics,
+                                      onPressed: () {
+                                        setState(() => _showLyrics = !_showLyrics);
+                                      },
                                     ),
                                     IconButton(
                                       tooltip: 'Audio Output',
@@ -1547,20 +1524,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                           ),
                         ),
                       ),
-                      if (widget.onNavigate case final onNavigate?)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
-                          child: MeloGlass(
-                            borderRadius: 26,
-                            tint: Colors.black.withValues(alpha: 0.44),
-                            borderColor: Colors.white.withValues(alpha: 0.10),
-                            child: _PlayerBottomNavigation(
-                              onNavigate: onNavigate,
-                            ),
-                          ),
-                        )
-                      else
-                        const SizedBox(height: 10),
+                      const SizedBox(height: 14),
                     ],
                   ),
                 ),
@@ -1571,63 +1535,4 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
       },
     );
   }
-}
-
-class _PlayerBottomNavigation extends StatelessWidget {
-  const _PlayerBottomNavigation({required this.onNavigate});
-
-  final ValueChanged<int> onNavigate;
-
-  @override
-  Widget build(BuildContext context) => NavigationBarTheme(
-    data: NavigationBarThemeData(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      indicatorColor: MeloColors.cherry.withValues(alpha: 0.24),
-      iconTheme: WidgetStateProperty.resolveWith(
-        (states) => IconThemeData(
-          color: states.contains(WidgetState.selected)
-              ? MeloColors.cherry
-              : MeloColors.playerMuted,
-        ),
-      ),
-      labelTextStyle: WidgetStateProperty.resolveWith(
-        (states) => TextStyle(
-          fontSize: 12,
-          fontWeight: states.contains(WidgetState.selected)
-              ? FontWeight.w700
-              : FontWeight.w500,
-          color: states.contains(WidgetState.selected)
-              ? MeloColors.cherry
-              : MeloColors.playerMuted,
-        ),
-      ),
-    ),
-    child: NavigationBar(
-      height: 64,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      selectedIndex: 0,
-      onDestinationSelected: onNavigate,
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home_rounded),
-          label: 'Home',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.library_music_outlined),
-          selectedIcon: Icon(Icons.library_music_rounded),
-          label: 'Library',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'You',
-        ),
-      ],
-    ),
-  );
 }

@@ -38,9 +38,6 @@ class NowPlayingMoreSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final albumTitle = item.album?.trim().isNotEmpty == true
-        ? item.album!.trim()
-        : 'Single';
     final artistTitle = displayArtistName(item.artist);
 
     return Container(
@@ -116,26 +113,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
               const SizedBox(height: 14),
               _sheetDivider(),
 
-              // Group 1: Quality & Playlist
-              _MoreOptionTile(
-                icon: Icons.auto_awesome_rounded,
-                title: 'Upgrade quality',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onUpgradeQuality();
-                },
-              ),
-              _MoreOptionTile(
-                icon: Icons.videocam_outlined,
-                title: 'Convert to video',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  final q = '${item.title} $artistTitle';
-                  AppUpdateService.openExternalUrl(
-                    'https://www.youtube.com/results?search_query=${Uri.encodeComponent(q)}',
-                  );
-                },
-              ),
+              // Group 1: Playlist
               _MoreOptionTile(
                 icon: Icons.playlist_add_rounded,
                 title: 'Add to playlist',
@@ -239,20 +217,6 @@ class NowPlayingMoreSheet extends StatelessWidget {
 
               // Group 3: Navigation & Metadata
               _MoreOptionTile(
-                icon: Icons.album_outlined,
-                title: 'Open album',
-                subtitle: albumTitle,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Album: $albumTitle'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              _MoreOptionTile(
                 icon: Icons.mic_none_rounded,
                 title: 'Open artist',
                 subtitle: artistTitle,
@@ -274,50 +238,11 @@ class NowPlayingMoreSheet extends StatelessWidget {
 
               // Group 4: Tools
               _MoreOptionTile(
-                icon: Icons.bedtime_outlined,
-                title: 'Sleep timer',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  SleepTimerService.showSleepTimerDialog(context, audioHandler);
-                },
-              ),
-              _MoreOptionTile(
-                icon: Icons.graphic_eq_rounded,
-                title: 'Automix overview',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onOpenSongInfo();
-                },
-              ),
-              _MoreOptionTile(
                 icon: Icons.tune_rounded,
                 title: 'Lyrics offset',
                 onTap: () {
                   Navigator.of(context).pop();
                   _showLyricsOffsetDialog(context);
-                },
-              ),
-              _MoreOptionTile(
-                icon: Icons.bug_report_outlined,
-                title: 'Copy log',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  final log = StringBuffer()
-                    ..writeln('Tone Track Diagnostics:')
-                    ..writeln('Title: ${item.title}')
-                    ..writeln('Artist: ${item.artist}')
-                    ..writeln('Album: ${item.album}')
-                    ..writeln('Duration: ${item.duration?.inSeconds}s')
-                    ..writeln('ID: ${item.id}')
-                    ..writeln('Queue Length: ${audioHandler.queue.value.length}')
-                    ..writeln('State: ${audioHandler.playbackState.value.processingState}');
-                  Clipboard.setData(ClipboardData(text: log.toString()));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Diagnostic log copied to clipboard'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
                 },
               ),
             ],

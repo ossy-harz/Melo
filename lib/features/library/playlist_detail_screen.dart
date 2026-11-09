@@ -1097,17 +1097,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             height: 48,
                             child: FilledButton.icon(
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF1ED760),
-                                foregroundColor: Colors.black,
+                                backgroundColor: MeloColors.cherry,
+                                foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                                 shape: const StadiumBorder(),
                                 elevation: 4,
-                                shadowColor: const Color(0xFF1ED760).withValues(alpha: 0.4),
+                                shadowColor: MeloColors.cherry.withValues(alpha: 0.4),
                               ),
                               onPressed: tracks.isEmpty ? null : () => _playPlaylist(),
                               icon: const Icon(
                                 Icons.play_arrow_rounded,
-                                color: Colors.black,
+                                color: Colors.white,
                                 size: 26,
                               ),
                               label: const Text(
@@ -1398,7 +1398,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                               const Icon(
                                                 Icons.check_circle_rounded,
                                                 size: 13.5,
-                                                color: Color(0xFF1ED760),
+                                                color: MeloColors.cherrySoft,
                                               ),
                                               const SizedBox(width: 5),
                                             ],

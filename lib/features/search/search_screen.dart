@@ -480,7 +480,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
-                          avatar: const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1ED760)),
+                          avatar: const Icon(Icons.check_circle_rounded, size: 16, color: MeloColors.cherrySoft),
                           label: Text('On Device (${_searchResults.length})'),
                           selected: _selectedCategoryIndex == 1,
                           onSelected: (_) => setState(() => _selectedCategoryIndex = 1),
@@ -1063,7 +1063,7 @@ class _TopResultCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isOnDevice
-                      ? const Color(0xFF1ED760).withValues(alpha: 0.15)
+                      ? MeloColors.cherry.withValues(alpha: 0.15)
                       : colors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -1072,7 +1072,7 @@ class _TopResultCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: isOnDevice ? const Color(0xFF1ED760) : colors.primary,
+                    color: isOnDevice ? MeloColors.cherry : colors.primary,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -1126,10 +1126,8 @@ class _TopResultCard extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton.filled(
                 style: IconButton.styleFrom(
-                  backgroundColor: isOnDevice
-                      ? const Color(0xFF1ED760)
-                      : MeloColors.cherry,
-                  foregroundColor: isOnDevice ? Colors.black : Colors.white,
+                  backgroundColor: MeloColors.cherry,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.all(12),
                 ),
                 onPressed: onPlay,

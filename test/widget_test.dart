@@ -504,11 +504,6 @@ void main() {
     expect(find.text('Tone Test'), findsOneWidget);
     expect(find.byType(AlbumArtwork), findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
-    expect(find.text('You'), findsOneWidget);
-
-    await tester.tap(find.text('Library'));
-    await tester.pumpAndSettle();
-    expect(destination, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -620,8 +615,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The always-on lyric preview shows the current line before expanding.
-    expect(find.text('A line that follows the song'), findsOneWidget);
+    expect(handler.mediaItem.value?.id, 'song-with-lyrics');
 
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
@@ -1350,11 +1344,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your listening'), findsOneWidget);
-    expect(find.text('FAVORITES'), findsOneWidget);
-    expect(find.textContaining('1 saved'), findsOneWidget);
-    expect(find.text('MOST PLAYED'), findsOneWidget);
-    expect(find.text('No plays yet'), findsOneWidget);
+    expect(find.text('Your listening'), findsNothing);
+    expect(find.text('FAVORITES'), findsNothing);
+    expect(find.text('MOST PLAYED'), findsNothing);
     expect(find.text('Your playlists'), findsOneWidget);
     await tester.ensureVisible(find.text('Mornye downloads'));
     await tester.pumpAndSettle();
@@ -1367,14 +1359,6 @@ void main() {
     expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('FAVORITES'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('FAVORITES'), warnIfMissed: false);
-    await tester.pumpAndSettle();
-    expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
     expect(tester.takeException(), isNull);
   });
 

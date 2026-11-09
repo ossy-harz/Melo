@@ -227,8 +227,8 @@ class _CuratedPlaylistPreviewSheetState
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: SizedBox(
-                      width: 58,
-                      height: 58,
+                      width: 64,
+                      height: 64,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -241,21 +241,30 @@ class _CuratedPlaylistPreviewSheetState
                               ),
                             ),
                           ),
-                          if (preset.coverUrl != null &&
-                              preset.coverUrl!.isNotEmpty)
-                            Image.network(
-                              preset.coverUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Center(
+                          Builder(
+                            builder: (context) {
+                              final art = (preset.coverUrl != null &&
+                                      preset.coverUrl!.isNotEmpty)
+                                  ? preset.coverUrl!
+                                  : (_tracks.isNotEmpty
+                                      ? _tracks.first.thumbnailUrl
+                                      : null);
+                              if (art != null && art.isNotEmpty) {
+                                return Image.network(
+                                  art,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Center(
+                                    child: Icon(preset.icon,
+                                        color: Colors.white, size: 28),
+                                  ),
+                                );
+                              }
+                              return Center(
                                 child: Icon(preset.icon,
                                     color: Colors.white, size: 28),
-                              ),
-                            )
-                          else
-                            Center(
-                              child: Icon(preset.icon,
-                                  color: Colors.white, size: 28),
-                            ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -430,8 +439,11 @@ class _CuratedPlaylistPreviewSheetState
                                         child: SizedBox(
                                           width: 46,
                                           height: 46,
-                                          child: track.thumbnailUrl != null
-                                              ? Image.network(
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              if (track.thumbnailUrl != null)
+                                                Image.network(
                                                   track.thumbnailUrl!,
                                                   fit: BoxFit.cover,
                                                   errorBuilder:
@@ -443,13 +455,26 @@ class _CuratedPlaylistPreviewSheetState
                                                     ),
                                                   ),
                                                 )
-                                              : Container(
+                                              else
+                                                Container(
                                                   color: Colors.white10,
                                                   child: const Icon(
                                                     Icons.music_note_rounded,
                                                     color: Colors.white54,
                                                   ),
                                                 ),
+                                              if (isPlaying)
+                                                Container(
+                                                  color: Colors.black45,
+                                                  child: const Center(
+                                                    child: AnimatedEqualizerIndicator(
+                                                      size: 16,
+                                                      color: MeloColors.cherry,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 12),

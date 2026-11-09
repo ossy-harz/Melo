@@ -4,11 +4,8 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/imported_track.dart';
-import 'package:melo_player/features/library/data/library_repository.dart'
-    show MostPlayedTrack;
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
@@ -195,22 +192,13 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // Shelf 4: Listening Pulse & Your Playlists
-              if (library != null && audioHandler != null && library!.tracks.isNotEmpty) ...[
-                _ListeningPulse(
+              // Shelf 4: Your Playlists
+              if (library != null && audioHandler != null && library!.playlists.isNotEmpty) ...[
+                _SavedPlaylists(
                   library: library!,
-                  onPlayFavorites: () => _playFavorites(context),
-                  onPlayTrack: (track) => _playTrack(context, track),
-                  onPlayMix: (tracks) => _playTracks(context, tracks),
+                  audioHandler: audioHandler,
+                  onPlay: (playlistId) => _playPlaylist(context, playlistId),
                 ),
-                if (library!.playlists.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _SavedPlaylists(
-                    library: library!,
-                    audioHandler: audioHandler,
-                    onPlay: (playlistId) => _playPlaylist(context, playlistId),
-                  ),
-                ],
                 const SizedBox(height: 24),
               ],
 
@@ -347,50 +335,7 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _playTracks(
-    BuildContext context,
-    List<ImportedTrack> tracks,
-  ) async {
-    final handler = audioHandler;
-    final musicLibrary = library;
-    if (handler == null || musicLibrary == null || tracks.isEmpty) return;
-    try {
-      await musicLibrary.playMix(handler, tracks);
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not start this mix: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
 
-  Future<void> _playFavorites(BuildContext context) async {
-    final musicLibrary = library;
-    final handler = audioHandler;
-    if (musicLibrary == null || handler == null) return;
-    final favorites = musicLibrary.favoriteTracks
-        .where((track) => track.isAvailable)
-        .toList(growable: false);
-    if (favorites.isEmpty) return;
-    try {
-      await musicLibrary.playMix(handler, favorites);
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not play your favorites: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
 
   Future<void> _playPlaylist(BuildContext context, String playlistId) async {
     final musicLibrary = library;
@@ -412,270 +357,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _ListeningPulse extends StatefulWidget {
-  const _ListeningPulse({
-    required this.library,
-    required this.onPlayFavorites,
-    required this.onPlayTrack,
-    required this.onPlayMix,
-  });
 
-  final MusicLibrary library;
-  final VoidCallback onPlayFavorites;
-  final ValueChanged<ImportedTrack> onPlayTrack;
-  final ValueChanged<List<ImportedTrack>> onPlayMix;
-
-  @override
-  State<_ListeningPulse> createState() => _ListeningPulseState();
-}
-
-class _ListeningPulseState extends State<_ListeningPulse> {
-  late Future<List<MostPlayedTrack>> _mostPlayed;
-
-  @override
-  void initState() {
-    super.initState();
-    _mostPlayed = _loadMostPlayed();
-    widget.library.addListener(_onLibraryChanged);
-    widget.library.playbackHistoryRevision.addListener(_onHistoryChanged);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ListeningPulse oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.library == widget.library) return;
-    oldWidget.library.removeListener(_onLibraryChanged);
-    oldWidget.library.playbackHistoryRevision.removeListener(_onHistoryChanged);
-    widget.library.addListener(_onLibraryChanged);
-    widget.library.playbackHistoryRevision.addListener(_onHistoryChanged);
-    _mostPlayed = _loadMostPlayed();
-  }
-
-  @override
-  void dispose() {
-    widget.library.removeListener(_onLibraryChanged);
-    widget.library.playbackHistoryRevision.removeListener(_onHistoryChanged);
-    super.dispose();
-  }
-
-  void _onLibraryChanged() {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  void _onHistoryChanged() {
-    if (!mounted) return;
-    setState(() {
-      _mostPlayed = _loadMostPlayed();
-    });
-  }
-
-  Future<List<MostPlayedTrack>> _loadMostPlayed() async {
-    try {
-      return await widget.library.mostPlayedTracks(
-        limit: widget.library.tracks.length,
-      );
-    } on Object catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'tone home',
-          context: ErrorDescription('while loading most-played tracks'),
-        ),
-      );
-      rethrow;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final allFavorites = widget.library.favoriteTracks;
-    final favorites = allFavorites
-        .where((track) => track.isAvailable)
-        .toList(growable: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionHeader(
-          title: 'Your listening',
-          subtitle: 'A quick read of what you love and replay.',
-        ),
-        const SizedBox(height: 12),
-        FutureBuilder<List<MostPlayedTrack>>(
-          future: _mostPlayed,
-          builder: (context, snapshot) {
-            final topPlayedTracks = snapshot.data ?? const <MostPlayedTrack>[];
-            final topPlayed = topPlayedTracks.isEmpty
-                ? null
-                : topPlayedTracks.first;
-            final favoriteTrack = favorites.isEmpty ? null : favorites.first;
-            final loading = snapshot.connectionState != ConnectionState.done;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ListeningCard(
-                        label: 'FAVORITES',
-                        track: favoriteTrack,
-                        summary: '${allFavorites.length} saved',
-                        emptyMessage: allFavorites.isEmpty
-                            ? 'Save songs you love'
-                            : 'Saved songs unavailable',
-                        icon: Icons.favorite_rounded,
-                        onTap: favorites.isEmpty
-                            ? null
-                            : widget.onPlayFavorites,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ListeningCard(
-                        label: 'MOST PLAYED',
-                        track: topPlayed?.track,
-                        summary: snapshot.hasError
-                            ? 'Stats unavailable'
-                            : loading
-                            ? 'Loading plays…'
-                            : topPlayed == null
-                            ? 'No plays yet'
-                            : topPlayed.track.isAvailable
-                            ? '${topPlayed.playCount} plays'
-                            : '${topPlayed.playCount} plays · unavailable',
-                        emptyMessage: snapshot.hasError
-                            ? 'Could not load plays'
-                            : loading
-                            ? 'Loading listening history'
-                            : 'Your repeats will show here',
-                        icon: Icons.replay_rounded,
-                        onTap: topPlayed == null || !topPlayed.track.isAvailable
-                            ? null
-                            : () => widget.onPlayTrack(topPlayed.track),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _ListeningCard extends StatelessWidget {
-  const _ListeningCard({
-    required this.label,
-    required this.summary,
-    required this.emptyMessage,
-    required this.icon,
-    required this.onTap,
-    this.track,
-  });
-
-  final String label;
-  final String summary;
-  final String emptyMessage;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final ImportedTrack? track;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return MeloGlass(
-      borderRadius: MeloRadii.md,
-      shadow: false,
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(MeloRadii.md),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, size: 15, color: MeloColors.cherry),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    if (track != null)
-                      AlbumArtwork(
-                        size: 44,
-                        title: track!.title,
-                        artworkUri: track!.artworkUri == null
-                            ? null
-                            : Uri.tryParse(track!.artworkUri!),
-                        sourceUri: Uri.tryParse(track!.path),
-                        borderRadius: 10,
-                      )
-                    else
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: colors.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(icon, color: colors.onSurfaceVariant),
-                      ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            track?.title ?? emptyMessage,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            track == null
-                                ? summary
-                                : '$summary · ${displayArtistName(track!.artist)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: colors.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SavedPlaylists extends StatelessWidget {
   const _SavedPlaylists({
@@ -807,14 +489,12 @@ class _SavedPlaylists extends StatelessWidget {
 /// A shared heading: a title, an optional one-line explanation, and an
 /// optional trailing action. Keeps section rhythm identical across Home.
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.subtitle});
+  const _SectionHeader({required this.title});
 
   final String title;
-  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -829,14 +509,6 @@ class _SectionHeader extends StatelessWidget {
             ),
           ],
         ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 3),
-          Text(
-            subtitle!,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: colors.onSurfaceVariant),
-          ),
-        ],
       ],
     );
   }

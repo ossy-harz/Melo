@@ -20,6 +20,16 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     genre: 'Afrobeats',
   ),
   CuratedPlaylistPreset(
+    title: 'Bongo & Kenyan Vibes',
+    curatorSubtitle: 'Diamond, Harmonize, Sauti Sol, Otile Brown, Bien',
+    badge: 'EAST AFRICA',
+    searchQuery: 'Bongo Flava Kenyan Gengetone Hits Official Audio',
+    gradient: [Color(0xFFE65100), Color(0xFFBF360C)],
+    icon: Icons.music_note_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    genre: 'Kenyan & Bongo',
+  ),
+  CuratedPlaylistPreset(
     title: "Today's Top Hits",
     curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
     badge: 'UPDATED TODAY',
@@ -48,6 +58,26 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     icon: Icons.nightlight_round,
     coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
     genre: 'R&B',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Dancehall Heavyweights',
+    curatorSubtitle: 'Vybz Kartel, Popcaan, Shenseea, Skillibeng',
+    badge: 'DANCEHALL',
+    searchQuery: 'Dancehall Kingston Hits 2025 Official Audio',
+    gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
+    icon: Icons.wb_sunny_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+    genre: 'Dancehall',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Roots & Lovers Reggae',
+    curatorSubtitle: 'Bob Marley, Chronixx, Protoje, Koffee, Tarrus Riley',
+    badge: 'REGGAE',
+    searchQuery: 'Reggae Roots Conscious Hits Official Audio',
+    gradient: [Color(0xFF1B5E20), Color(0xFF33691E)],
+    icon: Icons.park_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+    genre: 'Reggae',
   ),
   CuratedPlaylistPreset(
     title: 'Amapiano Grooves',
@@ -879,11 +909,13 @@ class _RecommendedPlaylistsSectionState
   static const List<String> _genres = [
     'All',
     'Afrobeats',
+    'Kenyan & Bongo',
+    'Dancehall',
+    'Reggae',
     'Pop',
     'Hip-Hop',
     'R&B',
     'Amapiano',
-    'Dancehall',
     'Dance',
     'Rock',
     'Gospel',
@@ -1013,21 +1045,19 @@ class _RecommendedPlaylistsSectionState
                       children: [
                         Container(
                           width: 156,
-                          height: 150,
+                          height: 156,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: preset.gradient.first.withValues(
-                                  alpha: 0.32,
-                                ),
+                                color: Colors.black.withValues(alpha: 0.35),
                                 blurRadius: 16,
                                 offset: const Offset(0, 8),
                               ),
                             ],
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(16),
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
@@ -1056,74 +1086,6 @@ class _RecommendedPlaylistsSectionState
                                       ),
                                     ),
                                   ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.black.withValues(alpha: 0.2),
-                                        Colors.black.withValues(alpha: 0.65),
-                                      ],
-                                      stops: const [0.0, 1.0],
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          preset.badge,
-                                          style: const TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                            letterSpacing: 0.6,
-                                          ),
-                                        ),
-                                      ),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Icon(
-                                            preset.icon,
-                                            color: Colors.white,
-                                            size: 26,
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: const BoxDecoration(
-                                              color: Colors.white,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.play_arrow_rounded,
-                                              color: Colors.black,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
                           ),
@@ -1259,7 +1221,7 @@ class ArtistRadioShelf extends StatelessWidget {
             const Icon(
               Icons.sensors_rounded,
               size: 20,
-              color: Color(0xFF1ED760),
+              color: MeloColors.cherry,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1275,20 +1237,20 @@ class ArtistRadioShelf extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFF1ED760).withValues(alpha: 0.16),
+                color: MeloColors.cherry.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.radio_rounded, size: 12, color: Color(0xFF1ED760)),
+                  Icon(Icons.radio_rounded, size: 12, color: MeloColors.cherry),
                   SizedBox(width: 4),
                   Text(
                     'ENDLESS STATIONS',
                     style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1ED760),
+                      color: MeloColors.cherry,
                       letterSpacing: 0.6,
                     ),
                   ),
@@ -1323,12 +1285,12 @@ class ArtistRadioShelf extends StatelessWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF1ED760).withValues(alpha: 0.5),
+                              color: Colors.white.withValues(alpha: 0.18),
                               width: 2,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF1ED760).withValues(alpha: 0.25),
+                                color: Colors.black.withValues(alpha: 0.45),
                                 blurRadius: 14,
                                 offset: const Offset(0, 6),
                               ),
@@ -1352,13 +1314,13 @@ class ArtistRadioShelf extends StatelessWidget {
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFF1ED760),
+                                      color: MeloColors.cherry,
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(
                                       Icons.play_arrow_rounded,
                                       size: 14,
-                                      color: Colors.black,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
