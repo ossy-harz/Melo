@@ -542,7 +542,6 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
     final checkResult = _updater.lastResult;
     final latest = checkResult?.latestRelease;
     final isUpdateAvailable = checkResult?.isUpdateAvailable == true;
-    final allReleases = checkResult?.allReleases ?? const <GithubReleaseInfo>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -967,44 +966,6 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
               ),
             ),
           ),
-          if (allReleases.length > 1) ...[
-            const SizedBox(height: 22),
-            Text(
-              'VERSION HISTORY (${allReleases.length} RELEASES)',
-              style: textTheme.labelMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            for (final rel in allReleases.skip(1))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: MeloGlass(
-                  borderRadius: MeloRadii.md,
-                  shadow: false,
-                  child: ListTile(
-                    title: Text(
-                      '${rel.title} (${rel.tagName})',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      '${rel.formattedDate}${rel.isPrerelease ? " · Pre-release" : ""}',
-                    ),
-                    trailing: rel.preferredApkAsset != null
-                        ? TextButton.icon(
-                            onPressed: _updater.isDownloading
-                                ? null
-                                : () => _downloadAndInstall(rel),
-                            icon: const Icon(Icons.download_rounded, size: 16),
-                            label: Text(rel.preferredApkAsset!.formattedSize),
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-          ],
         ],
       ),
     );

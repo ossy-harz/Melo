@@ -1278,6 +1278,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     await _audioEngine.setDeckGain(AudioDeck.a, _audioProfile.outputHeadroom);
     _publishState();
     if (playWhenReady) await play();
+    _prefetchUpcomingStream();
   }
 
   Future<void> _unloadDeckBBeforeQueueChange() async {
@@ -1467,6 +1468,11 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _loadIndex(int index, {required bool playWhenReady}) async {
     // Cancel any active transition first so it does not restore gains afterwards
     await _cancelAndWaitForTransition();
+
+    // Immediately update media item so UI displays next track details/artwork without delay
+    final targetItem = _items[index];
+    mediaItem.add(targetItem);
+
     // Silence both decks immediately to eliminate popping and volume surge on track change
     if (_audioEngine.stateFor(AudioDeck.a).playing) {
       await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
@@ -1476,9 +1482,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await _audioEngine.stopDeck(AudioDeck.a);
     await _unloadDeckBBeforeQueueChange();
-    final source = _needsAsyncResolution(_items[index])
-        ? await _resolveSourceFor(_items[index])
-        : _sourceFor(_items[index]);
+    final source = _needsAsyncResolution(targetItem)
+        ? await _resolveSourceFor(targetItem)
+        : _sourceFor(targetItem);
     try {
       await _audioEngine.loadDeck(AudioDeck.a, source);
       await _audioEngine.setDeckGain(AudioDeck.a, _audioProfile.outputHeadroom);
@@ -1540,6 +1546,20 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _automaticTransitionAttempt = null;
     _publishState();
     if (playWhenReady) await play();
+    _prefetchUpcomingStream();
+  }
+
+  void _prefetchUpcomingStream() {
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null || nextIndex < 0 || nextIndex >= _items.length) return;
+    final nextItem = _items[nextIndex];
+    if (_needsAsyncResolution(nextItem)) {
+      final pId = nextItem.extras?['providerTrackId'] as String? ??
+          (nextItem.id.startsWith('youtube:') ? nextItem.id.substring(8) : null);
+      if (pId != null && pId.isNotEmpty) {
+        unawaited(YoutubeAudioService.instance.getStreamDetails(pId));
+      }
+    }
   }
 
   void _rebuildPlayOrder(int currentIndex) {

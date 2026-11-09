@@ -15,6 +15,7 @@ import 'package:melo_player/features/mix/personal_mix.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/search/search_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
+import 'package:melo_player/features/updates/app_update_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class AppShell extends StatefulWidget {
@@ -30,11 +31,134 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   final Set<int> _visitedDestinations = {0};
   late List<Widget> _screens;
+  bool _hasPromptedUpdate = false;
 
   @override
   void initState() {
     super.initState();
     _screens = _createScreens();
+    AppUpdateService.instance.addListener(_onUpdateServiceChanged);
+    _onUpdateServiceChanged();
+  }
+
+  @override
+  void dispose() {
+    AppUpdateService.instance.removeListener(_onUpdateServiceChanged);
+    super.dispose();
+  }
+
+  void _onUpdateServiceChanged() {
+    if (!mounted || _hasPromptedUpdate) return;
+    final updater = AppUpdateService.instance;
+    final result = updater.lastResult;
+    if (result != null && result.isUpdateAvailable && result.latestRelease != null) {
+      _hasPromptedUpdate = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showUpdatePrompt(result.latestRelease!);
+      });
+    }
+  }
+
+  Future<void> _showUpdatePrompt(GithubReleaseInfo release) async {
+    final existingApk =
+        await AppUpdateService.instance.getDownloadedApkFile(release);
+    if (!mounted) return;
+    final isReadyToInstall = existingApk != null;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: MeloColors.cherry.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.rocket_launch_rounded,
+                color: MeloColors.cherry,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Melo ${release.tagName} Available',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              release.title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              release.body,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: MeloColors.cherry),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _startDownloadAndInstall(release);
+            },
+            icon: Icon(
+              isReadyToInstall ? Icons.system_update_rounded : Icons.download_rounded,
+              size: 18,
+            ),
+            label: Text(isReadyToInstall ? 'Install Now' : 'Download & Install'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startDownloadAndInstall(GithubReleaseInfo release) async {
+    final updater = AppUpdateService.instance;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Downloading Melo ${release.tagName}...'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    try {
+      await updater.downloadAndInstallRelease(release);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not complete update: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
   }
 
   @override

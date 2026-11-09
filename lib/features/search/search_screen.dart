@@ -191,7 +191,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('Streaming "${track.title}" — tap Download anytime to save to device'),
+            content: Text('Streaming "${track.title}" â tap Download anytime to save to device'),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -321,6 +321,58 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
             sliver: SliverList.list(
               children: [
+                StreamBuilder<MediaItem?>(
+                  stream: widget.audioHandler?.mediaItem,
+                  initialData: widget.audioHandler?.mediaItem.value,
+                  builder: (context, snapshot) {
+                    final item = snapshot.data;
+                    if (item == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: MeloColors.cherry.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: MeloColors.cherry.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.graphic_eq_rounded,
+                              size: 18,
+                              color: MeloColors.cherry,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'NOW PLAYING: ',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: MeloColors.cherrySoft,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${item.title} · ${item.artist ?? "Melo Player"}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 TextField(
                   controller: _controller,
                   autofocus: true,
@@ -469,19 +521,37 @@ class _SearchScreenState extends State<SearchScreen> {
               if (!_isSearchLoading &&
                   _searchError == null &&
                   _searchResults.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _SearchResultTile(
-                        track: _searchResults[index],
-                        onTap: () => _playTrack(index),
+                StreamBuilder<MediaItem?>(
+                  stream: widget.audioHandler?.mediaItem,
+                  initialData: widget.audioHandler?.mediaItem.value,
+                  builder: (context, mediaSnap) {
+                    final current = mediaSnap.data;
+                    return SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final track = _searchResults[index];
+                            final isPlaying = current != null &&
+                                (current.id == track.path ||
+                                    current.id == track.id ||
+                                    (current.title.trim().toLowerCase() ==
+                                            track.title.trim().toLowerCase() &&
+                                        current.artist?.trim().toLowerCase() ==
+                                            track.artist.trim().toLowerCase()));
+                            return _SearchResultTile(
+                              track: track,
+                              isPlaying: isPlaying,
+                              onTap: () => _playTrack(index),
+                            );
+                          },
+                          childCount: _searchResults.length > 100
+                              ? 100
+                              : _searchResults.length,
+                        ),
                       ),
-                      childCount: _searchResults.length > 100
-                          ? 100
-                          : _searchResults.length,
-                    ),
-                  ),
+                    );
+                  },
                 ),
             ],
 
@@ -737,10 +807,15 @@ class _SearchResults extends StatelessWidget {
 }
 
 class _SearchResultTile extends StatelessWidget {
-  const _SearchResultTile({required this.track, required this.onTap});
+  const _SearchResultTile({
+    required this.track,
+    required this.onTap,
+    this.isPlaying = false,
+  });
 
   final ImportedTrack track;
   final VoidCallback onTap;
+  final bool isPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -761,14 +836,35 @@ class _SearchResultTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
             child: Row(
               children: [
-                AlbumArtwork(
-                  size: 50,
-                  title: track.title,
-                  artworkUri: track.artworkUri == null
-                      ? null
-                      : Uri.tryParse(track.artworkUri!),
-                  sourceUri: Uri.tryParse(track.path),
-                  borderRadius: 12,
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AlbumArtwork(
+                      size: 50,
+                      title: track.title,
+                      artworkUri: track.artworkUri == null
+                          ? null
+                          : Uri.tryParse(track.artworkUri!),
+                      sourceUri: Uri.tryParse(track.path),
+                      borderRadius: 12,
+                    ),
+                    if (isPlaying)
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.equalizer_rounded,
+                            color: MeloColors.cherry,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -781,6 +877,7 @@ class _SearchResultTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: isPlaying ? MeloColors.cherrySoft : null,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -796,9 +893,13 @@ class _SearchResultTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.play_arrow_rounded,
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.8),
+                IconButton(
+                  tooltip: 'Track options',
+                  icon: const Icon(Icons.more_vert_rounded, size: 20),
+                  onPressed: () => TrackDetailsSheet.show(
+                    context,
+                    track.toMediaItem(),
+                  ),
                 ),
               ],
             ),

@@ -324,6 +324,9 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   @override
   Future<void> initialize() async {
     _ensureNotDisposed();
+    try {
+      await _player.setSkipSilenceEnabled(true);
+    } catch (_) {}
   }
 
   @override

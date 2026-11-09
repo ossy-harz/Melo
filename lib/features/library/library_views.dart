@@ -325,7 +325,7 @@ class _LibraryTrackFilterSheetState extends State<_LibraryTrackFilterSheet> {
                     child: Text(
                       _modifiedRange == null
                           ? 'Any date'
-                          : '${_formatFilterDate(_modifiedRange!.start)} – ${_formatFilterDate(_modifiedRange!.end)}',
+                          : '${_formatFilterDate(_modifiedRange!.start)} â ${_formatFilterDate(_modifiedRange!.end)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -502,36 +502,45 @@ class _AlbumTrackList extends StatelessWidget {
           (context, index) {
             final track = tracks[index];
             final isPlaying = track.id == currentTrackId;
-            final number = track.trackNumber ?? index + 1;
             return ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-              minLeadingWidth: 28,
-              leading: SizedBox(
-                width: 28,
-                child: Center(
-                  child: isPlaying
-                      ? Icon(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              leading: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AlbumArtwork(
+                    size: 42,
+                    title: track.title,
+                    artworkUri: track.artworkUri != null
+                        ? Uri.tryParse(track.artworkUri!)
+                        : null,
+                    sourceUri: Uri.tryParse(track.path),
+                    borderRadius: 8,
+                  ),
+                  if (isPlaying)
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Icon(
                           Icons.equalizer_rounded,
-                          color: colors.primary,
+                          color: MeloColors.cherry,
                           size: 20,
-                        )
-                      : Text(
-                          number.toString().padLeft(2, '0'),
-                          style: TextStyle(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
                         ),
-                ),
+                      ),
+                    ),
+                ],
               ),
               title: Text(
                 track.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: colors.onSurface,
-                  fontSize: 13,
+                  color: isPlaying ? MeloColors.cherrySoft : colors.onSurface,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),

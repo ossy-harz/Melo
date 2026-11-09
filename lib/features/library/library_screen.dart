@@ -662,8 +662,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         title: const Text('Delete this song file?'),
         content: Text(
           track.isDeviceMedia
-              ? 'This permanently deletes “${track.title}” from your device. Android may ask you to confirm the deletion again.'
-              : 'This permanently deletes Tone’s imported copy of “${track.title}”. The original file you selected will not be changed.',
+              ? 'This permanently deletes â${track.title}â from your device. Android may ask you to confirm the deletion again.'
+              : 'This permanently deletes Toneâs imported copy of â${track.title}â. The original file you selected will not be changed.',
         ),
         actions: [
           TextButton(
@@ -1063,7 +1063,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     : const Icon(Icons.library_music_outlined),
                                 label: Text(
                                   library?.isImporting == true
-                                      ? 'Scanning…'
+                                      ? 'Scanningâ¦'
                                       : 'Scan device',
                                 ),
                               ),

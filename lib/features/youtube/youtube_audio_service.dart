@@ -439,7 +439,7 @@ class YoutubeAudioService {
               if (col1Runs != null) {
                 final tokens = col1Runs
                     .map((r) => (r['text'] as String? ?? '').trim())
-                    .where((t) => t.isNotEmpty && t != '•' && t != '·')
+                    .where((t) => t.isNotEmpty && t != 'â¢' && t != '·')
                     .toList();
 
                 if (tokens.isNotEmpty &&

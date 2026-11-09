@@ -771,6 +771,44 @@ class MusicLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Registers online/streaming tracks into the library so they can be saved into
+  /// playlists, queued, streamed, and downloaded to device on demand.
+  Future<List<ImportedTrack>> registerOrFindRemoteTracks(
+    List<ImportedTrack> remoteTracks,
+  ) async {
+    final existingTracksMap = {for (final t in _tracks) t.id: t};
+    final toAdd = <ImportedTrack>[];
+    final result = <ImportedTrack>[];
+
+    for (final remote in remoteTracks) {
+      final local = findMatchingLocalTrack(
+        providerTrackId: remote.providerTrackId,
+        title: remote.title,
+        artist: remote.artist,
+      );
+      if (local != null) {
+        result.add(local);
+      } else if (existingTracksMap.containsKey(remote.id)) {
+        result.add(existingTracksMap[remote.id]!);
+      } else {
+        toAdd.add(remote);
+        result.add(remote);
+      }
+    }
+
+    if (toAdd.isNotEmpty) {
+      final updated = [..._tracks, ...toAdd];
+      await _saveTracks(updated);
+      _tracks = List.unmodifiable(updated);
+      _trackIndexById = {
+        for (var i = 0; i < updated.length; i++) updated[i].id: i,
+      };
+      notifyListeners();
+    }
+
+    return result;
+  }
+
   Future<void> addTracksToPlaylist(
     String playlistId,
     Iterable<String> trackIds,

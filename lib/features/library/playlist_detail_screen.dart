@@ -7,6 +7,8 @@ import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 /// Apple Music-inspired dedicated playlist screen with hero artwork,
 /// editorial themes, side-by-side Play & Shuffle pills, and clean track list.
@@ -129,6 +131,104 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       _showMessage('Removed "${track.title}" from playlist.');
     } catch (e) {
       _showMessage('Could not remove song: $e');
+    }
+  }
+
+  Future<void> _downloadSingleTrack(ImportedTrack track) async {
+    final library = widget.library;
+    final pId = track.providerTrackId ??
+        (track.path.startsWith('youtube:') ? track.path.substring(8) : null);
+    if (pId == null) {
+      _showMessage('This track is only available locally on device.');
+      return;
+    }
+
+    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
+      context,
+      title: track.title,
+      artist: track.artist,
+    );
+    if (chosenQuality == null || !mounted) return;
+
+    _showMessage('Downloading "${track.title}" in ${chosenQuality.shortLabel}...');
+    try {
+      final ytTrack = YoutubeTrack(
+        id: pId,
+        title: track.title,
+        author: track.artist,
+        duration: track.durationMs != null
+            ? Duration(milliseconds: track.durationMs!)
+            : const Duration(minutes: 3, seconds: 30),
+        thumbnailUrl: track.artworkUri,
+        album: track.album,
+      );
+      await YoutubeAudioService.instance.downloadTrack(
+        track: ytTrack,
+        library: library,
+        qualityOverride: chosenQuality,
+        onProgress: (_) {},
+      );
+      if (mounted) {
+        setState(() {});
+        _showMessage('Downloaded "${track.title}" to device!');
+      }
+    } catch (e) {
+      _showMessage('Download failed: $e');
+    }
+  }
+
+  Future<void> _downloadAllTracks() async {
+    final library = widget.library;
+    final undownloaded = _tracks.where((t) {
+      final pId = t.providerTrackId ??
+          (t.path.startsWith('youtube:') ? t.path.substring(8) : null);
+      return pId != null &&
+          !library.isTrackDownloaded(
+            providerTrackId: pId,
+            title: t.title,
+            artist: t.artist,
+          );
+    }).toList();
+
+    if (undownloaded.isEmpty) {
+      _showMessage('All songs in this playlist are already on your phone.');
+      return;
+    }
+
+    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
+      context,
+      title: _currentPlaylist.name,
+      artist: 'Playlist (${undownloaded.length} tracks)',
+    );
+    if (chosenQuality == null || !mounted) return;
+
+    _showMessage('Downloading ${undownloaded.length} tracks in background...');
+    for (final t in undownloaded) {
+      final pId = t.providerTrackId ??
+          (t.path.startsWith('youtube:') ? t.path.substring(8) : null);
+      if (pId == null) continue;
+      try {
+        final ytTrack = YoutubeTrack(
+          id: pId,
+          title: t.title,
+          author: t.artist,
+          duration: t.durationMs != null
+              ? Duration(milliseconds: t.durationMs!)
+              : const Duration(minutes: 3, seconds: 30),
+          thumbnailUrl: t.artworkUri,
+          album: t.album,
+        );
+        await YoutubeAudioService.instance.downloadTrack(
+          track: ytTrack,
+          library: library,
+          qualityOverride: chosenQuality,
+          onProgress: (_) {},
+        );
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {});
+      _showMessage('Finished downloading playlist tracks to phone!');
     }
   }
 
@@ -651,6 +751,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         shape: BoxShape.circle,
                         color: Colors.white.withValues(alpha: 0.14),
                       ),
+                      child: const Icon(Icons.download_rounded,
+                          size: 18, color: Colors.white),
+                    ),
+                    tooltip: 'Download All Songs',
+                    onPressed: _downloadAllTracks,
+                  ),
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
                       child: const Icon(Icons.share_rounded,
                           size: 18, color: Colors.white),
                     ),
@@ -670,6 +783,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           size: 18, color: Colors.white),
                     ),
                     onSelected: (val) {
+                      if (val == 'download_all') _downloadAllTracks();
                       if (val == 'add') _addSongsDialog();
                       if (val == 'cover') _changeCoverThemeDialog();
                       if (val == 'reorder') {
@@ -679,6 +793,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       if (val == 'delete') _deletePlaylistDialog();
                     },
                     itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'download_all',
+                        child: Row(
+                          children: [
+                            Icon(Icons.download_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Download All to Phone'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem(
                         value: 'add',
                         child: Row(
@@ -1272,6 +1396,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                         _playPlaylist(startTrackId: track.id);
                                       }
                                       if (val == 'queue') _queueTrack(track);
+                                      if (val == 'download') _downloadSingleTrack(track);
                                       if (val == 'details') {
                                         SongDetailsSheet.show(
                                           context,
@@ -1316,6 +1441,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                           ],
                                         ),
                                       ),
+                                      if (track.providerTrackId != null ||
+                                          track.path.startsWith('youtube:'))
+                                        const PopupMenuItem(
+                                          value: 'download',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.download_rounded,
+                                                  size: 18),
+                                              SizedBox(width: 10),
+                                              Text('Download to Phone'),
+                                            ],
+                                          ),
+                                        ),
                                       const PopupMenuItem(
                                         value: 'remove',
                                         child: Row(

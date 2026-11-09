@@ -179,15 +179,20 @@ class _AudioQualityBadges extends StatelessWidget {
               _QualityBadge(
                 label: isHiRes ? 'HI-RES LOSSLESS' : 'LOSSLESS',
                 highlighted: true,
+              )
+            else
+              const _QualityBadge(
+                label: 'MELO STUDIO DSP',
+                highlighted: true,
               ),
             _QualityBadge(
-              label: isStream ? 'LIVE STREAM' : 'ON DEVICE',
+              label: isStream ? 'LOSSLESS STREAM' : 'ON DEVICE',
               highlighted: false,
             ),
             for (final label in quality.split(' · ').take(3))
               _QualityBadge(
                 label: label,
-                highlighted: label == 'FLAC' || label == 'ALAC',
+                highlighted: label == 'FLAC' || label == 'ALAC' || label.contains('AAC'),
               ),
           ],
         ),

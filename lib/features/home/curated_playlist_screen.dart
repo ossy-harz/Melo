@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
@@ -339,20 +340,27 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
         );
       }
 
-      final matchedIds = <String>[];
-      for (final t in _tracks) {
-        final local = library.findMatchingLocalTrack(
-          providerTrackId: t.id,
+      final remoteTracks = _tracks.map((t) {
+        return ImportedTrack(
+          id: 'youtube:${t.id}',
+          path: 'youtube:${t.id}',
           title: t.title,
           artist: t.author,
+          album: t.album ?? widget.preset.title,
+          durationMs: t.duration.inMilliseconds,
+          artworkUri: t.thumbnailUrl,
+          sourceProvider: 'youtube',
+          providerTrackId: t.id,
+          isAvailable: true,
+          isDeviceMedia: false,
         );
-        if (local != null) {
-          matchedIds.add(local.id);
-        }
-      }
-      if (matchedIds.isNotEmpty) {
-        await library.addTracksToPlaylist(playlist.id, matchedIds);
-      }
+      }).toList(growable: false);
+
+      final registeredTracks = await library.registerOrFindRemoteTracks(remoteTracks);
+      await library.addTracksToPlaylist(
+        playlist.id,
+        registeredTracks.map((t) => t.id),
+      );
 
       if (!mounted) return;
       setState(() {});
@@ -366,7 +374,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Saved "${widget.preset.title}" to Library Playlists (${matchedIds.length} tracks matched)',
+                    'Saved "${widget.preset.title}" (${registeredTracks.length} tracks) to Library Playlists',
                   ),
                 ),
               ],
