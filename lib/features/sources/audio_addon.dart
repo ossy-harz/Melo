@@ -68,6 +68,7 @@ class AudioAddonManager {
   static final AudioAddonManager instance = AudioAddonManager._();
 
   static const String _enabledAddonsPrefix = 'tone_addon_enabled_';
+  static const String _priorityPrefPrefix = 'tone_addon_priority_';
   static const String _subsonicUrlKey = 'tone_subsonic_url';
   static const String _subsonicUserKey = 'tone_subsonic_user';
   static const String _subsonicPassKey = 'tone_subsonic_pass';
@@ -94,13 +95,33 @@ class AudioAddonManager {
       version: '1.4.0',
     ),
     const AudioSourceAddon(
+      id: 'bit_perfect_dac',
+      name: 'Bit-Perfect USB DAC & Hi-Res Engine',
+      description: 'Android 14+ exclusive USB DAC passthrough & lossless 24-bit hardware routing.',
+      category: AudioAddonCategory.stream,
+      icon: Icons.usb_rounded,
+      isEnabled: true,
+      priority: 3,
+      version: '1.0.0',
+    ),
+    const AudioSourceAddon(
+      id: 'deezer_itunes_catalog',
+      name: 'Deezer & iTunes 1000px Catalog',
+      description: 'ISRC/catalog studio cover matching, related artists graph, and hi-res tags.',
+      category: AudioAddonCategory.metadata,
+      icon: Icons.album_rounded,
+      isEnabled: true,
+      priority: 4,
+      version: '1.2.0',
+    ),
+    const AudioSourceAddon(
       id: 'lrclib_itunes_metadata',
       name: 'LRCLIB & iTunes Hi-Res Enricher',
       description: 'Automatic word-synced LRC lyrics, 1000x1000 studio cover art, and album metadata.',
       category: AudioAddonCategory.metadata,
       icon: Icons.lyrics_rounded,
       isEnabled: true,
-      priority: 3,
+      priority: 5,
       version: '2.0.0',
     ),
     const AudioSourceAddon(
@@ -110,7 +131,7 @@ class AudioAddonManager {
       category: AudioAddonCategory.selfHosted,
       icon: Icons.dns_rounded,
       isEnabled: false,
-      priority: 4,
+      priority: 6,
       version: '1.0.0',
     ),
   ];
@@ -131,8 +152,11 @@ class AudioAddonManager {
     for (final addon in _defaultAddons) {
       final key = '$_enabledAddonsPrefix${addon.id}';
       final isEnabled = prefs.getBool(key) ?? addon.isEnabled;
-      updated.add(addon.copyWith(isEnabled: isEnabled));
+      final savedPriority =
+          prefs.getInt('$_priorityPrefPrefix${addon.id}') ?? addon.priority;
+      updated.add(addon.copyWith(isEnabled: isEnabled, priority: savedPriority));
     }
+    updated.sort((a, b) => a.priority.compareTo(b.priority));
 
     _subsonicConfig = SubsonicConfig(
       serverUrl: prefs.getString(_subsonicUrlKey) ?? '',
@@ -158,6 +182,27 @@ class AudioAddonManager {
     addonsNotifier.value = List.unmodifiable(_addons);
   }
 
+  Future<void> moveAddonPriority(String addonId, int delta) async {
+    final sorted = [..._addons]..sort((a, b) => a.priority.compareTo(b.priority));
+    final idx = sorted.indexWhere((a) => a.id == addonId);
+    if (idx < 0) return;
+    final targetIdx = (idx + delta).clamp(0, sorted.length - 1);
+    if (targetIdx == idx) return;
+
+    final moved = sorted.removeAt(idx);
+    sorted.insert(targetIdx, moved);
+
+    final prefs = await SharedPreferences.getInstance();
+    final updated = <AudioSourceAddon>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final newPriority = i + 1;
+      await prefs.setInt('$_priorityPrefPrefix${sorted[i].id}', newPriority);
+      updated.add(sorted[i].copyWith(priority: newPriority));
+    }
+    _addons = updated;
+    addonsNotifier.value = List.unmodifiable(_addons);
+  }
+
   Future<void> saveSubsonicConfig(SubsonicConfig config) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_subsonicUrlKey, config.serverUrl);
@@ -172,6 +217,8 @@ class AudioAddonManager {
         return YoutubeAuthService.instance.isLoggedIn;
       case 'spotify_matcher':
         return SpotifyService.instance.isConfigured;
+      case 'bit_perfect_dac':
+      case 'deezer_itunes_catalog':
       case 'lrclib_itunes_metadata':
         return true;
       case 'subsonic_navidrome':

@@ -24,6 +24,17 @@ class MeloPalette {
   /// Mid-tone, desaturated colour for layering.
   final Color muted;
 
+  /// Secondary harmonic QLED backlight colour keeping the same hue family.
+  Color get glow {
+    final hsl = HSLColor.fromColor(accent);
+    return HSLColor.fromAHSL(
+      1,
+      hsl.hue,
+      (hsl.saturation * 1.05).clamp(0.65, 1.0),
+      (hsl.lightness * 1.08).clamp(0.56, 0.72),
+    ).toColor();
+  }
+
   /// Used when artwork is missing or effectively monochrome.
   static const fallback = MeloPalette(
     accent: Color(0xFFFF3D5A),
@@ -31,15 +42,12 @@ class MeloPalette {
     muted: Color(0xFF50101F),
   );
 
-  /// A tasteful, deterministic palette for artwork-less items so the UI never
-  /// degrades into random pastel gradients.
-  factory MeloPalette.fromSeed(int seed) {
-    final hue = (seed.abs() % 360).toDouble();
-    final accent = HSLColor.fromAHSL(1, hue, 0.66, 0.58).toColor();
-    final deep = HSLColor.fromAHSL(1, hue, 0.55, 0.1).toColor();
-    final muted = HSLColor.fromAHSL(1, hue, 0.5, 0.24).toColor();
-    return MeloPalette(accent: accent, deep: deep, muted: muted);
-  }
+  /// A disciplined Apple Music Red & Obsidian Black palette for artwork-less items.
+  factory MeloPalette.fromSeed(int seed) => const MeloPalette(
+    accent: Color(0xFFFA243C),
+    deep: Color(0xFF140407),
+    muted: Color(0xFF3B0A14),
+  );
 }
 
 /// Downsamples [bytes] and extracts a dominant palette. Returns `null` when the
@@ -116,10 +124,10 @@ MeloPalette? _paletteFromPixels(ByteData data) {
     accent: HSLColor.fromAHSL(
       1,
       hsl.hue,
-      hsl.saturation.clamp(0.55, 0.95),
+      hsl.saturation.clamp(0.62, 0.98),
       hsl.lightness.clamp(0.52, 0.66),
     ).toColor(),
-    deep: HSLColor.fromAHSL(1, hsl.hue, 0.6, 0.09).toColor(),
+    deep: HSLColor.fromAHSL(1, hsl.hue, 0.6, 0.08).toColor(),
     muted: HSLColor.fromAHSL(1, hsl.hue, 0.55, 0.22).toColor(),
   );
 }

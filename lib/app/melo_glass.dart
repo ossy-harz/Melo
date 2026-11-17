@@ -51,7 +51,25 @@ class MeloGlass extends StatelessWidget {
 
     final decoratedSurface = DecoratedBox(
       decoration: BoxDecoration(
-        color: resolvedTint,
+        color: isLight ? resolvedTint : null,
+        gradient: isLight
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.alphaBlend(
+                    Colors.white.withValues(alpha: 0.08),
+                    resolvedTint,
+                  ),
+                  resolvedTint,
+                  Color.alphaBlend(
+                    Colors.black.withValues(alpha: 0.14),
+                    resolvedTint,
+                  ),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
         borderRadius: radius,
         border: Border.all(color: resolvedBorder),
       ),

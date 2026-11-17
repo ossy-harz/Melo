@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_services.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/library_screen.dart';
@@ -61,104 +62,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _showUpdatePrompt(GithubReleaseInfo release) async {
-    final existingApk =
-        await AppUpdateService.instance.getDownloadedApkFile(release);
     if (!mounted) return;
-    final isReadyToInstall = existingApk != null;
-
-    showDialog<void>(
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: MeloColors.cherry.withValues(alpha: 0.16),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.rocket_launch_rounded,
-                color: MeloColors.cherry,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Melo ${release.tagName} Available',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              release.title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              release.body,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 13,
-                height: 1.35,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Later'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: MeloColors.cherry),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _startDownloadAndInstall(release);
-            },
-            icon: Icon(
-              isReadyToInstall ? Icons.system_update_rounded : Icons.download_rounded,
-              size: 18,
-            ),
-            label: Text(isReadyToInstall ? 'Install Now' : 'Download & Install'),
-          ),
-        ],
-      ),
+      barrierDismissible: true,
+      builder: (_) => _AppUpdatePromptDialog(release: release),
     );
-  }
-
-  Future<void> _startDownloadAndInstall(GithubReleaseInfo release) async {
-    final updater = AppUpdateService.instance;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Downloading Melo ${release.tagName}...'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    try {
-      await updater.downloadAndInstallRelease(release);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not complete update: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
   }
 
   @override
@@ -263,32 +172,34 @@ class _AppShellState extends State<AppShell> {
                     duration: const Duration(milliseconds: 320),
                     curve: Curves.easeOutCubic,
                     alignment: Alignment.bottomCenter,
-                    child: MiniPlayer(
+                    child: PlaylistMiniPlayerDock(
                       audioHandler: widget.services!.audioHandler,
-                      onOpen: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          fullscreenDialog: true,
-                          builder: (context) => NowPlayingScreen(
-                            audioHandler: widget.services!.audioHandler,
-                            musicLibrary: widget.services!.musicLibrary,
-                            onNavigate: (index) {
-                              Navigator.of(context).pop();
-                              _selectDestination(index);
-                            },
-                          ),
-                        ),
-                      ),
+                      musicLibrary: widget.services!.musicLibrary,
+                      padding: EdgeInsets.zero,
+                      onNavigate: _selectDestination,
                     ),
                   ),
                 ),
               if (widget.services != null) const SizedBox(height: 6),
-              MeloGlass(
-                borderRadius: 25,
-                blur: 12,
-                tint: const Color(0xC9000000),
-                borderColor: Colors.white.withValues(alpha: 0.1),
-                padding: EdgeInsets.zero,
-                child: NavigationBarTheme(
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: MeloColors.cherry.withValues(alpha: 0.16),
+                      blurRadius: 24,
+                      spreadRadius: -8,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: MeloGlass(
+                  borderRadius: 25,
+                  blur: 12,
+                  tint: const Color(0xC9000000),
+                  borderColor: Colors.white.withValues(alpha: 0.14),
+                  padding: EdgeInsets.zero,
+                  child: NavigationBarTheme(
                   data: Theme.of(context).navigationBarTheme.copyWith(
                     backgroundColor: Colors.transparent,
                     indicatorColor: MeloColors.cherry.withValues(alpha: 0.16),
@@ -319,6 +230,7 @@ class _AppShellState extends State<AppShell> {
                     ],
                   ),
                 ),
+              ),
               ),
             ],
           ),
@@ -1008,6 +920,257 @@ class _DjMixSetsSectionState extends State<_DjMixSetsSection> {
                   ? null
                   : () => _streamSet(djSet),
             ),
+      ],
+    );
+  }
+}
+
+/// Stateful dialog showing live APK download progress and auto-triggering install.
+class _AppUpdatePromptDialog extends StatefulWidget {
+  const _AppUpdatePromptDialog({required this.release});
+
+  final GithubReleaseInfo release;
+
+  @override
+  State<_AppUpdatePromptDialog> createState() => _AppUpdatePromptDialogState();
+}
+
+class _AppUpdatePromptDialogState extends State<_AppUpdatePromptDialog> {
+  final AppUpdateService _updater = AppUpdateService.instance;
+  bool _isReadyToInstall = false;
+  bool _awaitingPermission = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _updater.addListener(_onUpdaterChanged);
+    unawaited(_checkExistingApk());
+  }
+
+  @override
+  void dispose() {
+    _updater.removeListener(_onUpdaterChanged);
+    super.dispose();
+  }
+
+  void _onUpdaterChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _checkExistingApk() async {
+    final existing = await _updater.getDownloadedApkFile(widget.release);
+    if (!mounted) return;
+    if (existing != null) {
+      setState(() => _isReadyToInstall = true);
+    }
+  }
+
+  Future<void> _startUpdate() async {
+    setState(() {
+      _errorMessage = null;
+      _awaitingPermission = false;
+    });
+    try {
+      final status = await _updater.downloadAndInstallRelease(widget.release);
+      if (!mounted) return;
+      if (status == 'PERMISSION_REQUIRED') {
+        setState(() {
+          _isReadyToInstall = true;
+          _awaitingPermission = true;
+        });
+        return;
+      }
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Could not complete update: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final release = widget.release;
+    final apkSize = release.preferredApkAsset?.formattedSize;
+    final isDownloading = _updater.isDownloading;
+    final progress = _updater.downloadProgress.clamp(0.0, 1.0);
+
+    return AlertDialog(
+      scrollable: true,
+      backgroundColor: const Color(0xFF141416),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: MeloColors.cherry.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.rocket_launch_rounded,
+              color: MeloColors.cherry,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Melo ${release.tagName} Available',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  release.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              if (apkSize != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: MeloColors.cherry.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    apkSize,
+                    style: const TextStyle(
+                      color: MeloColors.cherry,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            release.body,
+            maxLines: 5,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
+          if (isDownloading) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Downloading update APK…',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${(progress * 100).round()}%',
+                  style: const TextStyle(
+                    color: MeloColors.cherry,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress > 0 ? progress : null,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.12),
+                color: MeloColors.cherry,
+              ),
+            ),
+          ],
+          if (_awaitingPermission) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: MeloColors.cherry.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: MeloColors.cherry.withValues(alpha: 0.35),
+                ),
+              ),
+              child: const Text(
+                'Grant "Install unknown apps" permission — installation will start automatically when you return.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: MeloColors.cherry,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: isDownloading ? null : () => Navigator.of(context).pop(),
+          child: Text(_awaitingPermission ? 'Done' : 'Later'),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: MeloColors.cherry,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: isDownloading ? null : _startUpdate,
+          icon: Icon(
+            _isReadyToInstall
+                ? Icons.system_update_rounded
+                : Icons.download_rounded,
+            size: 18,
+          ),
+          label: Text(
+            isDownloading
+                ? 'Downloading…'
+                : _isReadyToInstall
+                    ? 'Install Now'
+                    : 'Update & Install',
+          ),
+        ),
       ],
     );
   }

@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/player_device_helper.dart';
 import 'package:melo_player/features/settings/spotify_settings_screen.dart';
 import 'package:melo_player/features/settings/youtube_settings_screen.dart';
 import 'package:melo_player/features/sources/audio_addon.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 class AddonsScreen extends StatefulWidget {
   const AddonsScreen({
@@ -42,11 +45,15 @@ class _AddonsScreenState extends State<AddonsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          backgroundColor: const Color(0xFF141416),
           title: const Row(
             children: [
-              Icon(Icons.dns_rounded, color: Colors.deepPurpleAccent),
+              Icon(Icons.dns_rounded, color: MeloColors.cherry),
               SizedBox(width: 10),
-              Text('Subsonic / Navidrome'),
+              Text(
+                'Subsonic / Navidrome',
+                style: TextStyle(color: Colors.white),
+              ),
             ],
           ),
           content: SingleChildScrollView(
@@ -140,6 +147,21 @@ class _AddonsScreenState extends State<AddonsScreen> {
           if (mounted) setState(() {});
         });
         break;
+      case 'bit_perfect_dac':
+        PlayerDeviceHelper.showAudioOutputSheet(context);
+        break;
+      case 'deezer_itunes_catalog':
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Deezer & iTunes 1000px Catalog is active automatically for album art & artist graphs.',
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        break;
       case 'lrclib_itunes_metadata':
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -156,6 +178,131 @@ class _AddonsScreenState extends State<AddonsScreen> {
         _showSubsonicConfigDialog();
         break;
     }
+  }
+
+  Future<void> _runSourceDiagnostics() async {
+    final devices = await PlayerDeviceHelper.getOutputDevices();
+    final bitPerfect = await PlayerDeviceHelper.isBitPerfectEnabled();
+    final hasUsbDac = devices.any((d) => d.type == 'usb_dac');
+    if (!mounted) return;
+
+    final checks = <({String label, String detail, bool ok})>[
+      (
+        label: 'YouTube Music Streamer',
+        detail: YoutubeAuthService.instance.isLoggedIn
+            ? 'Signed in (personal account)'
+            : 'Active (guest high-fidelity stream)',
+        ok: _manager.isAddonActive('youtube_music'),
+      ),
+      (
+        label: 'Spotify Feed & Sync',
+        detail: SpotifyService.instance.isLoggedIn
+            ? 'Synced as ${SpotifyService.instance.displayName ?? "Account"}'
+            : 'Public charts & embed ready (sign in for personal feed)',
+        ok: _manager.isAddonActive('spotify_matcher'),
+      ),
+      (
+        label: 'Bit-Perfect USB DAC',
+        detail: hasUsbDac
+            ? 'USB DAC detected (${bitPerfect ? "Bit-Perfect ON" : "Standard mixer"})'
+            : 'No external USB DAC attached (${devices.length} output route ready)',
+        ok: _manager.isAddonActive('bit_perfect_dac'),
+      ),
+      (
+        label: 'Deezer & iTunes Catalog',
+        detail: '1000x1000 cover enrichment & related-artist graph ready',
+        ok: _manager.isAddonActive('deezer_itunes_catalog'),
+      ),
+      (
+        label: 'LRCLIB Synced Lyrics',
+        detail: 'Word/line-synced LRC lookup & offline cache ready',
+        ok: _manager.isAddonActive('lrclib_itunes_metadata'),
+      ),
+      (
+        label: 'Subsonic / Navidrome',
+        detail: _manager.subsonicConfig.isConfigured
+            ? 'Configured (${_manager.subsonicConfig.serverUrl})'
+            : 'Optional self-hosted server not configured',
+        ok: _manager.subsonicConfig.isConfigured,
+      ),
+    ];
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        title: const Row(
+          children: [
+            Icon(Icons.health_and_safety_rounded, color: MeloColors.cherry),
+            SizedBox(width: 10),
+            Text(
+              'Source Diagnostics',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: checks
+                .map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          c.ok
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 18,
+                          color: c.ok ? MeloColors.cherry : Colors.white54,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                              Text(
+                                c.detail,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: MeloColors.cherry,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -188,26 +335,46 @@ class _AddonsScreenState extends State<AddonsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Modular Source Addons',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'Enable and prioritize music sources inspired by BitChord architecture.',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 13,
+                      Text(
+                        'Modular Source Addons',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'Prioritize streaming sources, USB DAC output, and metadata engines.',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: MeloColors.cherry,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-            ],
+              onPressed: _runSourceDiagnostics,
+              icon: const Icon(Icons.health_and_safety_rounded, size: 18),
+              label: const Text(
+                'Run Source Diagnostics',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             'INSTALLED ADDONS',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -269,8 +436,8 @@ class _AddonsScreenState extends State<AddonsScreen> {
                                             ),
                                             decoration: BoxDecoration(
                                               color: (isConfigured
-                                                      ? Colors.greenAccent
-                                                      : Colors.amberAccent)
+                                                      ? MeloColors.cherry
+                                                      : Colors.white)
                                                   .withValues(alpha: 0.15),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
@@ -280,8 +447,8 @@ class _AddonsScreenState extends State<AddonsScreen> {
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w700,
                                                 color: isConfigured
-                                                    ? Colors.greenAccent
-                                                    : Colors.amberAccent,
+                                                    ? MeloColors.cherry
+                                                    : Colors.white70,
                                               ),
                                             ),
                                           ),
@@ -317,11 +484,40 @@ class _AddonsScreenState extends State<AddonsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
+                                IconButton(
+                                  tooltip: 'Move higher priority',
+                                  onPressed: addon.priority <= 1
+                                      ? null
+                                      : () => _manager.moveAddonPriority(
+                                          addon.id,
+                                          -1,
+                                        ),
+                                  icon: const Icon(
+                                    Icons.arrow_upward_rounded,
+                                    size: 18,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Move lower priority',
+                                  onPressed: addon.priority >= list.length
+                                      ? null
+                                      : () => _manager.moveAddonPriority(
+                                          addon.id,
+                                          1,
+                                        ),
+                                  icon: const Icon(
+                                    Icons.arrow_downward_rounded,
+                                    size: 18,
+                                  ),
+                                ),
+                                const Spacer(),
                                 OutlinedButton.icon(
                                   onPressed: () => _configureAddon(addon),
-                                  icon: const Icon(Icons.settings_rounded, size: 16),
+                                  icon: const Icon(
+                                    Icons.settings_rounded,
+                                    size: 16,
+                                  ),
                                   label: const Text('Configure'),
                                 ),
                               ],

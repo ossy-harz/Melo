@@ -100,6 +100,12 @@ abstract interface class LibraryRepository {
     required int positionMs,
   });
   Future<void> saveCurrentTrack(String? trackId);
+  Future<void> recordStreamPlayback({
+    required String trackId,
+    required String title,
+    required String artist,
+    required String album,
+  });
   Future<void> savePlaybackPosition(int positionMs);
   Future<List<ImportedTrack>> recentlyPlayed({int limit = 20});
   Future<List<MostPlayedTrack>> mostPlayedTracks({int limit = 20});
@@ -631,6 +637,24 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
         ),
       );
     });
+  }
+
+  @override
+  Future<void> recordStreamPlayback({
+    required String trackId,
+    required String title,
+    required String artist,
+    required String album,
+  }) async {
+    await into(database.playbackHistory).insert(
+      PlaybackHistoryCompanion.insert(
+        trackId: trackId,
+        title: title,
+        artist: artist,
+        album: album,
+        playedAt: DateTime.now(),
+      ),
+    );
   }
 
   @override

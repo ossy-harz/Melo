@@ -394,7 +394,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
                                   if (isDownloaded)
                                     const Tooltip(
                                       message: 'Already in local library',
-                                      child: Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                                      child: Icon(Icons.check_circle_rounded, color: MeloColors.cherry, size: 18),
                                     )
                                   else if (isDownloading)
                                     const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))

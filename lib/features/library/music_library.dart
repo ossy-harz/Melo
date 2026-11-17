@@ -16,6 +16,7 @@ import 'package:melo_player/features/library/library_platform_data_source.dart';
 import 'package:melo_player/features/library/data/library_repository.dart';
 import 'package:melo_player/features/library/data/melo_database.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/mix/personal_mix.dart';
 import 'package:melo_player/features/mix/local_discovery.dart';
 
@@ -150,11 +151,66 @@ class MusicLibrary extends ChangeNotifier {
   Map<String, int> _trackIndexById = const {};
   List<String> _queuedTrackOrder = const [];
   final Map<String, int> _artistRadioRotations = {};
+  final List<MediaItem> _recentSessionItems = [];
+  final Map<String, int> _artistPlayCounts = {};
+  String? _lastRecordedMediaId;
   bool _isImporting = false;
   int _lastImportSkippedDuplicates = 0;
   int _importSequence = 0;
 
   List<ImportedTrack> get tracks => UnmodifiableListView(_tracks);
+  List<MediaItem> get recentSessionItems =>
+      List.unmodifiable(_recentSessionItems);
+  Set<String> get excludedTrackIds => Set.unmodifiable(_mixExcludedTrackIds);
+
+  /// Ranked artists derived from recent session plays, persistent listening
+  /// history, and favorited tracks.
+  List<String> get topAffinityArtists {
+    final scores = <String, int>{};
+    final canonicalNames = <String, String>{};
+
+    void addScore(String? rawArtist, int delta) {
+      final clean = (rawArtist ?? '').trim();
+      final lower = clean.toLowerCase();
+      if (clean.isEmpty || lower == 'unknown artist') return;
+      canonicalNames.putIfAbsent(lower, () => clean);
+      scores[lower] = (scores[lower] ?? 0) + delta;
+    }
+
+    for (final item in _recentSessionItems.take(15)) {
+      addScore(item.artist, 3);
+    }
+    for (final entry in _artistPlayCounts.entries) {
+      addScore(entry.key, entry.value);
+    }
+    for (final track in _tracks) {
+      if (_favoriteTrackIds.contains(track.id)) {
+        addScore(track.artist, 2);
+      }
+    }
+
+    final ranked = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return ranked
+        .map((e) => canonicalNames[e.key] ?? e.key)
+        .toList(growable: false);
+  }
+
+  Set<String> get recentCanonicalSongKeys {
+    final keys = <String>{};
+    for (final item in _recentSessionItems.take(20)) {
+      final cleanTitle =
+          SongMetadataEnricher.cleanTitle(
+            item.title,
+            rawArtist: item.artist,
+          ).trim().toLowerCase();
+      final cleanArtist = (item.artist ?? '').trim().toLowerCase();
+      if (cleanTitle.isNotEmpty) {
+        keys.add('$cleanTitle|$cleanArtist');
+      }
+    }
+    return keys;
+  }
   ValueListenable<int> get playbackHistoryRevision => _playbackHistoryRevision;
   List<MusicPlaylist> get playlists => UnmodifiableListView(_playlists);
   List<MusicFolder> get musicFolders => UnmodifiableListView(_musicFolders);
@@ -285,15 +341,24 @@ class MusicLibrary extends ChangeNotifier {
       final cleanTitle = _normalizeSongText(title);
       final cleanArtist = _normalizeSongText(artist ?? '');
       if (cleanTitle.isEmpty) return null;
+      String stripArtistPrefix(String t, String a) {
+        if (a.isNotEmpty && t.startsWith('$a ')) {
+          return t.substring(a.length + 1).trim();
+        }
+        return t;
+      }
+      final normQueryTitle = stripArtistPrefix(cleanTitle, cleanArtist);
       for (final track in _tracks) {
         if (!_isLocalOnDeviceTrack(track)) continue;
         final trackTitle = _normalizeSongText(track.title);
         final trackArtist = _normalizeSongText(track.artist);
         if (trackTitle.isEmpty) continue;
 
+        final normTrackTitle = stripArtistPrefix(trackTitle, trackArtist);
         final titleMatch = trackTitle == cleanTitle ||
-            trackTitle.contains(cleanTitle) ||
-            cleanTitle.contains(trackTitle);
+            (normTrackTitle.isNotEmpty &&
+                normQueryTitle.isNotEmpty &&
+                normTrackTitle == normQueryTitle);
 
         if (titleMatch) {
           if (cleanArtist.isEmpty ||
@@ -399,6 +464,21 @@ class MusicLibrary extends ChangeNotifier {
     );
     await library.load();
     unawaited(
+      library._hydrateTasteMemory().catchError((
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'tone library',
+            context: ErrorDescription('while hydrating listening taste memory'),
+          ),
+        );
+      }),
+    );
+    unawaited(
       library.refreshImportedMetadata().catchError((
         Object error,
         StackTrace stackTrace,
@@ -446,10 +526,24 @@ class MusicLibrary extends ChangeNotifier {
     }
 
     if (_isAndroid()) {
+      var streamRestored = false;
       final filtered = decoded
-          .where((track) => !_isNonSongAudioTrack(track))
+          .where(
+            (track) =>
+                _isStreamPath(track.path) || !_isNonSongAudioTrack(track),
+          )
+          .map((track) {
+            if (_isStreamPath(track.path) && !track.isAvailable) {
+              streamRestored = true;
+              return track.withMetadata(isAvailable: true);
+            }
+            return track;
+          })
           .toList(growable: false);
       _setTracks(filtered);
+      if (streamRestored) {
+        unawaited(_saveTracks(filtered));
+      }
       unawaited(_verifyTrackFilesAsync(filtered));
       return;
     }
@@ -457,6 +551,15 @@ class MusicLibrary extends ChangeNotifier {
     final loadedTracks = <ImportedTrack>[];
     var trackMetadataChanged = false;
     for (final track in decoded) {
+      if (_isStreamPath(track.path)) {
+        if (!track.isAvailable) {
+          trackMetadataChanged = true;
+          loadedTracks.add(track.withMetadata(isAvailable: true));
+        } else {
+          loadedTracks.add(track);
+        }
+        continue;
+      }
       final file = track.isDeviceMedia ? null : File(track.path);
       final available = file == null || await file.exists();
       final modifiedAt =
@@ -509,6 +612,13 @@ class MusicLibrary extends ChangeNotifier {
     final verifiedById = <String, ImportedTrack>{};
     for (final track in initialTracks) {
       if (track.isDeviceMedia) continue;
+      if (_isStreamPath(track.path)) {
+        if (!track.isAvailable) {
+          changed = true;
+          verifiedById[track.id] = track.withMetadata(isAvailable: true);
+        }
+        continue;
+      }
       final file = File(track.path);
       final available = await file.exists();
       final modifiedAt =
@@ -538,7 +648,12 @@ class MusicLibrary extends ChangeNotifier {
   Future<void> refreshImportedMetadata() async {
     if (!_isAndroid()) return;
     final candidates = _tracks
-        .where((track) => !track.isDeviceMedia && !track.metadataReviewed)
+        .where(
+          (track) =>
+              !track.isDeviceMedia &&
+              !track.metadataReviewed &&
+              !_isStreamPath(track.path),
+        )
         .toList(growable: false);
     if (candidates.isEmpty) return;
 
@@ -778,6 +893,8 @@ class MusicLibrary extends ChangeNotifier {
   ) async {
     final existingTracksMap = {for (final t in _tracks) t.id: t};
     final toAdd = <ImportedTrack>[];
+    final restoredUnavailable = <String, ImportedTrack>{};
+    final seenNewIds = <String>{};
     final result = <ImportedTrack>[];
 
     for (final remote in remoteTracks) {
@@ -789,15 +906,25 @@ class MusicLibrary extends ChangeNotifier {
       if (local != null) {
         result.add(local);
       } else if (existingTracksMap.containsKey(remote.id)) {
-        result.add(existingTracksMap[remote.id]!);
+        var existing = existingTracksMap[remote.id]!;
+        if (_isStreamPath(existing.path) && !existing.isAvailable) {
+          existing = existing.withMetadata(isAvailable: true);
+          restoredUnavailable[existing.id] = existing;
+        }
+        result.add(existing);
       } else {
-        toAdd.add(remote);
+        if (seenNewIds.add(remote.id)) {
+          toAdd.add(remote);
+        }
         result.add(remote);
       }
     }
 
-    if (toAdd.isNotEmpty) {
-      final updated = [..._tracks, ...toAdd];
+    if (toAdd.isNotEmpty || restoredUnavailable.isNotEmpty) {
+      final updated = [
+        for (final t in _tracks) restoredUnavailable[t.id] ?? t,
+        ...toAdd,
+      ];
       await _saveTracks(updated);
       _tracks = List.unmodifiable(updated);
       _trackIndexById = {
@@ -1152,13 +1279,21 @@ class MusicLibrary extends ChangeNotifier {
         licenseUrl: licenseUrl,
         metadataReviewed: true,
       );
-      // Remove any temporary stream reference for this track before adding the local file
-      final filteredExisting = _tracks.where((t) {
-        if (!_isStreamPath(t.path)) return true;
-        if (t.providerTrackId == normalizedTrackId) return false;
-        return _normalizeSongText(t.title) != _normalizeSongText(title) ||
-            _normalizeSongText(t.artist) != _normalizeSongText(artist);
-      }).toList();
+      // Remove temporary stream references for this track and remap playlists/favorites
+      // to the newly downloaded local file ID before cascade-deleting the stream row.
+      final removedStreamIds = <String>{};
+      final filteredExisting = <ImportedTrack>[];
+      for (final t in _tracks) {
+        final matchesStream = _isStreamPath(t.path) &&
+            (t.providerTrackId == normalizedTrackId ||
+                (_normalizeSongText(t.title) == _normalizeSongText(title) &&
+                    _normalizeSongText(t.artist) == _normalizeSongText(artist)));
+        if (matchesStream) {
+          removedStreamIds.add(t.id);
+        } else {
+          filteredExisting.add(t);
+        }
+      }
       final updated = [...filteredExisting, imported];
       try {
         await _saveTracks(updated);
@@ -1167,6 +1302,34 @@ class MusicLibrary extends ChangeNotifier {
         rethrow;
       }
       _setTracks(updated);
+      if (removedStreamIds.isNotEmpty) {
+        var playlistsChanged = false;
+        final remappedPlaylists = _playlists.map((playlist) {
+          if (!playlist.trackIds.any(removedStreamIds.contains)) {
+            return playlist;
+          }
+          playlistsChanged = true;
+          final nextIds = <String>[];
+          final seen = <String>{};
+          for (final id in playlist.trackIds) {
+            final mappedId = removedStreamIds.contains(id) ? imported.id : id;
+            if (seen.add(mappedId)) nextIds.add(mappedId);
+          }
+          return _copyPlaylist(playlist, trackIds: nextIds);
+        }).toList(growable: false);
+        if (playlistsChanged) {
+          await _savePlaylists(remappedPlaylists);
+          _playlists = remappedPlaylists;
+        }
+        if (_favoriteTrackIds.any(removedStreamIds.contains)) {
+          final nextFavs = {
+            for (final id in _favoriteTrackIds)
+              removedStreamIds.contains(id) ? imported.id : id,
+          };
+          await _saveFavorites(nextFavs);
+          _favoriteTrackIds = nextFavs;
+        }
+      }
       _invalidatePlaybackQueue();
       notifyListeners();
       return imported;
@@ -1410,7 +1573,7 @@ class MusicLibrary extends ChangeNotifier {
         candidate.fileSizeBytes ?? await candidateFile.length();
     final candidateDigest = await _fileDigest(candidateFile);
     for (final existing in existingTracks) {
-      if (existing.isDeviceMedia) continue;
+      if (existing.isDeviceMedia || _isStreamPath(existing.path)) continue;
       if (existing.fileSizeBytes != null &&
           existing.fileSizeBytes != candidateLength) {
         continue;
@@ -1558,6 +1721,73 @@ class MusicLibrary extends ChangeNotifier {
           (trackIds.isEmpty ? null : trackIds.first),
       positionMs: positionMs < 0 ? 0 : positionMs,
     );
+  }
+
+  Future<void> _hydrateTasteMemory() async {
+    if (_repository == null) return;
+    final history = await listeningHistory(limit: 50);
+    if (history.isEmpty) return;
+    final seededIds = _recentSessionItems.map((e) => e.id).toSet();
+    for (final entry in history) {
+      final cleanArtist = entry.artist.trim();
+      final lower = cleanArtist.toLowerCase();
+      if (cleanArtist.isNotEmpty && lower != 'unknown artist') {
+        _artistPlayCounts[cleanArtist] =
+            (_artistPlayCounts[cleanArtist] ?? 0) + 1;
+      }
+      if (_recentSessionItems.length < 40 &&
+          !seededIds.contains(entry.trackId)) {
+        seededIds.add(entry.trackId);
+        _recentSessionItems.add(
+          MediaItem(
+            id: entry.trackId,
+            title: entry.title,
+            artist: entry.artist,
+            album: entry.album,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Records both local and streamed playback into session taste memory and
+  /// persistent listening history.
+  Future<void> recordPlayedMediaItem(MediaItem? item) async {
+    if (item == null) {
+      await saveCurrentTrack(null);
+      return;
+    }
+    final cleanArtist = (item.artist ?? '').trim();
+    _recentSessionItems.removeWhere((existing) => existing.id == item.id);
+    _recentSessionItems.insert(0, item);
+    if (_recentSessionItems.length > 40) {
+      _recentSessionItems.removeRange(40, _recentSessionItems.length);
+    }
+    if (cleanArtist.isNotEmpty &&
+        cleanArtist.toLowerCase() != 'unknown artist') {
+      _artistPlayCounts[cleanArtist] =
+          (_artistPlayCounts[cleanArtist] ?? 0) + 1;
+    }
+
+    final localId = _trackIdForMediaItem(item);
+    if (localId != null) {
+      final localIdx = _trackIndexById[localId];
+      final localPath = localIdx != null ? _tracks[localIdx].path : item.id;
+      _lastRecordedMediaId = item.id;
+      await saveCurrentTrack(localPath);
+      return;
+    }
+
+    if (_lastRecordedMediaId != item.id) {
+      _lastRecordedMediaId = item.id;
+      await _repository?.recordStreamPlayback(
+        trackId: item.id,
+        title: item.title,
+        artist: cleanArtist.isEmpty ? 'Unknown Artist' : cleanArtist,
+        album: item.album ?? '',
+      );
+      _playbackHistoryRevision.value++;
+    }
   }
 
   Future<void> saveCurrentTrack(String? mediaId) async {
@@ -1824,6 +2054,8 @@ class MusicLibrary extends ChangeNotifier {
     name: name ?? playlist.name,
     trackIds: List.unmodifiable(trackIds ?? playlist.trackIds),
     createdAt: playlist.createdAt,
+    coverStyle: playlist.coverStyle,
+    customArtworkUri: playlist.customArtworkUri,
   );
 
   void _setImporting(bool value) {

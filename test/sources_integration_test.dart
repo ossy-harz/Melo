@@ -192,11 +192,16 @@ void main() {
       final manager = AudioAddonManager.instance;
       await manager.initialize();
 
-      expect(manager.addons.length, 4);
+      expect(manager.addons.length, 6);
       expect(manager.isAddonActive('youtube_music'), isTrue);
       expect(manager.isAddonActive('spotify_matcher'), isTrue);
+      expect(manager.isAddonActive('bit_perfect_dac'), isTrue);
+      expect(manager.isAddonActive('deezer_itunes_catalog'), isTrue);
       expect(manager.isAddonActive('lrclib_itunes_metadata'), isTrue);
       expect(manager.isAddonActive('subsonic_navidrome'), isFalse);
+
+      await manager.moveAddonPriority('spotify_matcher', -1);
+      expect(manager.addons.first.id, 'spotify_matcher');
     });
 
     test('toggles addon status and persists preference', () async {

@@ -120,8 +120,8 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.3.9';
-  int _currentBuildNumber = 13;
+  String _currentVersion = '1.4.0';
+  int _currentBuildNumber = 14;
 
   /// Opens an external web URL using the Android platform channel or intent.
   static Future<bool> openExternalUrl(String url) async {
@@ -137,6 +137,7 @@ class AppUpdateService extends ChangeNotifier {
   bool _autoCheckOnStartup = true;
   bool _includePrereleases = false;
   AppUpdateCheckResult? _lastResult;
+  Future<AppUpdateCheckResult>? _inFlightCheck;
   bool _isChecking = false;
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
@@ -157,9 +158,15 @@ class AppUpdateService extends ChangeNotifier {
 
   Future<void> initialize({bool runStartupCheck = true}) async {
     final prefs = await SharedPreferences.getInstance();
-    _repository = prefs.getString(_repoPrefKey)?.trim().isNotEmpty == true
-        ? prefs.getString(_repoPrefKey)!.trim()
-        : defaultGithubRepo;
+    final savedRepo = prefs.getString(_repoPrefKey)?.trim() ?? '';
+    if (savedRepo.isEmpty || savedRepo.toLowerCase() == 'ossy-harz/tone') {
+      _repository = defaultGithubRepo;
+      if (savedRepo.toLowerCase() == 'ossy-harz/tone') {
+        await prefs.setString(_repoPrefKey, defaultGithubRepo);
+      }
+    } else {
+      _repository = savedRepo;
+    }
     _autoCheckOnStartup = prefs.getBool(_autoCheckPrefKey) ?? true;
     _includePrereleases = prefs.getBool(_includePrereleasesPrefKey) ?? false;
 
@@ -214,8 +221,19 @@ class AppUpdateService extends ChangeNotifier {
 
   /// Fetches all releases from GitHub (`https://api.github.com/repos/<owner>/<repo>/releases`)
   /// and checks whether a newer version than [currentVersion] is available.
-  Future<AppUpdateCheckResult> checkForUpdates({bool silent = false}) async {
-    if (_isChecking && _lastResult != null) return _lastResult!;
+  Future<AppUpdateCheckResult> checkForUpdates({bool silent = false}) {
+    final existing = _inFlightCheck;
+    if (existing != null) return existing;
+    final future = _performUpdateCheck(silent: silent);
+    _inFlightCheck = future;
+    return future.whenComplete(() {
+      if (identical(_inFlightCheck, future)) {
+        _inFlightCheck = null;
+      }
+    });
+  }
+
+  Future<AppUpdateCheckResult> _performUpdateCheck({bool silent = false}) async {
     _isChecking = true;
     notifyListeners();
 
@@ -419,13 +437,16 @@ class AppUpdateService extends ChangeNotifier {
       
       final prefs = await SharedPreferences.getInstance();
       final savedPath = prefs.getString('melo_downloaded_apk_path');
+      final expectedFileName = 'melo_update_$safeTag.apk';
 
       final candidates = [
-        if (savedPath != null) File(savedPath),
-        if (_downloadedApkPath != null) File(_downloadedApkPath!),
-        File('${tempDir.path}/melo_update_$safeTag.apk'),
+        if (savedPath != null && savedPath.endsWith(expectedFileName))
+          File(savedPath),
+        if (_downloadedApkPath != null &&
+            _downloadedApkPath!.endsWith(expectedFileName))
+          File(_downloadedApkPath!),
+        File('${tempDir.path}/$expectedFileName'),
         File('${tempDir.path}/tone_update_$safeTag.apk'),
-        File('${tempDir.path}/melo_update.apk'),
       ];
 
       for (final file in candidates) {

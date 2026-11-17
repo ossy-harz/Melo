@@ -4,9 +4,12 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/updates/app_update_service.dart';
 
 class MeloServices {
@@ -21,6 +24,8 @@ class MeloServices {
   final AudioProfileService audioProfileService;
   final MusicLibrary musicLibrary;
   final List<StreamSubscription<dynamic>> _subscriptions;
+
+  static MeloAudioHandler? _cachedHandler;
 
   static Future<MeloServices> initialize({
     bool persistPlaybackState = true,
@@ -42,7 +47,7 @@ class MeloServices {
         await Permission.notification.request();
       } catch (_) {}
     }
-    final handler = await AudioService.init<MeloAudioHandler>(
+    final handler = _cachedHandler ??= await AudioService.init<MeloAudioHandler>(
       builder: MeloAudioHandler.new,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.melo.player.audio',
@@ -56,15 +61,27 @@ class MeloServices {
     );
     final session = await sessionFuture;
     final library = await libraryFuture;
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('tone_online_lyrics_enabled')) {
+      await LyricsRepository.setOnlineLookupEnabled(true);
+    }
     unawaited(handler.attachAudioSession(session));
     handler.attachMusicLibrary(library);
     final audioProfileService = AudioServiceAudioProfileService(handler);
-    unawaited(
-      library.restoreQueue(handler).catchError((Object error, StackTrace st) {
-        _reportStreamError(error, st, 'restore playback queue');
-      }),
-    );
+    // Restore the saved queue before attaching persistence listeners so the
+    // initial empty BehaviorSubject value never overwrites persisted state.
+    try {
+      await library.restoreQueue(handler);
+    } catch (error, st) {
+      _reportStreamError(error, st, 'restore playback queue');
+    }
     unawaited(AppUpdateService.instance.initialize(runStartupCheck: true));
+    unawaited(SpotifyService.instance.initialize());
+    unawaited(
+      LyricsRepository.autoDownloadForLibrary(
+        library.tracks.map((t) => t.toMediaItem()),
+      ),
+    );
     final subscriptions = <StreamSubscription<dynamic>>[];
     Future<void> persistPlaybackQueue() => library.persistPlaybackQueue(
       items: handler.queue.value,
@@ -73,16 +90,16 @@ class MeloServices {
     );
     if (persistPlaybackState) {
       subscriptions.add(
-        handler.queue.listen(
+        handler.queue.skip(1).listen(
           (_) => _reportPersistence(persistPlaybackQueue()),
           onError: (Object error, StackTrace stackTrace) =>
               _reportStreamError(error, stackTrace, 'playback queue'),
         ),
       );
       subscriptions.add(
-        handler.mediaItem.listen(
+        handler.mediaItem.skip(1).listen(
           (item) {
-            _reportPersistence(library.saveCurrentTrack(item?.id));
+            _reportPersistence(library.recordPlayedMediaItem(item));
             _reportPersistence(persistPlaybackQueue());
           },
           onError: (Object error, StackTrace stackTrace) =>

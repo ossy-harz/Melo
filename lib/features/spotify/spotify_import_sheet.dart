@@ -394,12 +394,12 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1DB954).withValues(alpha: 0.18),
+                    color: MeloColors.cherry.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
                     Icons.music_note_rounded,
-                    color: Color(0xFF1DB954),
+                    color: MeloColors.cherry,
                     size: 20,
                   ),
                 ),
@@ -790,7 +790,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                               if (isDownloaded)
                                 const Tooltip(
                                   message: 'Already downloaded in library',
-                                  child: Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+                                  child: Icon(Icons.check_circle_rounded, color: MeloColors.cherry, size: 20),
                                 )
                               else if (isDownloading)
                                 const SizedBox(

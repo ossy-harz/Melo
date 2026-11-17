@@ -383,7 +383,7 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
                                   : 'Connect for algorithmic mixes & liked music',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isLoggedIn ? Colors.greenAccent : colors.onSurfaceVariant,
+                                color: isLoggedIn ? MeloColors.cherry : colors.onSurfaceVariant,
                               ),
                             ),
                           ],

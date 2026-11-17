@@ -53,6 +53,10 @@ Future<Map<String, Object?>?> _audioTagsFor(MediaItem item) =>
           item.extras?['source'] == 'spotify';
       if (isOnline) {
         return {
+          'mimeType': 'audio/opus',
+          'sampleRate': 48000,
+          'channelCount': 2,
+          'bitRate': 256000,
           'title': item.title,
           'artist': item.artist,
           'album': item.album,
@@ -73,22 +77,30 @@ Future<Map<String, Object?>?> _audioTagsFor(MediaItem item) =>
     });
 
 String _audioQualityLabel(Map<String, Object?> details) {
-  final mimeType = details['mimeType'] as String?;
-  if (mimeType == null || mimeType.isEmpty) return 'Unavailable';
-  final codec = switch (mimeType.toLowerCase()) {
-    final value when value.contains('flac') => 'FLAC',
-    final value when value.contains('mpeg') || value.contains('mp3') => 'MP3',
-    final value when value.contains('aac') || value.contains('mp4a') => 'AAC',
-    final value when value.contains('opus') => 'Opus',
-    final value when value.contains('vorbis') => 'Vorbis',
-    final value when value.contains('alac') => 'ALAC',
-    final value
-        when value.contains('pcm') ||
-            value.contains('wav') ||
-            value.contains('raw') =>
-      'PCM',
-    _ => mimeType.substring(mimeType.indexOf('/') + 1).toUpperCase(),
-  };
+  final mimeType = (details['mimeType'] as String?)?.toLowerCase() ?? '';
+  final path = (details['path'] as String? ?? '').toLowerCase();
+
+  String codec;
+  if (path.endsWith('.flac') || mimeType.contains('flac')) {
+    codec = 'FLAC';
+  } else if (path.endsWith('.alac') || mimeType.contains('alac')) {
+    codec = 'ALAC';
+  } else if (path.endsWith('.opus') || mimeType.contains('opus')) {
+    codec = 'Opus';
+  } else if (path.endsWith('.mp3') || mimeType.contains('mpeg') || mimeType.contains('mp3')) {
+    codec = 'MP3';
+  } else if (path.endsWith('.m4a') || path.endsWith('.aac') || mimeType.contains('aac') || mimeType.contains('mp4a')) {
+    codec = 'AAC';
+  } else if (path.endsWith('.wav') || mimeType.contains('wav')) {
+    codec = 'WAV';
+  } else if (mimeType.contains('pcm') || mimeType.contains('raw')) {
+    codec = 'Lossless PCM';
+  } else if (mimeType.isNotEmpty && mimeType.contains('/')) {
+    codec = mimeType.substring(mimeType.indexOf('/') + 1).toUpperCase();
+  } else {
+    codec = 'AAC';
+  }
+
   final sampleRate = (details['sampleRate'] as num?)?.toInt();
   final channels = (details['channelCount'] as num?)?.toInt();
   final bitRate = (details['bitRate'] as num?)?.toInt();
@@ -122,18 +134,37 @@ class _AudioQualityBadges extends StatelessWidget {
       final details = snapshot.data;
       final quality = (details != null) ? _audioQualityLabel(details) : 'Unavailable';
       final mime = (details?['mimeType'] as String?)?.toLowerCase() ?? '';
+      final path = item.id.toLowerCase();
       final isLossless = mime.contains('flac') ||
           mime.contains('alac') ||
           mime.contains('wav') ||
-          mime.contains('raw');
+          path.endsWith('.flac') ||
+          path.endsWith('.alac') ||
+          path.endsWith('.wav');
 
-      final codec = quality != 'Unavailable' ? quality.split(' · ').first : 'AAC';
+      String labelText;
+      if (quality == 'Unavailable') {
+        labelText = 'AAC';
+      } else {
+        final parts = quality.split(' · ');
+        final codec = parts.first;
+        final khz = parts.length > 1 ? parts[1] : '';
+        if (isLossless && khz.isNotEmpty) {
+          labelText = '$codec · $khz';
+        } else if (isLossless) {
+          labelText = '$codec Hi-Res';
+        } else if (khz.isNotEmpty) {
+          labelText = '$codec · $khz';
+        } else {
+          labelText = codec;
+        }
+      }
 
       return InkWell(
         onTap: () => TrackDetailsSheet.show(context, item),
         borderRadius: BorderRadius.circular(MeloRadii.pill),
         child: _QualityBadge(
-          label: codec,
+          label: labelText,
           highlighted: isLossless,
         ),
       );

@@ -59,7 +59,7 @@ class _ArtworkBackdrop extends StatelessWidget {
                 center: const Alignment(0, -0.74),
                 radius: 1.08,
                 colors: [
-                  palette.accent.withValues(alpha: 0.44),
+                  palette.accent.withValues(alpha: 0.48),
                   palette.accent.withValues(alpha: 0),
                 ],
               ),
@@ -70,10 +70,24 @@ class _ArtworkBackdrop extends StatelessWidget {
             curve: MeloMotion.emphasized,
             decoration: BoxDecoration(
               gradient: RadialGradient(
-                center: const Alignment(0.8, 1.1),
+                center: const Alignment(0.85, 0.72),
+                radius: 1.02,
+                colors: [
+                  palette.glow.withValues(alpha: 0.36),
+                  palette.glow.withValues(alpha: 0),
+                ],
+              ),
+            ),
+          ),
+          AnimatedContainer(
+            duration: MeloMotion.slow,
+            curve: MeloMotion.emphasized,
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.85, 1.05),
                 radius: 0.95,
                 colors: [
-                  palette.muted.withValues(alpha: 0.5),
+                  palette.muted.withValues(alpha: 0.52),
                   palette.muted.withValues(alpha: 0),
                 ],
               ),
@@ -540,22 +554,12 @@ class _PlaylistArtworkState extends State<PlaylistArtwork> {
     required String name,
     int? themeIndex,
   }) {
-    // 7 Apple Music signature fluid palettes
+    // Apple Music Red, Obsidian Black & White fluid palettes
     const themePalettes = <List<Color>>[
-      // 0: Velvet Sunset
-      [Color(0xFFFF2A4F), Color(0xFFC026D3), Color(0xFF311042), Color(0xFF0D0214)],
-      // 1: Midnight Groove
-      [Color(0xFF06B6D4), Color(0xFF2563EB), Color(0xFF1E1B4B), Color(0xFF030712)],
-      // 2: Solar Flare
-      [Color(0xFFF59E0B), Color(0xFFEA580C), Color(0xFF881337), Color(0xFF1F040A)],
-      // 3: Emerald Wave
-      [Color(0xFF10B981), Color(0xFF059669), Color(0xFF064E3B), Color(0xFF021E14)],
-      // 4: Cosmic Neon
-      [Color(0xFFF43F5E), Color(0xFF8B5CF6), Color(0xFF4C1D95), Color(0xFF090514)],
-      // 5: Rose Gold
-      [Color(0xFFFB7185), Color(0xFFE11D48), Color(0xFF4C0519), Color(0xFF140206)],
-      // 6: Titanium Slate
-      [Color(0xFF94A3B8), Color(0xFF475569), Color(0xFF1E293B), Color(0xFF090D16)],
+      [Color(0xFFFA243C), Color(0xFF7A0C1E), Color(0xFF24040A), Color(0xFF000000)],
+      [Color(0xFF2C2C2E), Color(0xFF1C1C1E), Color(0xFF0D0D0F), Color(0xFF000000)],
+      [Color(0xFFFF455B), Color(0xFF5E0A19), Color(0xFF180307), Color(0xFF000000)],
+      [Color(0xFF4A0915), Color(0xFF220409), Color(0xFF0F0F12), Color(0xFF000000)],
     ];
 
     final index = themeIndex != null

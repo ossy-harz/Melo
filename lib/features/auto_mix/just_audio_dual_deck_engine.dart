@@ -327,7 +327,7 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     try {
       await _player.setSpeed(1.0);
       await _player.setPitch(1.0);
-      await _player.setSkipSilenceEnabled(false);
+      await _player.setSkipSilenceEnabled(true);
     } catch (_) {}
   }
 
@@ -343,6 +343,9 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     try {
       await _player.setSpeed(1.0);
       await _player.setPitch(1.0);
+      try {
+        await _player.setSkipSilenceEnabled(true);
+      } catch (_) {}
       await _player.setAudioSource(
         AudioSource.uri(
           source.uri,

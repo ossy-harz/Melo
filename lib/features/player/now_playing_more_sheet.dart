@@ -84,10 +84,24 @@ class NowPlayingMoreSheet extends StatelessWidget {
                     label: 'Dislike',
                     onTap: () {
                       Navigator.of(context).pop();
+                      final library = musicLibrary;
+                      if (library != null) {
+                        final libraryId = item.extras?['libraryId'] as String? ??
+                            library
+                                .findMatchingLocalTrack(
+                                  title: item.title,
+                                  artist: item.artist,
+                                  path: item.id,
+                                )
+                                ?.id;
+                        if (libraryId != null) {
+                          unawaited(library.setMixExcluded(libraryId, true));
+                        }
+                      }
                       audioHandler.skipToNext();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Skipped and marked disliked'),
+                          content: Text('Skipped and excluded from mixes'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
@@ -134,43 +148,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
                   onStartRadio();
                 },
               ),
-              _MoreOptionTile(
-                icon: Icons.playlist_play_rounded,
-                title: 'Play next',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  audioHandler.addQueueItem(item);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Playing "${item.title}" next in queue'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              _MoreOptionTile(
-                icon: Icons.queue_music_rounded,
-                title: 'Up next',
-                subtitle: 'Open queue',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onOpenQueue?.call();
-                },
-              ),
-              _MoreOptionTile(
-                icon: Icons.playlist_add_rounded,
-                title: 'Add to queue',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  audioHandler.addQueueItem(item);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Added "${item.title}" to queue'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
+
               _MoreOptionTile(
                 icon: Icons.lyrics_rounded,
                 title: 'Read lyrics',
@@ -252,6 +230,79 @@ class NowPlayingMoreSheet extends StatelessWidget {
     );
   }
 
+  Future<String> _ensureRegisteredTrackId(MusicLibrary library) async {
+    final existingId = item.extras?['libraryId'] as String?;
+    if (existingId != null &&
+        library.tracks.any((t) => t.id == existingId)) {
+      return existingId;
+    }
+    final localMatch = library.findMatchingLocalTrack(
+      providerTrackId: item.extras?['providerTrackId'] as String?,
+      title: item.title,
+      artist: item.artist,
+      path: item.id,
+    );
+    if (localMatch != null) return localMatch.id;
+
+    final isSpotify =
+        item.id.startsWith('spotify:') ||
+        item.extras?['downloadProvider'] == 'Spotify' ||
+        item.extras?['source'] == 'spotify';
+    final pId =
+        item.extras?['providerTrackId'] as String? ??
+        (item.id.startsWith('spotify:')
+            ? item.id.substring(8)
+            : item.id.startsWith('youtube:')
+            ? item.id.substring(8)
+            : null);
+    final remoteTrack = ImportedTrack(
+      id: item.id,
+      path: item.id,
+      title: item.title,
+      artist: item.artist ?? 'Unknown artist',
+      album: item.album ?? 'Streaming',
+      durationMs: item.duration?.inMilliseconds,
+      artworkUri: item.artUri?.toString(),
+      sourceProvider: isSpotify ? 'Spotify' : 'youtube',
+      providerTrackId: pId,
+      isAvailable: true,
+      isDeviceMedia: false,
+    );
+    final registered = await library.registerOrFindRemoteTracks([remoteTrack]);
+    return registered.isNotEmpty ? registered.first.id : item.id;
+  }
+
+  Future<void> _createPlaylistWithTrack(
+    BuildContext rootContext,
+    BuildContext sheetContext,
+    MusicLibrary library,
+  ) async {
+    final name = await showDialog<String>(
+      context: sheetContext,
+      builder: (_) => const _NewPlaylistDialog(),
+    );
+    if (name == null || name.isEmpty) return;
+
+    final trackId = await _ensureRegisteredTrackId(library);
+    final created = await library.createPlaylist(name);
+    if (item.artUri != null) {
+      await library.updatePlaylistCover(
+        created.id,
+        customArtworkUri: item.artUri.toString(),
+      );
+    }
+    await library.addTracksToPlaylist(created.id, [trackId]);
+    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+    if (rootContext.mounted) {
+      ScaffoldMessenger.of(rootContext).showSnackBar(
+        SnackBar(
+          content: Text('Added "${item.title}" to "${created.name}"'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _showAddToPlaylist(BuildContext context) {
     final library = musicLibrary;
     if (library == null) {
@@ -266,7 +317,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1E151A),
+          color: Color(0xFF141416),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -293,12 +344,37 @@ class NowPlayingMoreSheet extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              leading: const CircleAvatar(
+                backgroundColor: MeloColors.cherry,
+                foregroundColor: Colors.white,
+                radius: 18,
+                child: Icon(Icons.add_rounded, size: 20),
+              ),
+              title: const Text(
+                'New Playlist',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              onTap: () => unawaited(
+                _createPlaylistWithTrack(context, sheetContext, library),
+              ),
+            ),
+            if (playlists.isNotEmpty) const SizedBox(height: 6),
             if (playlists.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+                padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
-                  child: Text('No playlists created yet. Create one in Library.'),
+                  child: Text(
+                    'No playlists yet — create one above.',
+                    style: TextStyle(color: Colors.white60),
+                  ),
                 ),
               )
             else
@@ -312,16 +388,30 @@ class NowPlayingMoreSheet extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      leading: const Icon(Icons.playlist_play_rounded, color: MeloColors.cherry),
-                      title: Text(pl.name, style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('${pl.trackIds.length} tracks', style: const TextStyle(color: Colors.white60)),
+                      leading: const Icon(
+                        Icons.playlist_play_rounded,
+                        color: MeloColors.cherry,
+                      ),
+                      title: Text(
+                        pl.name,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '${pl.trackIds.length} tracks',
+                        style: const TextStyle(color: Colors.white60),
+                      ),
                       onTap: () async {
-                        Navigator.of(sheetContext).pop();
-                        await library.addTracksToPlaylist(pl.id, [item.id]);
+                        final trackId = await _ensureRegisteredTrackId(library);
+                        await library.addTracksToPlaylist(pl.id, [trackId]);
+                        if (sheetContext.mounted) {
+                          Navigator.of(sheetContext).pop();
+                        }
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Added "${item.title}" to ${pl.name}'),
+                              content: Text(
+                                'Added "${item.title}" to ${pl.name}',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -513,6 +603,74 @@ class _MoreOptionTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Stateful dialog so [_controller] outlives the route pop and IME animations.
+class _NewPlaylistDialog extends StatefulWidget {
+  const _NewPlaylistDialog();
+
+  @override
+  State<_NewPlaylistDialog> createState() => _NewPlaylistDialogState();
+}
+
+class _NewPlaylistDialogState extends State<_NewPlaylistDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      scrollable: true,
+      backgroundColor: const Color(0xFF141416),
+      title: const Text(
+        'New Playlist',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        style: const TextStyle(color: Colors.white),
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          hintText: 'Playlist name',
+          hintStyle: const TextStyle(color: Colors.white38),
+          filled: true,
+          fillColor: Colors.black,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: MeloColors.cherry,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _submit,
+          child: const Text('Create'),
+        ),
+      ],
     );
   }
 }

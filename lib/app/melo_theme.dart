@@ -34,6 +34,12 @@ abstract final class MeloColors {
   // App shell surfaces (dark).
   static const shell = Color(0xFF000000);
   static const shellRaised = Color(0xFF111111);
+
+  // Apple Music HDR dark & specular tokens (Red, Black, White only).
+  static const hdrSpecular = Color(0x38FFFFFF);
+  static const qledSurface = Color(0xFF080808);
+  static const qledCard = Color(0xFF121214);
+  static const qledElevated = Color(0xFF1C1C1E);
 }
 
 /// Corner radii used across the product so surfaces stay consistent.
@@ -86,6 +92,32 @@ abstract final class MeloShadows {
       color: Colors.black.withValues(alpha: 0.5),
       blurRadius: 34,
       offset: const Offset(0, 20),
+    ),
+  ];
+
+  static List<BoxShadow> hdrBloom(
+    Color primary, {
+    Color? secondary,
+    double opacity = 0.38,
+  }) => [
+    BoxShadow(
+      color: primary.withValues(alpha: opacity),
+      blurRadius: 36,
+      spreadRadius: -8,
+      offset: const Offset(0, 14),
+    ),
+    BoxShadow(
+      color: (secondary ?? MeloColors.cherryDeep).withValues(
+        alpha: opacity * 0.55,
+      ),
+      blurRadius: 48,
+      spreadRadius: -12,
+      offset: const Offset(0, 20),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.65),
+      blurRadius: 28,
+      offset: const Offset(0, 16),
     ),
   ];
 }

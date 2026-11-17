@@ -277,4 +277,43 @@ void main() {
     expect(requested, isFalse);
     expect(await LyricsRepository.onlineLookupEnabled, isFalse);
   });
+
+  test(
+    'autoDownloadForMediaItem fetches and caches lyrics and increments revision',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      const item = MediaItem(
+        id: 'auto-dl-song',
+        title: 'A song',
+        artist: 'Tone Test',
+        duration: Duration(minutes: 3),
+      );
+      final initialRev = LyricsRepository.revision.value;
+
+      final lyrics = await LyricsRepository.autoDownloadForMediaItem(
+        item,
+        onlineLookup: (uri) async {
+          if (uri.path == '/api/get') {
+            return {
+              'instrumental': false,
+              'syncedLyrics': '[00:01.00]Auto downloaded lyric',
+              'plainLyrics': 'Auto downloaded lyric',
+            };
+          }
+          return null;
+        },
+      );
+
+      expect(lyrics?.isSynchronized, isTrue);
+      expect(lyrics?.lines.single.text, 'Auto downloaded lyric');
+      expect(LyricsRepository.revision.value, greaterThan(initialRev));
+
+      final cached = await LyricsRepository.loadFor(
+        item,
+        onlineLookup: (_) async =>
+            fail('cached auto-downloaded lyrics should not refetch'),
+      );
+      expect(cached?.lines.single.text, 'Auto downloaded lyric');
+    },
+  );
 }

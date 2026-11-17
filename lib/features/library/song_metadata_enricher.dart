@@ -40,6 +40,201 @@ class SongMetadataEnricher {
   SongMetadataEnricher._();
   static final SongMetadataEnricher instance = SongMetadataEnricher._();
 
+  final Map<String, String?> _artistImageCache = {};
+  final Map<String, Future<String?>> _inFlightArtistImages = {};
+  final Map<String, List<String>> _relatedArtistsCache = {};
+  final Map<String, Future<List<String>>> _inFlightRelatedArtists = {};
+  final Map<String, String?> _trackArtworkCache = {};
+  final Map<String, Future<String?>> _inFlightTrackArtworks = {};
+
+  String? cachedArtistImageUrl(String artistName) =>
+      _artistImageCache[artistName.trim().toLowerCase()];
+
+  String? cachedTrackArtworkUrl(String title, String artist) =>
+      _trackArtworkCache[canonicalSongKey(title, artist)];
+
+  /// Fetches high-res studio cover artwork for an individual song via iTunes
+  /// and Deezer catalog matching, caching hits and misses in memory.
+  Future<String?> fetchTrackArtworkUrl(String title, String artist) async {
+    final cleanedTitle = cleanTitle(title, rawArtist: artist);
+    final cleanedArtist = cleanArtist(artist, rawTitle: title);
+    if (cleanedTitle.isEmpty) return null;
+
+    final key = canonicalSongKey(title, artist);
+    if (_trackArtworkCache.containsKey(key)) {
+      return _trackArtworkCache[key];
+    }
+    final existing = _inFlightTrackArtworks[key];
+    if (existing != null) return existing;
+
+    final future = () async {
+      final term = cleanedArtist.isNotEmpty
+          ? '$cleanedTitle $cleanedArtist'
+          : cleanedTitle;
+      try {
+        final results = await Future.wait([
+          _queryItunesCatalog(term, cleanedTitle, cleanedArtist),
+          _queryDeezerCatalog(term, cleanedTitle, cleanedArtist),
+        ]);
+        final art =
+            (results[0]?['artworkUrl'] as String?) ??
+            (results[1]?['artworkUrl'] as String?);
+        final resolved = (art != null && art.isNotEmpty) ? art : null;
+        _trackArtworkCache[key] = resolved;
+        return resolved;
+      } catch (_) {
+        _trackArtworkCache[key] = null;
+        return null;
+      }
+    }();
+
+    _inFlightTrackArtworks[key] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightTrackArtworks.remove(key);
+    }
+  }
+
+  /// Fetches a real artist portrait URL from Deezer's public artist search API,
+  /// caching both hits and misses in memory.
+  Future<String?> fetchArtistImageUrl(String artistName) async {
+    final normalized = artistName.trim().toLowerCase();
+    if (normalized.isEmpty || normalized == 'unknown artist') return null;
+    if (_artistImageCache.containsKey(normalized)) {
+      return _artistImageCache[normalized];
+    }
+    final existing = _inFlightArtistImages[normalized];
+    if (existing != null) return existing;
+
+    final future = _fetchArtistImageUncached(artistName.trim(), normalized);
+    _inFlightArtistImages[normalized] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightArtistImages.remove(normalized);
+    }
+  }
+
+  /// Fetches related artists from Deezer's artist graph and caches their names
+  /// and portraits in memory.
+  Future<List<String>> fetchRelatedArtists(
+    String artistName, {
+    int limit = 5,
+  }) async {
+    final normalized = artistName.trim().toLowerCase();
+    if (normalized.isEmpty || normalized == 'unknown artist') {
+      return const [];
+    }
+    final cached = _relatedArtistsCache[normalized];
+    if (cached != null) return cached;
+    final existing = _inFlightRelatedArtists[normalized];
+    if (existing != null) return existing;
+
+    final future = _fetchRelatedArtistsUncached(
+      artistName.trim(),
+      normalized,
+      limit: limit,
+    );
+    _inFlightRelatedArtists[normalized] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightRelatedArtists.remove(normalized);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _searchDeezerArtist(
+    String artistName,
+    String normalizedKey,
+  ) async {
+    try {
+      final uri = Uri.https('api.deezer.com', '/search/artist', {
+        'q': artistName,
+        'limit': '3',
+      });
+      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final results =
+          (data['data'] as List?)?.whereType<Map<String, dynamic>>().toList();
+      if (results == null || results.isEmpty) {
+        _artistImageCache[normalizedKey] = null;
+        return null;
+      }
+      var chosen = results.first;
+      for (final item in results) {
+        final name = (item['name'] as String? ?? '').trim().toLowerCase();
+        if (name == normalizedKey) {
+          chosen = item;
+          break;
+        }
+      }
+      final url = (chosen['picture_xl'] ??
+          chosen['picture_big'] ??
+          chosen['picture_medium'] ??
+          chosen['picture']) as String?;
+      _artistImageCache[normalizedKey] = url;
+      return chosen;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _fetchArtistImageUncached(
+    String artistName,
+    String normalizedKey,
+  ) async {
+    await _searchDeezerArtist(artistName, normalizedKey);
+    return _artistImageCache[normalizedKey];
+  }
+
+  Future<List<String>> _fetchRelatedArtistsUncached(
+    String artistName,
+    String normalizedKey, {
+    required int limit,
+  }) async {
+    try {
+      final chosen = await _searchDeezerArtist(artistName, normalizedKey);
+      final artistId = chosen?['id'];
+      if (artistId == null) return const [];
+
+      final uri = Uri.https('api.deezer.com', '/artist/$artistId/related', {
+        'limit': '$limit',
+      });
+      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) return const [];
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final results =
+          (data['data'] as List?)?.whereType<Map<String, dynamic>>().toList();
+      if (results == null || results.isEmpty) {
+        _relatedArtistsCache[normalizedKey] = const [];
+        return const [];
+      }
+      final related = <String>[];
+      for (final item in results) {
+        final name = (item['name'] as String? ?? '').trim();
+        if (name.isEmpty) continue;
+        final lower = name.toLowerCase();
+        if (lower == normalizedKey) continue;
+        final picture = (item['picture_xl'] ??
+            item['picture_big'] ??
+            item['picture_medium'] ??
+            item['picture']) as String?;
+        if (picture != null && picture.isNotEmpty) {
+          _artistImageCache.putIfAbsent(lower, () => picture);
+        }
+        related.add(name);
+        if (related.length >= limit) break;
+      }
+      final unmodifiable = List<String>.unmodifiable(related);
+      _relatedArtistsCache[normalizedKey] = unmodifiable;
+      return unmodifiable;
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Cleans noisy video/filename suffixes from a track title so metadata and
   /// lyrics APIs match accurately.
   static String cleanTitle(String rawTitle, {String? rawArtist}) {

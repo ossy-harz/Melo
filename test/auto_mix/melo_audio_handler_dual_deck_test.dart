@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/auto_mix/audio_engine.dart';
@@ -563,6 +564,31 @@ void main() {
       expect(handler.mediaItem.value?.id, '/music/current.mp3');
     },
   );
+
+  test('recovers gracefully from corrupted saved playback settings', () async {
+    SharedPreferences.setMockInitialValues({
+      'tone_playback_repeat_mode': 'invalid_mode',
+      'tone_playback_shuffle_mode': 'invalid_shuffle',
+      'tone_audio_profile': '{not valid json',
+    });
+    final previousOnError = FlutterError.onError;
+    final reportedErrors = <FlutterErrorDetails>[];
+    FlutterError.onError = reportedErrors.add;
+    addTearDown(() => FlutterError.onError = previousOnError);
+
+    final engine = _FakeAudioEngine();
+    final handler = MeloAudioHandler(audioEngine: engine);
+    addTearDown(handler.dispose);
+
+    await handler.replaceQueue([
+      const MediaItem(id: '/music/a.mp3', title: 'Track A'),
+    ], playWhenReady: false);
+
+    expect(handler.mediaItem.value?.id, '/music/a.mp3');
+    expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.none);
+    expect(handler.playbackState.value.shuffleMode, AudioServiceShuffleMode.none);
+    expect(reportedErrors, isNotEmpty);
+  });
 }
 
 class _FakeAudioEngine implements AudioEngine {

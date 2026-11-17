@@ -1,112 +1,151 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/app/melo_theme.dart';
-import 'package:melo_player/features/home/curated_playlist_preview_sheet.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/settings/spotify_settings_screen.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
   CuratedPlaylistPreset(
-    title: 'Afrobeats Essentials',
-    curatorSubtitle: 'Lagos to the World · Burna, Rema, Tems, Asake',
-    badge: 'ESSENTIALS',
-    searchQuery: 'Afrobeats Hits 2025 Official Audio',
-    gradient: [Color(0xFFFF6B35), Color(0xFF9E2A2B)],
+    title: 'Matata Radio',
+    curatorSubtitle: 'With KODONGKLAN, Sauti Sol, Chris Kaiga and more',
+    badge: 'MADE FOR YOU',
+    searchQuery: 'Matata Bien Sauti Sol Chris Kaiga Kenyan Hits Official Audio',
+    gradient: [MeloColors.cherry, MeloColors.cherryDeep],
+    icon: Icons.radio_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    genre: 'Kenyan & Bongo',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Arbantone & Kenyan Wave',
+    curatorSubtitle: 'Gody Tennor, Benzema, Boutross, Trio Mio',
+    badge: 'KENYAN HEAT',
+    searchQuery: 'Arbantone Gengetone Kenyan Hits 2025 Official Audio',
+    gradient: [Color(0xFF8A0E22), Color(0xFF0A0A0C)],
     icon: Icons.bolt_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
-    genre: 'Afrobeats',
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    genre: 'Kenyan & Bongo',
   ),
   CuratedPlaylistPreset(
     title: 'Bongo & Kenyan Vibes',
     curatorSubtitle: 'Diamond, Harmonize, Sauti Sol, Otile Brown, Bien',
     badge: 'EAST AFRICA',
-    searchQuery: 'Bongo Flava Kenyan Gengetone Hits Official Audio',
-    gradient: [Color(0xFFE65100), Color(0xFFBF360C)],
+    searchQuery: 'Bongo Flava Kenyan Hits Official Audio',
+    gradient: [Color(0xFF6E0B1C), Color(0xFF0D0205)],
     icon: Icons.music_note_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
     genre: 'Kenyan & Bongo',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Dancehall Heavyweights',
+    curatorSubtitle: 'Vybz Kartel, Popcaan, Shenseea, Masicka, Skillibeng',
+    badge: 'DANCEHALL',
+    searchQuery: 'Dancehall Vybz Kartel Popcaan Masicka Official Audio',
+    gradient: [MeloColors.cherry, Color(0xFF1A0408)],
+    icon: Icons.wb_sunny_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+    genre: 'Dancehall',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Kingston Street Riddims',
+    curatorSubtitle: 'Byron Messia, Chronic Law, Valiant, Teejay',
+    badge: 'RIDDIM MIX',
+    searchQuery: 'Jamaica Dancehall Riddim 2025 Official Audio',
+    gradient: [Color(0xFF7A0C1E), Color(0xFF080808)],
+    icon: Icons.speaker_group_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+    genre: 'Dancehall',
+  ),
+  CuratedPlaylistPreset(
+    title: 'New Wave Bashment',
+    curatorSubtitle: 'Modern club bashment & Afro-Dancehall',
+    badge: 'BASHMENT',
+    searchQuery: 'Shenseea Skillibeng Afro Dancehall Official Audio',
+    gradient: [Color(0xFF4A0915), Color(0xFF000000)],
+    icon: Icons.local_fire_department_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
+    genre: 'Dancehall',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Afrobeats Essentials',
+    curatorSubtitle: 'Lagos to the World · Burna, Rema, Tems, Asake',
+    badge: 'ESSENTIALS',
+    searchQuery: 'Afrobeats Hits 2025 Official Audio',
+    gradient: [MeloColors.cherry, MeloColors.cherryDeep],
+    icon: Icons.bolt_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+    genre: 'Afrobeats',
   ),
   CuratedPlaylistPreset(
     title: "Today's Top Hits",
     curatorSubtitle: 'Melo Editorial · Global Chart Toppers',
     badge: 'UPDATED TODAY',
     searchQuery: 'Top Pop Global Hits 2025 Official Audio',
-    gradient: [Color(0xFFE8173B), Color(0xFF6A051D)],
+    gradient: [Color(0xFFFA243C), Color(0xFF4A0812)],
     icon: Icons.local_fire_department_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
     genre: 'Pop',
   ),
   CuratedPlaylistPreset(
     title: 'Rap Life',
-    curatorSubtitle: 'Heavyweight Bars & Street Anthems',
+    curatorSubtitle: 'Kendrick Lamar, Drake, Future, Travis Scott',
     badge: 'HIP-HOP',
     searchQuery: 'Hip Hop Rap Hits 2025 Official Audio',
-    gradient: [Color(0xFF232526), Color(0xFF414345)],
+    gradient: [Color(0xFF1C1C1E), Color(0xFF000000)],
     icon: Icons.mic_external_on_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
     genre: 'Hip-Hop',
   ),
   CuratedPlaylistPreset(
     title: 'Late Night R&B',
-    curatorSubtitle: 'Smooth Soul & Midnight Moods',
+    curatorSubtitle: 'SZA, Summer Walker, Brent Faiyaz, Bryson Tiller',
     badge: 'CHILL & SOUL',
     searchQuery: 'Late Night R&B Soul Hits Official Audio',
-    gradient: [Color(0xFF5F0F40), Color(0xFF310E68)],
+    gradient: [Color(0xFF4A0915), Color(0xFF080808)],
     icon: Icons.nightlight_round,
     coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
     genre: 'R&B',
-  ),
-  CuratedPlaylistPreset(
-    title: 'Dancehall Heavyweights',
-    curatorSubtitle: 'Vybz Kartel, Popcaan, Shenseea, Skillibeng',
-    badge: 'DANCEHALL',
-    searchQuery: 'Dancehall Kingston Hits 2025 Official Audio',
-    gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
-    icon: Icons.wb_sunny_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
-    genre: 'Dancehall',
   ),
   CuratedPlaylistPreset(
     title: 'Roots & Lovers Reggae',
     curatorSubtitle: 'Bob Marley, Chronixx, Protoje, Koffee, Tarrus Riley',
     badge: 'REGGAE',
     searchQuery: 'Reggae Roots Conscious Hits Official Audio',
-    gradient: [Color(0xFF1B5E20), Color(0xFF33691E)],
+    gradient: [Color(0xFF2C2C2E), Color(0xFF0A0A0C)],
     icon: Icons.park_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
     genre: 'Reggae',
   ),
   CuratedPlaylistPreset(
     title: 'Amapiano Grooves',
-    curatorSubtitle: 'Log Drums & Private School Piano',
+    curatorSubtitle: 'Tyler ICU, Kabza De Small, Uncle Waffles, Tyla',
     badge: 'DANCE FLOOR',
     searchQuery: 'Amapiano Hits 2025 Official Audio',
-    gradient: [Color(0xFF007991), Color(0xFF222E50)],
+    gradient: [Color(0xFF7A0C1E), Color(0xFF000000)],
     icon: Icons.graphic_eq_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
     genre: 'Amapiano',
-  ),
-  CuratedPlaylistPreset(
-    title: 'Reggae & Dancehall Energy',
-    curatorSubtitle: 'Kingston Anthems & Island Heat',
-    badge: 'ISLAND SOUNDS',
-    searchQuery: 'Dancehall Reggae Hits 2025 Official Audio',
-    gradient: [Color(0xFF1B5E20), Color(0xFFF57F17)],
-    icon: Icons.wb_sunny_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
-    genre: 'Dancehall',
   ),
   CuratedPlaylistPreset(
     title: 'Electronic & Dance Floor',
     curatorSubtitle: 'Peak Time Club & Synth Waves',
     badge: 'ELECTRONIC',
     searchQuery: 'EDM Electronic Dance Hits 2025 Official Audio',
-    gradient: [Color(0xFF8A2387), Color(0xFFE94057)],
+    gradient: [Color(0xFFFA243C), Color(0xFF140307)],
     icon: Icons.speaker_group_rounded,
-    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
     genre: 'Dance',
   ),
   CuratedPlaylistPreset(
@@ -114,7 +153,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     curatorSubtitle: 'Heavy Riffs & Timeless Anthems',
     badge: 'ROCK & ALT',
     searchQuery: 'Classic Rock Alternative Hits Official Audio',
-    gradient: [Color(0xFF3E2723), Color(0xFF212121)],
+    gradient: [Color(0xFF242426), Color(0xFF000000)],
     icon: Icons.electric_bolt_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&q=80',
     genre: 'Rock',
@@ -124,7 +163,7 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     curatorSubtitle: 'Soulful Worship & Uplifting Praise',
     badge: 'SPIRITUAL',
     searchQuery: 'Contemporary Gospel Praise Worship Hits',
-    gradient: [Color(0xFF4A148C), Color(0xFF880E4F)],
+    gradient: [Color(0xFF5E0A19), Color(0xFF080808)],
     icon: Icons.favorite_border_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1445743432342-eac500ce72b7?w=600&q=80',
     genre: 'Gospel',
@@ -134,90 +173,773 @@ const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
     curatorSubtitle: 'Instrumental Beats for Deep Work',
     badge: 'INSTRUMENTAL',
     searchQuery: 'Chill Lofi Study Beats Instrumental',
-    gradient: [Color(0xFF134E5E), Color(0xFF71B280)],
+    gradient: [Color(0xFF1C1C1E), Color(0xFF080808)],
     icon: Icons.headphones_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
     genre: 'Focus',
   ),
+  CuratedPlaylistPreset(
+    title: 'Music & Creator Podcasts',
+    curatorSubtitle: 'Full studio sessions, artist interviews & deep dives',
+    badge: 'PODCASTS',
+    searchQuery: 'music producer interview podcast full episode',
+    gradient: [Color(0xFF6E0B1C), Color(0xFF000000)],
+    icon: Icons.podcasts_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80',
+    genre: 'Podcasts',
+    allowLongEpisodes: true,
+  ),
+  CuratedPlaylistPreset(
+    title: 'Deep Talks & Culture Pods',
+    curatorSubtitle: 'Storytelling, culture & long-form conversations',
+    badge: 'EPISODES',
+    searchQuery: 'culture storytelling podcast full episode',
+    gradient: [Color(0xFF242426), Color(0xFF000000)],
+    icon: Icons.mic_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&q=80',
+    genre: 'Podcasts',
+    allowLongEpisodes: true,
+  ),
 ];
 
-class TopPicksShelf extends StatelessWidget {
+class TopPicksShelf extends StatefulWidget {
   const TopPicksShelf({
     required this.onPlayVibe,
     required this.onPlayPreset,
+    this.library,
+    this.onOpenArtistRadio,
     super.key,
   });
 
+  static final ValueNotifier<String> selectedGenreNotifier =
+      ValueNotifier<String>('For You');
+
   final ValueChanged<SmartVibe> onPlayVibe;
   final ValueChanged<CuratedPlaylistPreset> onPlayPreset;
+  final MusicLibrary? library;
+  final ValueChanged<String>? onOpenArtistRadio;
+
+  @override
+  State<TopPicksShelf> createState() => _TopPicksShelfState();
+}
+
+class _TopPickEntry {
+  const _TopPickEntry({
+    required this.categoryBadge,
+    required this.title,
+    required this.description,
+    required this.gradient,
+    required this.icon,
+    required this.onTap,
+    this.coverUrl,
+  });
+
+  final String categoryBadge;
+  final String title;
+  final String description;
+  final List<Color> gradient;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? coverUrl;
+}
+
+/// Stateful vibe-tuning dialog so [_controller] survives route pop & IME close animations.
+class _TuneVibeDialog extends StatefulWidget {
+  const _TuneVibeDialog();
+
+  @override
+  State<_TuneVibeDialog> createState() => _TuneVibeDialogState();
+}
+
+class _TuneVibeDialogState extends State<_TuneVibeDialog> {
+  static const List<String> _quickIdeas = [
+    'Dancehall',
+    '90s Dancehall',
+    'Arbantone',
+    'Rhumba',
+    'Mugithi',
+    'Amapiano',
+    'UK Drill',
+    'Lovers Rock',
+  ];
+
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit([String? explicitValue]) {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop((explicitValue ?? _controller.text).trim());
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Top Picks for You',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                fontSize: 22,
-                letterSpacing: -0.5,
-              ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 195,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            children: [
-              TopPickCard(
-                categoryBadge: 'WE RECOMMEND',
-                title: 'Rap Life: Best of 2026',
-                description: 'Heavyweight bars and modern street anthems.',
-                gradient: const [Color(0xFF2C3E50), Color(0xFF000000)],
-                icon: Icons.local_fire_department_rounded,
-                coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80',
-                onTap: () => onPlayPreset(kRecommendedPlaylists[4]),
-              ),
-              const SizedBox(width: 14),
-              TopPickCard(
-                categoryBadge: 'MADE FOR YOU',
-                title: "Personal Station",
-                description:
-                    'Continuous flow tailored to your favorites & library.',
-                gradient: const [
-                  Color(0xFFD31027),
-                  Color(0xFFEA384D),
-                  Color(0xFF2B0A12),
-                ],
-                icon: Icons.graphic_eq_rounded,
-                onTap: () => onPlayVibe(SmartVibe.dailyFlow),
-              ),
-              const SizedBox(width: 14),
-              TopPickCard(
-                categoryBadge: 'TRENDING',
-                title: 'Afrobeats Essentials',
-                description: 'Global heat: Burna, Rema, Tems, Asake & more.',
-                gradient: const [Color(0xFFF37335), Color(0xFFFDC830)],
-                icon: Icons.bolt_rounded,
-                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
-                onTap: () => onPlayPreset(kRecommendedPlaylists[1]),
-              ),
-              const SizedBox(width: 14),
-              TopPickCard(
-                categoryBadge: 'INSTRUMENTAL',
-                title: 'Deep Focus & Study',
-                description: 'Ambient lofi and calm instrumental grooves.',
-                gradient: const [Color(0xFF0B486B), Color(0xFFF56217)],
-                icon: Icons.headphones_rounded,
-                coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80',
-                onTap: () => onPlayVibe(SmartVibe.deepFocus),
-              ),
-            ],
+    return AlertDialog(
+      scrollable: true,
+      backgroundColor: const Color(0xFF141416),
+      title: const Text(
+        'Influence Your Top Picks',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter any genre, mood, artist, or playlist vibe to generate dynamic Top Picks.',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            style: const TextStyle(color: Colors.white),
+            onSubmitted: _submit,
+            decoration: InputDecoration(
+              hintText: 'e.g. Dancehall, Arbantone, Rhumba...',
+              hintStyle: const TextStyle(color: Colors.white38),
+              filled: true,
+              fillColor: Colors.black,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.white24),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _quickIdeas
+                .map(
+                  (idea) => ActionChip(
+                    backgroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.white24),
+                    label: Text(
+                      idea,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    onPressed: () => _submit(idea),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: MeloColors.cherry,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _submit,
+          child: const Text('Tune Mix'),
         ),
       ],
+    );
+  }
+}
+
+class _TopPicksShelfState extends State<TopPicksShelf> {
+  static const String _customVibesPrefKey = 'tone_custom_home_vibes';
+  static const String _selectedVibePrefKey = 'tone_selected_home_vibe';
+
+  static const List<String> _defaultGenres = [
+    'For You',
+    'Dancehall',
+    'Kenyan & Bongo',
+    'Afrobeats',
+    'Amapiano',
+    'Reggae',
+    'Hip-Hop',
+    'R&B & Soul',
+    'Party & Club',
+    'Chill & Focus',
+    'Podcasts',
+  ];
+
+  List<String> _customVibes = const [];
+  int _rotationSeed = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    TopPicksShelf.selectedGenreNotifier.addListener(_onGenreChanged);
+    SpotifyService.instance.authState.addListener(_onSpotifyChanged);
+    SpotifyService.instance.feedRevision.addListener(_onSpotifyChanged);
+    unawaited(_loadSavedVibePrefs());
+  }
+
+  @override
+  void dispose() {
+    TopPicksShelf.selectedGenreNotifier.removeListener(_onGenreChanged);
+    SpotifyService.instance.authState.removeListener(_onSpotifyChanged);
+    SpotifyService.instance.feedRevision.removeListener(_onSpotifyChanged);
+    super.dispose();
+  }
+
+  void _onGenreChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSpotifyChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadSavedVibePrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final customJson = prefs.getString(_customVibesPrefKey);
+      final savedSelected = prefs.getString(_selectedVibePrefKey);
+      final parsedCustom = <String>[];
+      if (customJson != null && customJson.isNotEmpty) {
+        final decoded = jsonDecode(customJson);
+        if (decoded is List) {
+          for (final item in decoded) {
+            final clean = item.toString().trim();
+            if (clean.isNotEmpty) parsedCustom.add(clean);
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() => _customVibes = parsedCustom);
+      if (savedSelected != null && savedSelected.isNotEmpty) {
+        TopPicksShelf.selectedGenreNotifier.value = savedSelected;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistVibePrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_customVibesPrefKey, jsonEncode(_customVibes));
+      await prefs.setString(
+        _selectedVibePrefKey,
+        TopPicksShelf.selectedGenreNotifier.value,
+      );
+    } catch (_) {}
+  }
+
+  void _selectGenre(String genre) {
+    TopPicksShelf.selectedGenreNotifier.value = genre;
+    unawaited(_persistVibePrefs());
+  }
+
+  Future<void> _showTuneVibeDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => const _TuneVibeDialog(),
+    );
+    if (!mounted || result == null || result.isEmpty) return;
+
+    final existingMatch = [..._defaultGenres, ..._customVibes]
+        .where((g) => g.toLowerCase() == result.toLowerCase())
+        .firstOrNull;
+    if (existingMatch != null) {
+      _selectGenre(existingMatch);
+      return;
+    }
+
+    setState(() => _customVibes = [result, ..._customVibes]);
+    _selectGenre(result);
+  }
+
+  List<_TopPickEntry> _buildDynamicTopPicks() {
+    final activeGenre = TopPicksShelf.selectedGenreNotifier.value;
+    final library = widget.library;
+    final spotify = SpotifyService.instance;
+
+    if (activeGenre != 'For You') {
+      final mappedPresetGenre = switch (activeGenre) {
+        'R&B & Soul' => 'R&B',
+        'Chill & Focus' => 'Focus',
+        'Party & Club' => 'Dance',
+        _ => activeGenre,
+      };
+      final matchingPresets = kRecommendedPlaylists
+          .where(
+            (p) =>
+                p.genre.toLowerCase() == mappedPresetGenre.toLowerCase() ||
+                p.title.toLowerCase().contains(activeGenre.toLowerCase()) ||
+                p.curatorSubtitle.toLowerCase().contains(
+                  activeGenre.toLowerCase(),
+                ),
+          )
+          .toList();
+
+      final entries = <_TopPickEntry>[];
+      final isPodcastMode = activeGenre.toLowerCase().contains('podcast');
+      if (matchingPresets.isNotEmpty) {
+        final offset = _rotationSeed % matchingPresets.length;
+        final rotated = [
+          ...matchingPresets.skip(offset),
+          ...matchingPresets.take(offset),
+        ];
+        for (final preset in rotated) {
+          entries.add(
+            _TopPickEntry(
+              categoryBadge: preset.badge,
+              title: preset.title,
+              description: preset.curatorSubtitle,
+              gradient: preset.gradient,
+              icon: preset.icon,
+              coverUrl: preset.coverUrl,
+              onTap: () => widget.onPlayPreset(preset),
+            ),
+          );
+        }
+      } else {
+        entries.add(
+          _TopPickEntry(
+            categoryBadge: activeGenre.toUpperCase(),
+            title: '$activeGenre Essentials',
+            description: 'Top $activeGenre tracks & hottest anthems right now.',
+            gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+            icon: Icons.local_fire_department_rounded,
+            coverUrl:
+                'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&q=80',
+            onTap: () => widget.onPlayPreset(
+              CuratedPlaylistPreset(
+                title: '$activeGenre Essentials',
+                curatorSubtitle: 'Tailored $activeGenre essentials',
+                badge: activeGenre.toUpperCase(),
+                searchQuery: '$activeGenre top hits songs official audio',
+                gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+                icon: Icons.local_fire_department_rounded,
+                genre: activeGenre,
+                allowLongEpisodes: isPodcastMode,
+              ),
+            ),
+          ),
+        );
+      }
+
+      entries.addAll([
+        _TopPickEntry(
+          categoryBadge: 'RADIO MIX',
+          title: '$activeGenre Radio',
+          description: 'Continuous $activeGenre station tailored to your taste.',
+          gradient: const [Color(0xFF7A0C1E), Color(0xFF0A0A0C)],
+          icon: Icons.sensors_rounded,
+          coverUrl:
+              'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80',
+          onTap: () => widget.onPlayPreset(
+            CuratedPlaylistPreset(
+              title: '$activeGenre Radio',
+              curatorSubtitle: 'With top $activeGenre artists & similar tracks',
+              badge: 'MADE FOR YOU',
+              searchQuery: '$activeGenre radio mix songs official audio',
+              gradient: const [MeloColors.cherry, Color(0xFF0A0A0C)],
+              icon: Icons.sensors_rounded,
+              isArtistRadio: true,
+              genre: activeGenre,
+              allowLongEpisodes: isPodcastMode,
+            ),
+          ),
+        ),
+        _TopPickEntry(
+          categoryBadge: 'FRESH HEAT',
+          title: '$activeGenre Fresh & Trending',
+          description: 'New $activeGenre releases & viral club cuts.',
+          gradient: const [Color(0xFF1C1C1E), Color(0xFF000000)],
+          icon: Icons.bolt_rounded,
+          coverUrl:
+              'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
+          onTap: () => widget.onPlayPreset(
+            CuratedPlaylistPreset(
+              title: '$activeGenre Fresh & Trending',
+              curatorSubtitle: 'Newest $activeGenre hits & street anthems',
+              badge: 'NEW RELEASES',
+              searchQuery: 'new $activeGenre songs 2025 2026 official audio',
+              gradient: const [Color(0xFF4A0915), Color(0xFF000000)],
+              icon: Icons.bolt_rounded,
+              genre: activeGenre,
+              allowLongEpisodes: isPodcastMode,
+            ),
+          ),
+        ),
+        _TopPickEntry(
+          categoryBadge: 'CLASSICS',
+          title: '$activeGenre Classics & Anthems',
+          description: 'Timeless $activeGenre bangers & unforgettable anthems.',
+          gradient: const [Color(0xFF2C2C2E), Color(0xFF000000)],
+          icon: Icons.album_rounded,
+          coverUrl:
+              'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
+          onTap: () => widget.onPlayPreset(
+            CuratedPlaylistPreset(
+              title: '$activeGenre Classics & Anthems',
+              curatorSubtitle: 'Greatest $activeGenre classics of all time',
+              badge: 'ALL-TIME CLASSICS',
+              searchQuery: 'best $activeGenre classics anthems official audio',
+              gradient: const [Color(0xFF2C2C2E), Color(0xFF000000)],
+              icon: Icons.album_rounded,
+              genre: activeGenre,
+              allowLongEpisodes: isPodcastMode,
+            ),
+          ),
+        ),
+      ]);
+      return entries;
+    }
+
+    // 'For You': Personalized + Taste-Scored + Seed-Rotated dynamic picks
+    final entries = <_TopPickEntry>[];
+    final topArtist =
+        library?.topAffinityArtists.firstOrNull ?? spotify.topArtists.firstOrNull;
+    if (topArtist != null) {
+      final topArtistCover = SongMetadataEnricher.instance
+          .cachedArtistImageUrl(topArtist);
+      entries.add(
+        _TopPickEntry(
+          categoryBadge: 'BECAUSE YOU PLAYED',
+          title: '$topArtist Mix',
+          description:
+              'Non-stop $topArtist & similar artists tailored to your taste.',
+          gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+          icon: Icons.auto_awesome_rounded,
+          coverUrl: topArtistCover,
+          onTap: () => widget.onOpenArtistRadio?.call(topArtist),
+        ),
+      );
+    }
+
+    if (spotify.isLoggedIn && spotify.userPlaylists.isNotEmpty) {
+      final sp =
+          spotify.userPlaylists[_rotationSeed % spotify.userPlaylists.length];
+      entries.add(
+        _TopPickEntry(
+          categoryBadge: 'YOUR SPOTIFY',
+          title: sp.title,
+          description: sp.subtitle,
+          gradient: const [Color(0xFF7A0C1E), Color(0xFF000000)],
+          icon: Icons.graphic_eq_rounded,
+          coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
+          onTap: () => widget.onPlayPreset(
+            CuratedPlaylistPreset(
+              title: sp.title,
+              curatorSubtitle: sp.subtitle,
+              badge: 'SPOTIFY PLAYLIST',
+              searchQuery: '${sp.title} official audio',
+              gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+              icon: Icons.graphic_eq_rounded,
+              coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
+              spotifyPlaylistId: sp.id,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final tasteArtists = [
+      ...(library?.topAffinityArtists ?? const <String>[]),
+      ...spotify.topArtists,
+    ].map((a) => a.toLowerCase()).toSet();
+    final tasteGenres = <String>{
+      if (library != null) ...[
+        for (final item in library.recentSessionItems.take(20))
+          if ((item.genre ?? '').trim().isNotEmpty) item.genre!.toLowerCase(),
+        for (final track in library.favoriteTracks)
+          if ((track.genre ?? '').trim().isNotEmpty)
+            track.genre!.toLowerCase(),
+      ],
+    };
+
+    final scoredPresets =
+        <({CuratedPlaylistPreset preset, int score, int index})>[];
+    for (var i = 0; i < kRecommendedPlaylists.length; i++) {
+      final p = kRecommendedPlaylists[i];
+      var score = 0;
+      final gLower = p.genre.toLowerCase();
+      final subLower = '${p.title} ${p.curatorSubtitle}'.toLowerCase();
+      for (final g in tasteGenres) {
+        if (gLower.contains(g) || g.contains(gLower)) score += 3;
+      }
+      for (final a in tasteArtists) {
+        if (subLower.contains(a)) score += 4;
+      }
+      scoredPresets.add((preset: p, score: score, index: i));
+    }
+    scoredPresets.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) return byScore;
+      return ((a.index + _rotationSeed * 3) % kRecommendedPlaylists.length)
+          .compareTo(
+            (b.index + _rotationSeed * 3) % kRecommendedPlaylists.length,
+          );
+    });
+
+    entries.add(
+      _TopPickEntry(
+        categoryBadge: 'MADE FOR YOU',
+        title: 'Personal Station',
+        description: 'Continuous flow tailored to your favorites & library.',
+        gradient: const [
+          MeloColors.cherry,
+          MeloColors.cherryDeep,
+          Color(0xFF0A0A0C),
+        ],
+        icon: Icons.graphic_eq_rounded,
+        onTap: () => widget.onPlayVibe(SmartVibe.dailyFlow),
+      ),
+    );
+
+    final rotateOffset = _rotationSeed % scoredPresets.length;
+    final dynamicPool = [
+      ...scoredPresets.skip(rotateOffset),
+      ...scoredPresets.take(rotateOffset),
+    ].take(6);
+    for (final entry in dynamicPool) {
+      final preset = entry.preset;
+      entries.add(
+        _TopPickEntry(
+          categoryBadge: preset.badge,
+          title: preset.title,
+          description: preset.curatorSubtitle,
+          gradient: preset.gradient,
+          icon: preset.icon,
+          coverUrl: preset.coverUrl,
+          onTap: () => widget.onPlayPreset(preset),
+        ),
+      );
+    }
+    return entries;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allGenres = [..._defaultGenres, ..._customVibes];
+    final activeGenre = TopPicksShelf.selectedGenreNotifier.value;
+
+    return ValueListenableBuilder<int>(
+      valueListenable:
+          widget.library?.playbackHistoryRevision ??
+          const AlwaysStoppedAnimation<int>(0),
+      builder: (context, _, _) {
+        final cards = _buildDynamicTopPicks();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Top Picks for You',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                Material(
+                  color: MeloColors.cherry.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _showTuneVibeDialog,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(
+                          color: MeloColors.cherry.withValues(alpha: 0.45),
+                          width: 0.9,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 13,
+                            color: MeloColors.cherry,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Tune Vibe',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: MeloColors.cherry,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Refresh top picks',
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 19,
+                    color: Colors.white70,
+                  ),
+                  onPressed: () => setState(() => _rotationSeed++),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: allGenres.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index == allGenres.length) {
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _showTuneVibeDialog,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0xFF141416),
+                            border: Border.all(
+                              color: MeloColors.cherry.withValues(alpha: 0.45),
+                              width: 0.9,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                size: 14,
+                                color: MeloColors.cherry,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Custom Genre',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final genre = allGenres[index];
+                  final isSelected = genre == activeGenre;
+                  final isCustom = _customVibes.contains(genre);
+                  return Semantics(
+                    button: true,
+                    selected: isSelected,
+                    label: 'Tune Top Picks to $genre',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _selectGenre(genre),
+                        onLongPress: isCustom
+                            ? () {
+                                setState(() {
+                                  _customVibes = _customVibes
+                                      .where((v) => v != genre)
+                                      .toList(growable: false);
+                                });
+                                if (isSelected) {
+                                  _selectGenre('For You');
+                                } else {
+                                  unawaited(_persistVibePrefs());
+                                }
+                              }
+                            : null,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: isSelected
+                                ? MeloColors.cherry
+                                : const Color(0xFF141416),
+                            border: Border.all(
+                              color: isSelected
+                                  ? MeloColors.cherrySoft
+                                  : Colors.white.withValues(alpha: 0.14),
+                              width: 0.9,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              genre,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 195,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: cards.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  final card = cards[index];
+                  return TopPickCard(
+                    categoryBadge: card.categoryBadge,
+                    title: card.title,
+                    description: card.description,
+                    gradient: card.gradient,
+                    icon: card.icon,
+                    coverUrl: card.coverUrl,
+                    onTap: card.onTap,
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -259,13 +981,18 @@ class TopPickCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: gradient,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: gradient.first.withValues(alpha: 0.32),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            boxShadow: MeloShadows.hdrBloom(
+              gradient.first,
+              secondary: gradient.last,
+              opacity: 0.36,
+            ),
+          ),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.16),
+              width: 1.0,
+            ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
@@ -300,22 +1027,27 @@ class TopPickCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              categoryBadge,
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white.withValues(alpha: 0.9),
-                                letterSpacing: 0.8,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                categoryBadge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  letterSpacing: 0.8,
+                                ),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Icon(
                             icon,
                             color: Colors.white.withValues(alpha: 0.9),
@@ -562,9 +1294,9 @@ class StationsForYouShelf extends StatelessWidget {
                 artworkTrack: personalTrack,
                 defaultArtworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
                 gradient: const [
-                  Color(0xFFE52D27),
-                  Color(0xFFB31217),
-                  Color(0xFF1E0608),
+                  Color(0xFFFA243C),
+                  Color(0xFF7A0C1E),
+                  Color(0xFF0A0A0C),
                 ],
                 icon: Icons.graphic_eq_rounded,
                 onTap: () => onPlayVibe(SmartVibe.dailyFlow),
@@ -576,9 +1308,9 @@ class StationsForYouShelf extends StatelessWidget {
                 artworkTrack: discoveryTrack,
                 defaultArtworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
                 gradient: const [
-                  Color(0xFF4A00E0),
-                  Color(0xFF8E2DE2),
-                  Color(0xFF0F051D),
+                  Color(0xFF3B0812),
+                  Color(0xFFFA243C),
+                  Color(0xFF080808),
                 ],
                 icon: Icons.radar_rounded,
                 onTap: () => onPlayVibe(SmartVibe.highEnergy),
@@ -590,9 +1322,9 @@ class StationsForYouShelf extends StatelessWidget {
                 artworkTrack: focusTrack,
                 defaultArtworkUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
                 gradient: const [
-                  Color(0xFF134E5E),
-                  Color(0xFF71B280),
-                  Color(0xFF061A21),
+                  Color(0xFF1C1C1E),
+                  Color(0xFF3A0A14),
+                  Color(0xFF000000),
                 ],
                 icon: Icons.headphones_rounded,
                 onTap: () => onPlayVibe(SmartVibe.deepFocus),
@@ -604,9 +1336,9 @@ class StationsForYouShelf extends StatelessWidget {
                 artworkTrack: chillTrack,
                 defaultArtworkUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
                 gradient: const [
-                  Color(0xFF3A1C71),
-                  Color(0xFFD76D77),
-                  Color(0xFF190A2E),
+                  Color(0xFF4A0915),
+                  Color(0xFF140307),
+                  Color(0xFF000000),
                 ],
                 icon: Icons.nightlight_round,
                 onTap: () => onPlayVibe(SmartVibe.lateNightChill),
@@ -920,58 +1652,145 @@ class _RecommendedPlaylistsSectionState
     'Rock',
     'Gospel',
     'Focus',
+    'Podcasts',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    TopPicksShelf.selectedGenreNotifier.addListener(_onTopPickGenreChanged);
+  }
+
+  @override
+  void dispose() {
+    TopPicksShelf.selectedGenreNotifier.removeListener(_onTopPickGenreChanged);
+    super.dispose();
+  }
+
+  void _onTopPickGenreChanged() {
+    final picked = TopPicksShelf.selectedGenreNotifier.value;
+    final mapped = switch (picked) {
+      'For You' => 'All',
+      'R&B & Soul' => 'R&B',
+      'Chill & Focus' => 'Focus',
+      'Party & Club' => 'Dance',
+      _ => picked,
+    };
+    if (mounted && _selectedGenre != mapped) {
+      setState(() => _selectedGenre = mapped);
+    }
+  }
+
   void _openPlaylist(BuildContext context, CuratedPlaylistPreset preset) {
-    showCuratedPlaylistPreviewSheet(
-      context: context,
-      preset: preset,
-      audioHandler: widget.audioHandler,
-      library: widget.library,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
+        ),
+      ),
     );
+  }
+
+  List<CuratedPlaylistPreset> _sortedForTaste(
+    List<CuratedPlaylistPreset> playlists,
+  ) {
+    final library = widget.library;
+    if (library == null) return playlists;
+    final tasteArtists = library.topAffinityArtists
+        .take(8)
+        .map((a) => a.toLowerCase())
+        .toList();
+    final tasteGenres = <String>{
+      for (final item in library.recentSessionItems.take(20))
+        if ((item.genre ?? '').trim().isNotEmpty) item.genre!.toLowerCase(),
+      for (final track in library.favoriteTracks)
+        if ((track.genre ?? '').trim().isNotEmpty) track.genre!.toLowerCase(),
+    };
+    if (tasteArtists.isEmpty && tasteGenres.isEmpty) return playlists;
+
+    final scored = <({CuratedPlaylistPreset preset, int score, int index})>[];
+    for (var i = 0; i < playlists.length; i++) {
+      final preset = playlists[i];
+      final genreLower = preset.genre.toLowerCase();
+      final subtitleLower = preset.curatorSubtitle.toLowerCase();
+      var score = 0;
+      for (final g in tasteGenres) {
+        if (g.contains(genreLower) || genreLower.contains(g)) score += 3;
+      }
+      for (var aIdx = 0; aIdx < tasteArtists.length; aIdx++) {
+        if (subtitleLower.contains(tasteArtists[aIdx])) {
+          score += (tasteArtists.length - aIdx) * 2;
+        }
+      }
+      scored.add((preset: preset, score: score, index: i));
+    }
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+    });
+    return scored.map((e) => e.preset).toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final filteredPlaylists = _selectedGenre == 'All'
-        ? kRecommendedPlaylists
-        : kRecommendedPlaylists
-            .where((p) => p.genre.toLowerCase() == _selectedGenre.toLowerCase())
-            .toList();
+    final textScaler = MediaQuery.textScalerOf(context);
+    final chipStripHeight = (textScaler.scale(16) + 24).clamp(40.0, 64.0);
+    final shelfCardHeight = 166.0 + textScaler.scale(42).clamp(38.0, 96.0);
 
-    return Column(
+    return ValueListenableBuilder<int>(
+      valueListenable:
+          widget.library?.playbackHistoryRevision ??
+          const AlwaysStoppedAnimation<int>(0),
+      builder: (context, _, _) {
+        final matchedPresets = _selectedGenre == 'All'
+            ? _sortedForTaste(kRecommendedPlaylists)
+            : kRecommendedPlaylists
+                  .where(
+                    (p) =>
+                        p.genre.toLowerCase() == _selectedGenre.toLowerCase() ||
+                        p.title.toLowerCase().contains(
+                          _selectedGenre.toLowerCase(),
+                        ),
+                  )
+                  .toList();
+        final filteredPlaylists = matchedPresets.isNotEmpty
+            ? matchedPresets
+            : [
+                CuratedPlaylistPreset(
+                  title: '$_selectedGenre Essentials',
+                  curatorSubtitle: 'Top $_selectedGenre picks & viral hits',
+                  badge: _selectedGenre.toUpperCase(),
+                  searchQuery: '$_selectedGenre hits official audio',
+                  gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+                  icon: Icons.music_note_rounded,
+                  genre: _selectedGenre,
+                ),
+                CuratedPlaylistPreset(
+                  title: '$_selectedGenre Radio',
+                  curatorSubtitle: 'Continuous $_selectedGenre mix',
+                  badge: 'RADIO MIX',
+                  searchQuery: '$_selectedGenre radio mix official audio',
+                  gradient: const [Color(0xFF4A0915), Color(0xFF000000)],
+                  icon: Icons.radio_rounded,
+                  isArtistRadio: true,
+                  genre: _selectedGenre,
+                ),
+              ];
+
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(
-              Icons.stars_rounded,
-              size: 19,
-              color: MeloColors.cherry,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Recommended Playlists',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ),
-            Text(
-              'Melo Curated Picks',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        _ShelfHeader(
+          icon: Icons.stars_rounded,
+          title: 'Recommended Playlists',
+          trailingText: 'Melo Curated Picks',
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 34,
+          height: chipStripHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -980,33 +1799,38 @@ class _RecommendedPlaylistsSectionState
             itemBuilder: (context, index) {
               final genre = _genres[index];
               final isSelected = genre == _selectedGenre;
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(17),
-                  onTap: () => setState(() => _selectedGenre = genre),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(17),
-                      color: isSelected
-                          ? MeloColors.cherry
-                          : colors.surfaceContainerHigh.withValues(alpha: 0.6),
-                      border: Border.all(
+              return Semantics(
+                button: true,
+                selected: isSelected,
+                label: 'Filter by $genre',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => setState(() => _selectedGenre = genre),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
                         color: isSelected
-                            ? MeloColors.cherrySoft
-                            : Colors.white.withValues(alpha: 0.1),
-                        width: 1,
+                            ? MeloColors.cherry
+                            : colors.surfaceContainerHigh.withValues(alpha: 0.6),
+                        border: Border.all(
+                          color: isSelected
+                              ? MeloColors.cherrySoft
+                              : colors.outlineVariant.withValues(alpha: 0.35),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        genre,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                          color: isSelected ? Colors.white : Colors.white70,
+                      child: Center(
+                        child: Text(
+                          genre,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: isSelected ? Colors.white : colors.onSurface,
+                          ),
                         ),
                       ),
                     ),
@@ -1018,7 +1842,7 @@ class _RecommendedPlaylistsSectionState
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 204,
+          height: shelfCardHeight,
           child: filteredPlaylists.isEmpty
               ? Center(
                   child: Text(
@@ -1120,6 +1944,8 @@ class _RecommendedPlaylistsSectionState
         ),
       ],
     );
+      },
+    );
   }
 }
 
@@ -1136,7 +1962,7 @@ class ArtistRadioItem {
 }
 
 /// Dynamic horizontal artist radio carousel (Spotify Signature Artist Stations)
-class ArtistRadioShelf extends StatelessWidget {
+class ArtistRadioShelf extends StatefulWidget {
   const ArtistRadioShelf({
     required this.onOpenArtistRadio,
     this.library,
@@ -1146,122 +1972,219 @@ class ArtistRadioShelf extends StatelessWidget {
   final ValueChanged<String> onOpenArtistRadio;
   final MusicLibrary? library;
 
+  @override
+  State<ArtistRadioShelf> createState() => _ArtistRadioShelfState();
+}
+
+class _ArtistRadioShelfState extends State<ArtistRadioShelf> {
   static const List<ArtistRadioItem> _defaultArtists = [
     ArtistRadioItem(
       name: 'King Saha',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
+      avatarUrl: '',
       genres: 'Afro-Pop · Uganda',
     ),
     ArtistRadioItem(
       name: 'Joshua Baraka',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
+      avatarUrl: '',
       genres: 'R&B · Afrobeats',
     ),
     ArtistRadioItem(
       name: 'Burna Boy',
-      avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&q=80',
+      avatarUrl: '',
       genres: 'Afro-Fusion · Lagos',
     ),
     ArtistRadioItem(
       name: 'Kendrick Lamar',
-      avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&q=80',
+      avatarUrl: '',
       genres: 'Hip-Hop · Rap Life',
     ),
     ArtistRadioItem(
       name: 'Asake',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80',
+      avatarUrl: '',
       genres: 'Amapiano · Fujipiano',
     ),
     ArtistRadioItem(
       name: 'SZA',
-      avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80',
+      avatarUrl: '',
       genres: 'Contemporary R&B',
     ),
     ArtistRadioItem(
       name: 'Drake',
-      avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&q=80',
+      avatarUrl: '',
       genres: 'Hip-Hop · Melodic Rap',
     ),
     ArtistRadioItem(
       name: 'Tems',
-      avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80',
+      avatarUrl: '',
       genres: 'Soul · Afrobeats',
     ),
   ];
 
+  final Map<String, String> _resolvedAvatars = {};
+  final Set<String> _requestedArtists = {};
+  final Map<String, List<String>> _relatedByArtist = {};
+  final Set<String> _requestedRelated = {};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+    _ensureRelatedArtists();
+  }
+
+  @override
+  void didUpdateWidget(covariant ArtistRadioShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library?.playbackHistoryRevision !=
+        widget.library?.playbackHistoryRevision) {
+      oldWidget.library?.playbackHistoryRevision.removeListener(
+        _onHistoryChanged,
+      );
+      widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+      _ensureRelatedArtists();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.library?.playbackHistoryRevision.removeListener(_onHistoryChanged);
+    super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    _ensureRelatedArtists();
+    if (mounted) setState(() {});
+  }
+
+  void _ensureRelatedArtists() {
+    final affinity = widget.library?.topAffinityArtists ?? const <String>[];
+    for (final seed in affinity.take(2)) {
+      final lower = seed.trim().toLowerCase();
+      if (lower.isEmpty || _requestedRelated.contains(lower)) continue;
+      _requestedRelated.add(lower);
+      unawaited(
+        SongMetadataEnricher.instance.fetchRelatedArtists(seed, limit: 4).then((
+          related,
+        ) {
+          if (!mounted || related.isEmpty) return;
+          setState(() => _relatedByArtist[seed] = related);
+        }),
+      );
+    }
+  }
+
+  List<ArtistRadioItem> _buildArtists() {
+    final libraryTracks = widget.library?.tracks ?? const <ImportedTrack>[];
+    final affinityArtists = widget.library?.topAffinityArtists ?? const <String>[];
+    final localArtByArtist = <String, String>{};
+    final personalizedArtists = <({String name, String subtitle})>[];
+    final seen = <String>{};
+
+    for (final track in libraryTracks) {
+      final name = track.artist.trim();
+      final lower = name.toLowerCase();
+      if (name.isEmpty || lower == 'unknown artist') continue;
+      final art = track.artworkUri?.trim();
+      if (art != null && art.isNotEmpty && !localArtByArtist.containsKey(lower)) {
+        localArtByArtist[lower] = art;
+      }
+    }
+
+    for (final artist in affinityArtists) {
+      final clean = artist.trim();
+      final lower = clean.toLowerCase();
+      if (clean.isEmpty || lower == 'unknown artist') continue;
+      if (seen.add(lower) && personalizedArtists.length < 6) {
+        personalizedArtists.add((name: clean, subtitle: 'Based on Your Listening'));
+      }
+    }
+
+    for (final track in libraryTracks) {
+      final name = track.artist.trim();
+      final lower = name.toLowerCase();
+      if (name.isEmpty || lower == 'unknown artist') continue;
+      if (seen.add(lower) && personalizedArtists.length < 6) {
+        personalizedArtists.add((name: name, subtitle: 'From Your Library'));
+      }
+    }
+
+    for (final entry in _relatedByArtist.entries) {
+      for (final relatedName in entry.value) {
+        final clean = relatedName.trim();
+        final lower = clean.toLowerCase();
+        if (clean.isEmpty || lower == 'unknown artist') continue;
+        if (seen.add(lower) && personalizedArtists.length < 8) {
+          personalizedArtists.add((
+            name: clean,
+            subtitle: 'Similar to ${entry.key}',
+          ));
+        }
+      }
+    }
+
+    return <ArtistRadioItem>[
+      ...personalizedArtists.map((entry) {
+        final lower = entry.name.toLowerCase();
+        final resolved = _resolvedAvatars[lower] ??
+            SongMetadataEnricher.instance.cachedArtistImageUrl(entry.name) ??
+            localArtByArtist[lower] ??
+            '';
+        return ArtistRadioItem(
+          name: entry.name,
+          avatarUrl: resolved,
+          genres: entry.subtitle,
+        );
+      }),
+      ..._defaultArtists
+          .where((d) => !seen.contains(d.name.toLowerCase()))
+          .map((d) {
+        final lower = d.name.toLowerCase();
+        final resolved = _resolvedAvatars[lower] ??
+            SongMetadataEnricher.instance.cachedArtistImageUrl(d.name) ??
+            d.avatarUrl;
+        return ArtistRadioItem(
+          name: d.name,
+          avatarUrl: resolved,
+          genres: d.genres,
+        );
+      }),
+    ];
+  }
+
+  void _ensureArtistAvatars(List<ArtistRadioItem> artists) {
+    for (final artist in artists) {
+      final lower = artist.name.toLowerCase();
+      if (_requestedArtists.contains(lower)) continue;
+      _requestedArtists.add(lower);
+      unawaited(
+        SongMetadataEnricher.instance.fetchArtistImageUrl(artist.name).then((url) {
+          if (!mounted || url == null || url.isEmpty) return;
+          if (_resolvedAvatars[lower] != url) {
+            setState(() => _resolvedAvatars[lower] = url);
+          }
+        }),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-
-    // Collect distinct artist names from library if available
-    final libraryArtists = library?.tracks
-            .map((t) => t.artist.trim())
-            .where((a) => a.isNotEmpty && a.toLowerCase() != 'unknown artist')
-            .toSet()
-            .take(6)
-            .toList() ??
-        const <String>[];
-
-    final artists = <ArtistRadioItem>[
-      ...libraryArtists.map(
-        (a) => ArtistRadioItem(
-          name: a,
-          avatarUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
-          genres: 'From Your Library',
-        ),
-      ),
-      ..._defaultArtists.where((d) => !libraryArtists.contains(d.name)),
-    ];
+    final artists = _buildArtists();
+    _ensureArtistAvatars(artists);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(
-              Icons.sensors_rounded,
-              size: 20,
-              color: MeloColors.cherry,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Artist Radio',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22,
-                      letterSpacing: -0.5,
-                    ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: MeloColors.cherry.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.radio_rounded, size: 12, color: MeloColors.cherry),
-                  SizedBox(width: 4),
-                  Text(
-                    'ENDLESS STATIONS',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      color: MeloColors.cherry,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        const _ShelfHeader(
+          icon: Icons.sensors_rounded,
+          title: 'Artist Radio',
+          badgeLabel: 'ENDLESS STATIONS',
+          badgeIcon: Icons.radio_rounded,
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 168,
+          height: 118.0 + MediaQuery.textScalerOf(context).scale(44).clamp(40.0, 96.0),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -1275,22 +2198,33 @@ class ArtistRadioShelf extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: () => onOpenArtistRadio(artist.name),
+                    onTap: () => widget.onOpenArtistRadio(artist.name),
                     child: Column(
                       children: [
-                        // Circular Artist Avatar with Ambient Glow
+                        // Circular Artist Avatar with QLED Ambient Gradient Ring
                         Container(
                           width: 104,
                           height: 104,
+                          padding: const EdgeInsets.all(2.4),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              width: 2,
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                MeloColors.cherryGlow,
+                                MeloColors.cherryDeep,
+                                Color(0x38FFFFFF),
+                              ],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.45),
+                                color: MeloColors.cherry.withValues(alpha: 0.24),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.55),
                                 blurRadius: 14,
                                 offset: const Offset(0, 6),
                               ),
@@ -1300,13 +2234,10 @@ class ArtistRadioShelf extends StatelessWidget {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                Image.network(
-                                  artist.avatarUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    color: colors.surfaceContainerHigh,
-                                    child: const Icon(Icons.person_rounded, size: 40, color: Colors.white54),
-                                  ),
+                                _ArtistAvatarImage(
+                                  avatarUrl: artist.avatarUrl,
+                                  artistName: artist.name,
+                                  fallbackColor: colors.surfaceContainerHigh,
                                 ),
                                 Positioned(
                                   bottom: 4,
@@ -1360,6 +2291,1221 @@ class ArtistRadioShelf extends StatelessWidget {
             },
           ),
         ),
+      ],
+    );
+  }
+}
+
+class PopularSongsShelf extends StatefulWidget {
+  const PopularSongsShelf({
+    required this.audioHandler,
+    this.library,
+    super.key,
+  });
+
+  final AudioHandler? audioHandler;
+  final MusicLibrary? library;
+
+  @override
+  State<PopularSongsShelf> createState() => _PopularSongsShelfState();
+}
+
+class _PopularSongsShelfState extends State<PopularSongsShelf> {
+  static final List<YoutubeTrack> _defaultPopular = [
+    const YoutubeTrack(
+      id: 'kPa7bsKwL-c',
+      title: 'Die With A Smile',
+      author: 'Lady Gaga & Bruno Mars',
+      duration: Duration(minutes: 4, seconds: 12),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    ),
+    const YoutubeTrack(
+      id: 'd5gf9dXbPi0',
+      title: 'Birds of a Feather',
+      author: 'Billie Eilish',
+      duration: Duration(minutes: 3, seconds: 18),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    ),
+    const YoutubeTrack(
+      id: 'eVli-tstM5E',
+      title: 'Espresso',
+      author: 'Sabrina Carpenter',
+      duration: Duration(minutes: 2, seconds: 55),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+    ),
+    const YoutubeTrack(
+      id: 'T6eK-DY7hGE',
+      title: 'Not Like Us',
+      author: 'Kendrick Lamar',
+      duration: Duration(minutes: 4, seconds: 34),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+    ),
+    const YoutubeTrack(
+      id: '421w1j87fEM',
+      title: 'Higher',
+      author: 'Burna Boy',
+      duration: Duration(minutes: 3, seconds: 15),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    ),
+    const YoutubeTrack(
+      id: 'j2u5G0c4d7I',
+      title: 'soso',
+      author: 'Omah Lay',
+      duration: Duration(minutes: 3, seconds: 3),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+    ),
+  ];
+
+  static List<YoutubeTrack>? _cachedOnline;
+  static String? _cachedSeedArtist;
+  List<YoutubeTrack> _tracks = _cachedOnline ?? _defaultPopular;
+  String? _lastSeedArtist = _cachedSeedArtist;
+  bool _isPersonalized = _cachedSeedArtist != null;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+    final initialSeed = widget.library?.topAffinityArtists.firstOrNull;
+    if (_cachedOnline == null ||
+        (initialSeed != null && initialSeed != _lastSeedArtist)) {
+      unawaited(_loadOnlinePopular(seedArtist: initialSeed));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PopularSongsShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library?.playbackHistoryRevision !=
+        widget.library?.playbackHistoryRevision) {
+      oldWidget.library?.playbackHistoryRevision.removeListener(
+        _onHistoryChanged,
+      );
+      widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+      _onHistoryChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.library?.playbackHistoryRevision.removeListener(_onHistoryChanged);
+    super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    final seedArtist = widget.library?.topAffinityArtists.firstOrNull;
+    if (seedArtist != null && seedArtist != _lastSeedArtist) {
+      unawaited(_loadOnlinePopular(seedArtist: seedArtist));
+    }
+  }
+
+  Future<void> _loadOnlinePopular({String? seedArtist}) async {
+    try {
+      final activeItem = widget.audioHandler?.mediaItem.value;
+      final excludeIds = <String>{
+        if (activeItem != null) activeItem.id,
+      };
+      final excludeTitles = <String>{
+        if (activeItem != null)
+          SongMetadataEnricher.cleanTitle(
+            activeItem.title,
+            rawArtist: activeItem.artist,
+          ).trim().toLowerCase(),
+      }..removeWhere((t) => t.isEmpty);
+
+      final collected = <YoutubeTrack>[];
+      final seenIds = <String>{};
+      final cleanSeed = seedArtist?.trim();
+      var personalized = false;
+
+      if (cleanSeed != null && cleanSeed.isNotEmpty) {
+        final related = await YoutubeAudioService.instance.getRelatedTracks(
+          'dQw4w9WgXcQ',
+          artist: cleanSeed,
+          recentArtists: widget.library?.topAffinityArtists ?? const [],
+          excludeIds: excludeIds,
+          excludeTitleKeys: excludeTitles,
+        );
+        for (final t in related) {
+          if (seenIds.add(t.id)) collected.add(t);
+        }
+        personalized = collected.isNotEmpty;
+      }
+
+      if (collected.length < 10) {
+        final results = await YoutubeAudioService.instance.search(
+          'Global Top 50 Hits Official Audio 2025',
+          filterMixtapes: true,
+        );
+        for (final t in results) {
+          if (t.duration.inSeconds > 660 || t.duration.inSeconds < 45) continue;
+          if (YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) {
+            continue;
+          }
+          if (seenIds.add(t.id)) collected.add(t);
+          if (collected.length >= 15) break;
+        }
+      }
+
+      if (collected.isNotEmpty) {
+        _cachedOnline = collected;
+        _cachedSeedArtist = personalized ? cleanSeed : null;
+        _lastSeedArtist = cleanSeed;
+        if (mounted) {
+          setState(() {
+            _tracks = collected;
+            _isPersonalized = personalized;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _playSong(int index) async {
+    final handler = widget.audioHandler;
+    if (handler == null || _tracks.isEmpty) return;
+    try {
+      final items = _tracks.map((t) => t.toMediaItem()).toList(growable: false);
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(
+          items,
+          initialIndex: index,
+          playWhenReady: true,
+        );
+      } else {
+        await handler.updateQueue(items);
+        await handler.skipToQueueItem(index);
+        await handler.play();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not start playback: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final activeItem = widget.audioHandler?.mediaItem.value;
+    final activeTitleLower = activeItem?.title.trim().toLowerCase();
+    final visibleTracks = _tracks
+        .where((t) {
+          if (activeItem != null &&
+              (activeItem.id == 'youtube:${t.id}' ||
+                  activeItem.extras?['providerTrackId'] == t.id)) {
+            return false;
+          }
+          if (activeTitleLower != null &&
+              activeTitleLower.isNotEmpty &&
+              t.title.trim().toLowerCase() == activeTitleLower) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ShelfHeader(
+          icon: Icons.trending_up_rounded,
+          title: 'Popular Songs',
+          badgeLabel: _isPersonalized ? 'PICKED FOR YOU' : 'GLOBAL HITS',
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 166.0 + MediaQuery.textScalerOf(context).scale(42).clamp(38.0, 96.0),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: visibleTracks.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final track = visibleTracks[index];
+              final sourceIndex = _tracks.indexOf(track);
+              return SizedBox(
+                width: 140,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _playSong(sourceIndex >= 0 ? sourceIndex : index),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (track.thumbnailUrl != null)
+                                  Image.network(
+                                    track.thumbnailUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      color: colors.surfaceContainerHighest,
+                                      child: const Icon(Icons.music_note_rounded, size: 36, color: Colors.white54),
+                                    ),
+                                  )
+                                else
+                                  Container(
+                                    color: colors.surfaceContainerHighest,
+                                    child: const Icon(Icons.music_note_rounded, size: 36, color: Colors.white54),
+                                  ),
+                                Positioned(
+                                  bottom: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: const BoxDecoration(
+                                      color: MeloColors.cherry,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          track.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11.5, color: colors.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ArtistAvatarImage extends StatelessWidget {
+  const _ArtistAvatarImage({
+    required this.avatarUrl,
+    required this.artistName,
+    required this.fallbackColor,
+  });
+
+  final String avatarUrl;
+  final String artistName;
+  final Color fallbackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = avatarUrl.trim();
+    if (trimmed.isNotEmpty) {
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return Image.network(
+          trimmed,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _fallback(),
+        );
+      }
+      final filePath = trimmed.startsWith('file://')
+          ? Uri.parse(trimmed).toFilePath()
+          : trimmed;
+      return Image.file(
+        File(filePath),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _fallback(),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    final initial = artistName.trim().isNotEmpty
+        ? artistName.trim()[0].toUpperCase()
+        : '';
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            fallbackColor,
+            MeloColors.cherry.withValues(alpha: 0.45),
+          ],
+        ),
+      ),
+      child: Center(
+        child: initial.isNotEmpty
+            ? Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                ),
+              )
+            : const Icon(Icons.person_rounded, size: 40, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _ShelfHeader extends StatelessWidget {
+  const _ShelfHeader({
+    required this.icon,
+    required this.title,
+    this.trailingText,
+    this.badgeLabel,
+    this.badgeIcon,
+    this.accentColor,
+    this.trailingAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? trailingText;
+  final String? badgeLabel;
+  final IconData? badgeIcon;
+  final Color? accentColor;
+  final Widget? trailingAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final tint = accentColor ?? MeloColors.cherry;
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: tint),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  letterSpacing: -0.4,
+                ),
+          ),
+        ),
+        if (trailingAction != null) ...[
+          trailingAction!,
+          if (badgeLabel != null) const SizedBox(width: 6),
+        ],
+        if (badgeLabel != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: tint.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: tint.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (badgeIcon != null) ...[
+                  Icon(badgeIcon, size: 12, color: tint),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  badgeLabel!,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: tint,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (trailingText != null)
+          Text(
+            trailingText!,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Live Spotify editorial feed carousel and track strip with QLED 4K HDR cards.
+class SpotifyFeedShelf extends StatefulWidget {
+  const SpotifyFeedShelf({
+    required this.audioHandler,
+    this.library,
+    super.key,
+  });
+
+  final AudioHandler? audioHandler;
+  final MusicLibrary? library;
+
+  @override
+  State<SpotifyFeedShelf> createState() => _SpotifyFeedShelfState();
+}
+
+class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
+  static const List<String> _feedFilters = [
+    'For You',
+    'Your Playlists',
+    'Recently Played',
+    'Charts',
+  ];
+
+  List<SpotifyTrack> _feedTracks = const [];
+  String? _streamingPlaylistId;
+  String _selectedFeedFilter = 'For You';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+    SpotifyService.instance.authState.addListener(_onSpotifyChanged);
+    SpotifyService.instance.feedRevision.addListener(_onSpotifyChanged);
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      unawaited(_loadFeedTracks());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SpotifyFeedShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library?.playbackHistoryRevision !=
+        widget.library?.playbackHistoryRevision) {
+      oldWidget.library?.playbackHistoryRevision.removeListener(
+        _onHistoryChanged,
+      );
+      widget.library?.playbackHistoryRevision.addListener(_onHistoryChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.library?.playbackHistoryRevision.removeListener(_onHistoryChanged);
+    SpotifyService.instance.authState.removeListener(_onSpotifyChanged);
+    SpotifyService.instance.feedRevision.removeListener(_onSpotifyChanged);
+    super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSpotifyChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadFeedTracks() async {
+    final tracks = await SpotifyService.instance.fetchFeedTracks(limit: 8);
+    if (!mounted || tracks.isEmpty) return;
+    setState(() => _feedTracks = tracks);
+  }
+
+  List<FeaturedSpotifyPlaylist> _tasteOrderedPlaylists() {
+    final spotify = SpotifyService.instance;
+    final personalPlaylists = [
+      if (spotify.likedTracks.isNotEmpty)
+        FeaturedSpotifyPlaylist(
+          id: 'liked',
+          title: 'Spotify Liked Songs',
+          subtitle: '${spotify.likedTracks.length} synced tracks',
+          artworkUrl: spotify.likedTracks.first.artworkUrl ?? '',
+          category: 'Liked Songs',
+        ),
+      for (final p in spotify.userPlaylists)
+        FeaturedSpotifyPlaylist(
+          id: p.id,
+          title: p.title,
+          subtitle: p.subtitle,
+          artworkUrl: p.artworkUrl,
+          category: 'Your Library',
+        ),
+    ];
+
+    if (spotify.isLoggedIn && _selectedFeedFilter == 'Your Playlists') {
+      return personalPlaylists.isNotEmpty
+          ? personalPlaylists
+          : SpotifyService.featuredPlaylists;
+    }
+
+    final library = widget.library;
+    final recentText = [
+      if (library != null) ...[
+        ...library.recentSessionItems.map(
+          (e) => '${e.title} ${e.artist ?? ''} ${e.album ?? ''}',
+        ),
+        ...library.topAffinityArtists,
+      ],
+      ...spotify.topArtists,
+    ].join(' ').toLowerCase();
+
+    final editorial = [...SpotifyService.featuredPlaylists];
+    if (recentText.trim().isNotEmpty) {
+      int scoreFor(FeaturedSpotifyPlaylist playlist) {
+        var score = 0;
+        final category = playlist.category.toLowerCase();
+        if (recentText.contains(category)) score += 3;
+        if (category.contains('afro') &&
+            (recentText.contains('afro') ||
+                recentText.contains('burna') ||
+                recentText.contains('tems') ||
+                recentText.contains('asake') ||
+                recentText.contains('rema'))) {
+          score += 4;
+        }
+        if (category.contains('hip-hop') &&
+            (recentText.contains('rap') ||
+                recentText.contains('hip') ||
+                recentText.contains('kendrick') ||
+                recentText.contains('drake'))) {
+          score += 4;
+        }
+        if (category.contains('focus') &&
+            (recentText.contains('lofi') ||
+                recentText.contains('ambient') ||
+                recentText.contains('study') ||
+                recentText.contains('instrumental'))) {
+          score += 3;
+        }
+        return score;
+      }
+
+      editorial.sort((a, b) => scoreFor(b).compareTo(scoreFor(a)));
+    }
+
+    if (spotify.isLoggedIn && _selectedFeedFilter != 'Charts') {
+      return [...personalPlaylists, ...editorial];
+    }
+    return editorial;
+  }
+
+  Future<void> _streamPlaylist(FeaturedSpotifyPlaylist playlist) async {
+    final handler = widget.audioHandler;
+    if (handler == null || _streamingPlaylistId != null) return;
+    setState(() => _streamingPlaylistId = playlist.id);
+    try {
+      List<SpotifyTrack> tracks;
+      if (playlist.id == 'liked') {
+        tracks = SpotifyService.instance.likedTracks.isNotEmpty
+            ? SpotifyService.instance.likedTracks
+            : SpotifyService.instance.personalFeedTracks;
+      } else {
+        final data = await SpotifyService.instance.fetchPlaylist(playlist.id);
+        tracks = data.tracks;
+      }
+      if (!mounted) return;
+      if (tracks.isEmpty) {
+        if (playlist.id == 'liked') {
+          _openSpotifySync();
+          return;
+        }
+        _openSpotifyPlaylistScreen(playlist);
+        return;
+      }
+      final items = tracks
+          .map((t) {
+            final localMatch = widget.library?.findMatchingLocalTrack(
+              providerTrackId: t.id,
+              title: t.title,
+              artist: t.artist,
+            );
+            return localMatch != null
+                ? localMatch.toMediaItem()
+                : t.toImportedTrack().toMediaItem();
+          })
+          .toList(growable: false);
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(items, initialIndex: 0, playWhenReady: true);
+      } else {
+        await handler.updateQueue(items);
+        await handler.skipToQueueItem(0);
+        await handler.play();
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Streaming Spotify "${playlist.title}"'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not stream Spotify playlist: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _streamingPlaylistId = null);
+    }
+  }
+
+  void _openSpotifyPlaylistScreen(FeaturedSpotifyPlaylist playlist) {
+    final spotify = SpotifyService.instance;
+    final initialTracks = playlist.id == 'liked'
+        ? (spotify.likedTracks.isNotEmpty
+              ? spotify.likedTracks
+              : spotify.personalFeedTracks)
+        : null;
+    final preset = CuratedPlaylistPreset(
+      title: playlist.title,
+      curatorSubtitle: playlist.subtitle,
+      badge: playlist.category.toUpperCase(),
+      searchQuery: '${playlist.title} official audio',
+      gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+      icon: playlist.id == 'liked'
+          ? Icons.favorite_rounded
+          : Icons.graphic_eq_rounded,
+      coverUrl: playlist.artworkUrl.isNotEmpty ? playlist.artworkUrl : null,
+      spotifyPlaylistId: playlist.id,
+      initialSpotifyTracks: initialTracks,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
+        ),
+      ),
+    );
+  }
+
+  void _openSpotifySync() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => SpotifySettingsScreen(
+              library: widget.library,
+              audioHandler: widget.audioHandler,
+            ),
+          ),
+        )
+        .then((_) {
+          if (mounted) setState(() {});
+        });
+  }
+
+  Future<void> _streamFeedTrack(SpotifyTrack track) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final localMatch = widget.library?.findMatchingLocalTrack(
+        providerTrackId: track.id,
+        title: track.title,
+        artist: track.artist,
+      );
+      await handler.playMediaItem(
+        localMatch != null
+            ? localMatch.toMediaItem()
+            : track.toImportedTrack().toMediaItem(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not stream "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  List<SpotifyTrack> _tracksForSelectedFilter() {
+    final spotify = SpotifyService.instance;
+    if (!spotify.isLoggedIn) return _feedTracks;
+    if (_selectedFeedFilter == 'Recently Played' &&
+        spotify.recentlyPlayedTracks.isNotEmpty) {
+      return spotify.recentlyPlayedTracks;
+    }
+    if (_selectedFeedFilter == 'Charts') {
+      return _feedTracks;
+    }
+    final seen = <String>{};
+    final combined = <SpotifyTrack>[];
+    for (final t in [...spotify.personalFeedTracks, ..._feedTracks]) {
+      final key = '${t.title.toLowerCase()}|${t.artist.toLowerCase()}';
+      if (seen.add(key)) combined.add(t);
+    }
+    return combined;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final spotify = SpotifyService.instance;
+    final isLoggedIn = spotify.isLoggedIn;
+    final playlists = _tasteOrderedPlaylists();
+    final activeTitleLower = widget.audioHandler?.mediaItem.value?.title
+        .trim()
+        .toLowerCase();
+    final visibleFeedTracks = _tracksForSelectedFilter()
+        .where(
+          (t) =>
+              activeTitleLower == null ||
+              activeTitleLower.isEmpty ||
+              t.title.trim().toLowerCase() != activeTitleLower,
+        )
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ShelfHeader(
+          icon: Icons.radar_rounded,
+          title: 'Spotify Feed',
+          accentColor: MeloColors.cherry,
+          trailingAction: Material(
+            color: MeloColors.cherry.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(99),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _openSpotifySync,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(
+                    color: MeloColors.cherry.withValues(alpha: 0.4),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isLoggedIn
+                          ? Icons.verified_user_rounded
+                          : Icons.sync_rounded,
+                      size: 13,
+                      color: MeloColors.cherry,
+                    ),
+                    const SizedBox(width: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 118),
+                      child: Text(
+                        isLoggedIn
+                            ? 'Synced · ${spotify.displayName ?? "Account"}'
+                            : 'Sync Account',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: MeloColors.cherry,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (isLoggedIn) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              itemCount: _feedFilters.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final label = _feedFilters[index];
+                final selected = label == _selectedFeedFilter;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => setState(() => _selectedFeedFilter = label),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: selected
+                            ? MeloColors.cherry
+                            : MeloColors.qledElevated,
+                        border: Border.all(
+                          color: selected
+                              ? MeloColors.cherrySoft
+                              : Colors.white.withValues(alpha: 0.14),
+                          width: 0.9,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        SizedBox(
+          height:
+              154.0 +
+              MediaQuery.textScalerOf(context).scale(42).clamp(38.0, 96.0),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: playlists.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final playlist = playlists[index];
+              final isStreaming = _streamingPlaylistId == playlist.id;
+              return SizedBox(
+                width: 158,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => _openSpotifyPlaylistScreen(playlist),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: MeloColors.qledCard,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          width: 1.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: MeloColors.cherry.withValues(alpha: 0.14),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 112,
+                            width: double.infinity,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (playlist.artworkUrl.isNotEmpty)
+                                    Image.network(
+                                      playlist.artworkUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Container(
+                                        decoration: const BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              MeloColors.cherry,
+                                              MeloColors.cherryDeep,
+                                            ],
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          playlist.id == 'liked'
+                                              ? Icons.favorite_rounded
+                                              : Icons.queue_music_rounded,
+                                          color: Colors.white70,
+                                          size: 36,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            MeloColors.cherry,
+                                            MeloColors.cherryDeep,
+                                          ],
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        playlist.id == 'liked'
+                                            ? Icons.favorite_rounded
+                                            : Icons.queue_music_rounded,
+                                        color: Colors.white70,
+                                        size: 36,
+                                      ),
+                                    ),
+                                  Positioned(
+                                    top: 6,
+                                    left: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.72,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.24,
+                                          ),
+                                          width: 0.7,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        playlist.category.toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 6,
+                                    right: 6,
+                                    child: Semantics(
+                                      button: true,
+                                      label: 'Stream ${playlist.title}',
+                                      child: Material(
+                                        color: MeloColors.cherry,
+                                        shape: const CircleBorder(),
+                                        elevation: 4,
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: () => _streamPlaylist(playlist),
+                                          child: SizedBox(
+                                            width: 30,
+                                            height: 30,
+                                            child: isStreaming
+                                                ? const Padding(
+                                                    padding: EdgeInsets.all(7),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.play_arrow_rounded,
+                                                    size: 18,
+                                                    color: Colors.white,
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            playlist.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            playlist.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (visibleFeedTracks.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 62,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              itemCount: visibleFeedTracks.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final track = visibleFeedTracks[index];
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => _streamFeedTrack(track),
+                    child: Container(
+                      width: 224,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: MeloColors.qledElevated,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.10),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(9),
+                              color: MeloColors.cherry.withValues(
+                                alpha: 0.16,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: track.artworkUrl != null
+                                ? Image.network(
+                                    track.artworkUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.music_note_rounded,
+                                      size: 18,
+                                      color: MeloColors.cherry,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.music_note_rounded,
+                                    size: 18,
+                                    color: MeloColors.cherry,
+                                  ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  track.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  track.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.play_circle_filled_rounded,
+                            size: 20,
+                            color: MeloColors.cherry,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }

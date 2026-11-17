@@ -327,16 +327,16 @@ class _SearchScreenState extends State<SearchScreen> {
       margin: const EdgeInsets.only(top: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1ED760).withValues(alpha: 0.15),
+        color: MeloColors.cherry.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1ED760).withValues(alpha: 0.4)),
+        border: Border.all(color: MeloColors.cherry.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.link_rounded, color: Color(0xFF1ED760), size: 22),
+              const Icon(Icons.link_rounded, color: MeloColors.cherry, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -359,8 +359,8 @@ class _SearchScreenState extends State<SearchScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1ED760),
-                foregroundColor: Colors.black,
+                backgroundColor: MeloColors.cherry,
+                foregroundColor: Colors.white,
               ),
               icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
               label: const Text(

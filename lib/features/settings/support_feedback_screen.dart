@@ -362,7 +362,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
         const SizedBox(height: 12),
         _SupportOptionTile(
           icon: Icons.star_rounded,
-          iconColor: Colors.amber,
+          iconColor: MeloColors.cherry,
           title: 'Star on GitHub',
           subtitle: 'Give Melo a star on GitHub to boost visibility.',
           onTap: () => _openUrl(_githubRepoUrl),
@@ -390,7 +390,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
         const SizedBox(height: 10),
         _SupportOptionTile(
           icon: Icons.rate_review_outlined,
-          iconColor: Colors.greenAccent,
+          iconColor: MeloColors.cherry,
           title: 'Recommend New Features',
           subtitle: 'Tell us what features would take Melo to the top of the leaderboards.',
           onTap: () => _tabController.animateTo(1),

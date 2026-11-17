@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
-import 'package:melo_player/features/mix/local_discovery.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
@@ -93,6 +92,8 @@ class SmartPlaylistService {
         videoId,
         artist: artist,
         title: seedTrack.title,
+        recentArtists: library?.topAffinityArtists ?? const [],
+        excludeIds: seenIds,
       );
 
       for (final ytTrack in related) {
@@ -124,16 +125,21 @@ class SmartPlaylistService {
     String? artworkUri,
   }) async {
     final cleanArtist = artist.trim();
+    final artistLower = cleanArtist.toLowerCase();
     final queueTracks = <MediaItem>[];
     final seenIds = <String>{};
 
-    // 1. Local tracks by this artist
+    // 1. Local tracks by this artist and their features
     if (library != null) {
-      final localArtistTracks = LocalDiscovery.artistRadio(
-        library.tracks,
-        cleanArtist,
-        favoriteTrackIds: library.favoriteTracks.map((t) => t.id).toSet(),
-      );
+      final localArtistTracks = library.tracks.where((t) {
+        if (!t.isAvailable) return false;
+        final aLower = t.artist.toLowerCase();
+        final tLower = t.title.toLowerCase();
+        return aLower.contains(artistLower) ||
+            tLower.contains(artistLower) ||
+            tLower.contains('feat. $artistLower') ||
+            tLower.contains('ft. $artistLower');
+      }).toList();
       for (final t in localArtistTracks) {
         final item = t.toMediaItem();
         if (!seenIds.contains(item.id)) {
@@ -143,16 +149,30 @@ class SmartPlaylistService {
       }
     }
 
-    // 2. Streamed tracks for this artist
+    // 2. Streamed tracks strictly for this artist and their features
     try {
-      final ytResults = await YoutubeAudioService.instance.search('$cleanArtist best songs');
+      final ytResults = await YoutubeAudioService.instance.search(
+        '$cleanArtist official audio songs',
+        filterMixtapes: true,
+      );
       for (final t in ytResults) {
+        if (t.duration.inSeconds > 660) continue;
+        if (YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) continue;
+        final authorLower = t.author.toLowerCase();
+        final titleLower = t.title.toLowerCase();
+        final isArtistTrack = authorLower.contains(artistLower) ||
+            titleLower.contains(artistLower) ||
+            titleLower.contains('feat. $artistLower') ||
+            titleLower.contains('ft. $artistLower') ||
+            titleLower.contains('featuring $artistLower');
+        if (!isArtistTrack) continue;
+
         final item = t.toMediaItem();
         if (!seenIds.contains(item.id)) {
           seenIds.add(item.id);
           queueTracks.add(item);
         }
-        if (queueTracks.length >= 25) break;
+        if (queueTracks.length >= 35) break;
       }
     } catch (e) {
       debugPrint('Error fetching artist radio online tracks: $e');
@@ -161,7 +181,7 @@ class SmartPlaylistService {
     return SmartPlaylist(
       id: 'artist_radio:$cleanArtist',
       title: '$cleanArtist Radio',
-      subtitle: 'Endless artist mix & similar sounds',
+      subtitle: '$cleanArtist · Songs & features',
       tracks: queueTracks,
       isContinuous: true,
       artworkUri: artworkUri ?? (queueTracks.isNotEmpty ? queueTracks.first.artUri?.toString() : null),
@@ -230,8 +250,26 @@ class SmartPlaylistService {
       }
     }
 
-    // 2. Fetch curated vibe tracks online
+    // 2. Fetch curated vibe tracks online (blending top affinity artists for Daily Flow)
     try {
+      if (vibe == SmartVibe.dailyFlow &&
+          library != null &&
+          queueTracks.length < 15) {
+        for (final affinityArtist in library.topAffinityArtists.take(2)) {
+          final artistTracks = await YoutubeAudioService.instance.search(
+            '$affinityArtist official audio',
+            filterMixtapes: true,
+          );
+          for (final t in artistTracks.take(4)) {
+            final item = t.toMediaItem();
+            if (!seenIds.contains(item.id)) {
+              seenIds.add(item.id);
+              queueTracks.add(item);
+            }
+          }
+          if (queueTracks.length >= 18) break;
+        }
+      }
       final results = await YoutubeAudioService.instance.search(searchQuery);
       for (final t in results) {
         final item = t.toMediaItem();

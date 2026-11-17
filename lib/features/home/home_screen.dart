@@ -1,15 +1,12 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
-import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
-import 'package:melo_player/features/library/playlist_detail_screen.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
-import 'package:melo_player/features/player/mini_player.dart';
 
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 
@@ -33,195 +30,314 @@ class HomeScreen extends StatelessWidget {
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
 
+  static String _timeOfDayGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    if (hour >= 17 && hour < 22) return 'Good evening';
+    return 'Late night vibes';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              // Apple Music Style Home Header (Reference Screenshot 3)
-              Row(
-                children: [
-                  Text(
-                    'Home',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.0,
-                    ),
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    void openSearch() {
+      if (onSearch != null) {
+        onSearch!();
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SearchScreen(
+            audioHandler: audioHandler,
+            library: library,
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        if (isDark)
+          Positioned(
+            top: -90,
+            left: -40,
+            right: -40,
+            height: 260,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.3, -0.4),
+                    radius: 1.15,
+                    colors: [
+                      MeloColors.cherry.withValues(alpha: 0.22),
+                      MeloColors.cherryDeep.withValues(alpha: 0.12),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
                   ),
-                  const Spacer(),
-                  if (onSearch != null)
-                    IconButton(
-                      tooltip: 'Search',
-                      onPressed: onSearch,
-                      icon: const Icon(Icons.search_rounded),
-                    ),
-                  PopupMenuButton<String>(
-                    tooltip: 'More options',
-                    icon: Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      child: const Icon(Icons.more_horiz_rounded, size: 20),
-                    ),
-                    onSelected: (val) {
-                      if (val == 'cloud') {
-                        SpotifyImportSheet.show(
-                          context,
-                          library: library,
-                          audioHandler: audioHandler,
-                        );
-                      }
-                      if (val == 'stream') {
-                        if (onSearch != null) {
-                          onSearch!();
-                        } else {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => SearchScreen(
-                                audioHandler: audioHandler,
-                                library: library,
+                ),
+              ),
+            ),
+          ),
+        CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Clean Editorial Home Header
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isDark
+                                          ? MeloColors.cherry
+                                          : colors.primary,
+                                      boxShadow: isDark
+                                          ? [
+                                              BoxShadow(
+                                                color: MeloColors.cherry
+                                                    .withValues(alpha: 0.7),
+                                                blurRadius: 6,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      _timeOfDayGreeting().toUpperCase(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: colors.onSurfaceVariant,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1.0,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Home',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.9,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'More options',
+                          icon: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark
+                                  ? MeloColors.qledElevated
+                                  : colors.surfaceContainerHigh,
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.16)
+                                    : colors.outlineVariant.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                width: 0.8,
                               ),
                             ),
-                          );
-                        }
-                      }
-                      if (val == 'library') onOpenLibrary();
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: 'cloud',
-                        child: Row(
-                          children: [
-                            Icon(Icons.cloud_download_rounded, size: 20),
-                            SizedBox(width: 10),
-                            Text('Import Online Playlist'),
+                            child: Icon(
+                              Icons.more_horiz_rounded,
+                              size: 20,
+                              color: colors.onSurface,
+                            ),
+                          ),
+                          onSelected: (val) {
+                            if (val == 'cloud') {
+                              SpotifyImportSheet.show(
+                                context,
+                                library: library,
+                                audioHandler: audioHandler,
+                              );
+                            }
+                            if (val == 'stream') {
+                              openSearch();
+                            }
+                            if (val == 'library') onOpenLibrary();
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'cloud',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.cloud_download_rounded, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Import Online Playlist'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'stream',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.search_rounded, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Search Online & Library'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'library',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.library_music_rounded, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Device Library'),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      PopupMenuItem(
-                        value: 'stream',
-                        child: Row(
-                          children: [
-                            Icon(Icons.search_rounded, size: 20),
-                            SizedBox(width: 10),
-                            Text('Search Online & Library'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'library',
-                        child: Row(
-                          children: [
-                            Icon(Icons.library_music_rounded, size: 20),
-                            SizedBox(width: 10),
-                            Text('Device Library'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: onSearch,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      width: 0.8,
+                      ],
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search_rounded,
-                        size: 20,
-                        color: Colors.white.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Search songs, artists, online or library...',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontWeight: FontWeight.w500,
+                    const SizedBox(height: 14),
+                    Semantics(
+                      button: true,
+                      label: 'Search songs, artists, online or library',
+                      child: Material(
+                        color: isDark
+                            ? MeloColors.qledElevated.withValues(alpha: 0.85)
+                            : colors.surfaceContainerHigh.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          onTap: openSearch,
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDark
+                                    ? MeloColors.hdrSpecular.withValues(
+                                        alpha: 0.16,
+                                      )
+                                    : colors.outlineVariant.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                width: 0.9,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  size: 20,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Search songs, artists, online or library...',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: colors.onSurfaceVariant,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Shelf 1: Top Picks for You (Hero Editorial Showcase)
+                    TopPicksShelf(
+                      library: library,
+                      onPlayVibe: (vibe) => _openStation(context, vibe),
+                      onPlayPreset: (preset) =>
+                          _openCuratedPreset(context, preset),
+                      onOpenArtistRadio: (artist) =>
+                          _openArtistRadio(context, artist),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Shelf 2: Popular Songs (Global Hits with 1-Tap Play)
+                    PopularSongsShelf(
+                      audioHandler: audioHandler,
+                      library: library,
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Shelf 3: Live Spotify Feed & Playlist Sync
+                    SpotifyFeedShelf(
+                      audioHandler: audioHandler,
+                      library: library,
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Shelf 4: Recommended Editorial Playlists (Genre Channel Filtering)
+                    if (!kIsWeb && Platform.isAndroid) ...[
+                      RecommendedPlaylistsSection(
+                        audioHandler: audioHandler,
+                        library: library,
+                      ),
+                      const SizedBox(height: 28),
                     ],
-                  ),
+
+                    // Shelf 5: Dynamic Artist Radio Carousel (Songs & Features by Artist)
+                    ArtistRadioShelf(
+                      library: library,
+                      onOpenArtistRadio: (artist) =>
+                          _openArtistRadio(context, artist),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Shelf 6: Stations for You (Continuous Radio Flow)
+                    StationsForYouShelf(
+                      library: library,
+                      onPlayVibe: (vibe) => _openStation(context, vibe),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Shelf 1: Recommended Editorial Playlists (FIRST on Home)
-              if (!kIsWeb && Platform.isAndroid) ...[
-                RecommendedPlaylistsSection(
-                  audioHandler: audioHandler,
-                  library: library,
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // Shelf 2: Dynamic Artist Radio Carousel (Spotify Style)
-              ArtistRadioShelf(
-                library: library,
-                onOpenArtistRadio: (artist) => _openArtistRadio(context, artist),
-              ),
-              const SizedBox(height: 24),
-
-              // Shelf 3: Top Picks for You (Hero Showcase Carousel)
-              TopPicksShelf(
-                onPlayVibe: (vibe) => _openStation(context, vibe),
-                onPlayPreset: (preset) => _openCuratedPreset(context, preset),
-              ),
-              const SizedBox(height: 24),
-
-              // Shelf 4: Your Playlists
-              if (library != null && audioHandler != null && library!.playlists.isNotEmpty) ...[
-                _SavedPlaylists(
-                  library: library!,
-                  audioHandler: audioHandler,
-                  onPlay: (playlistId) => _playPlaylist(context, playlistId),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // Shelf 5: Recently Played
-              if (library != null && library!.tracks.isNotEmpty) ...[
-                RecentlyPlayedShelf(
-                  library: library!,
-                  onPlay: (track) => _playTrack(context, track),
-                  onOpenLibrary: onOpenLibrary,
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // Shelf 6: Stations for You (Continuous Radio Flow with Real Art)
-              StationsForYouShelf(
-                library: library,
-                onPlayVibe: (vibe) => _openStation(context, vibe),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
       ],
     );
   }
@@ -232,28 +348,28 @@ class HomeScreen extends StatelessWidget {
         'Personal Station',
         'Continuous dynamic stream tailored to your favorites',
         'PERSONAL STATION',
-        const [Color(0xFFE52D27), Color(0xFFB31217), Color(0xFF1E0608)],
+        const [Color(0xFFFA243C), Color(0xFF7A0C1E), Color(0xFF0A0A0C)],
         Icons.graphic_eq_rounded,
       ),
       SmartVibe.highEnergy => (
         'Discovery Station',
         'Endless exploration & fresh music discoveries',
         'DISCOVERY',
-        const [Color(0xFF4A00E0), Color(0xFF8E2DE2), Color(0xFF0F051D)],
+        const [Color(0xFF3B0812), Color(0xFFFA243C), Color(0xFF080808)],
         Icons.radar_rounded,
       ),
       SmartVibe.deepFocus => (
         'Deep Focus & Study',
         'Calm instrumental grooves and ambient lofi beats',
         'INSTRUMENTAL',
-        const [Color(0xFF134E5E), Color(0xFF71B280), Color(0xFF061A21)],
+        const [Color(0xFF1C1C1E), Color(0xFF3A0A14), Color(0xFF000000)],
         Icons.headphones_rounded,
       ),
       SmartVibe.lateNightChill => (
         'Late Night Chill',
         'Mellow acoustic & atmospheric midnight soul',
         'LATE NIGHT',
-        const [Color(0xFF3A1C71), Color(0xFFD76D77), Color(0xFF190A2E)],
+        const [Color(0xFF4A0915), Color(0xFF140307), Color(0xFF000000)],
         Icons.nightlight_round,
       ),
     };
@@ -292,13 +408,17 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openArtistRadio(BuildContext context, String artistName) {
+    final cachedCover = SongMetadataEnricher.instance.cachedArtistImageUrl(
+      artistName,
+    );
     final preset = CuratedPlaylistPreset(
       title: '$artistName Radio',
       curatorSubtitle: 'With similar artists & trending tracks',
       badge: 'ARTIST RADIO',
       searchQuery: '$artistName songs',
-      gradient: const [Color(0xFF1DB954), Color(0xFF191414), Color(0xFF121212)],
+      gradient: const [MeloColors.cherry, MeloColors.cherryDeep, Color(0xFF0A0A0C)],
       icon: Icons.sensors_rounded,
+      coverUrl: cachedCover,
       isArtistRadio: true,
       artistName: artistName,
     );
@@ -313,205 +433,10 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-
-  Future<void> _playTrack(BuildContext context, ImportedTrack track) async {
-    final handler = audioHandler;
-    final musicLibrary = library;
-    if (handler == null || musicLibrary == null) return;
-    try {
-      final index = musicLibrary.indexOfTrack(track.id);
-      if (index < 0) throw StateError('This song is no longer in the library.');
-      await musicLibrary.playTrack(handler, index);
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not play this song: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
-
-
-
-  Future<void> _playPlaylist(BuildContext context, String playlistId) async {
-    final musicLibrary = library;
-    final handler = audioHandler;
-    if (musicLibrary == null || handler == null) return;
-    try {
-      await musicLibrary.playPlaylist(handler, playlistId);
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Could not play this playlist: $error'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
-  }
 }
 
 
 
-class _SavedPlaylists extends StatelessWidget {
-  const _SavedPlaylists({
-    required this.library,
-    required this.onPlay,
-    this.audioHandler,
-  });
 
-  final MusicLibrary library;
-  final ValueChanged<String> onPlay;
-  final AudioHandler? audioHandler;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: library,
-    builder: (context, _) {
-      final playlists = library.playlists;
-      if (playlists.isEmpty) return const SizedBox.shrink();
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeader(title: 'Your playlists'),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 198,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: playlists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                final playlist = playlists[index];
-                final playlistTracks = library.tracksForPlaylist(playlist.id);
-                final count = playlistTracks.length;
-                final themeIndex = playlist.coverStyle != null ? int.tryParse(playlist.coverStyle!) : null;
-
-                return SizedBox(
-                  width: 142,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => PlaylistDetailScreen(
-                              playlist: playlist,
-                              library: library,
-                              audioHandler: audioHandler,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Apple Music Style Square Cover with Play Badge
-                          Stack(
-                            children: [
-                              PlaylistArtwork(
-                                playlistName: playlist.name,
-                                tracks: playlistTracks,
-                                library: library,
-                                size: 142,
-                                borderRadius: 14,
-                                customArtworkUri: playlist.customArtworkUri,
-                                themeIndex: themeIndex,
-                              ),
-                              if (count > 0)
-                                Positioned(
-                                  right: 8,
-                                  bottom: 8,
-                                  child: Material(
-                                    color: MeloColors.cherry,
-                                    shape: const CircleBorder(),
-                                    elevation: 4,
-                                    child: InkWell(
-                                      customBorder: const CircleBorder(),
-                                      onTap: () => onPlay(playlist.id),
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(7),
-                                        child: Icon(
-                                          Icons.play_arrow_rounded,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-
-                          // Playlist Title & Count
-                          Text(
-                            playlist.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '$count ${count == 1 ? 'song' : 'songs'}',
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-/// A shared heading: a title, an optional one-line explanation, and an
-/// optional trailing action. Keeps section rhythm identical across Home.
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
 
 

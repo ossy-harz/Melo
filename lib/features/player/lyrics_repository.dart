@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -267,6 +269,12 @@ class LyricsRepository {
   static const _offsetPrefix = 'tone_lyrics_offset_v1_';
   static const _onlineLyricsKey = 'tone_online_lyrics_enabled';
 
+  /// Emits an increment whenever cached lyrics are stored or updated so active
+  /// playback views can refresh automatically once background downloads finish.
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
+  static final Map<String, Future<SongLyrics?>> _inFlightAutoDownloads = {};
+  static bool _isSyncingLibrary = false;
+
   static String _canonicalSongKey(String title, String? artist) {
     final cleanT = _cleanTitleForMatch(title);
     final cleanA = _cleanTitleForMatch(artist ?? '');
@@ -296,6 +304,7 @@ class LyricsRepository {
     if (title.trim().isEmpty || rawLrc.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_canonicalSongKey(title, artist), rawLrc);
+    revision.value++;
   }
 
   static Future<bool> get onlineLookupEnabled async =>
@@ -411,6 +420,123 @@ class LyricsRepository {
     final cacheKey = '$_cachePrefix${Uri.encodeComponent(id)}';
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(cacheKey, lyricsText);
+    revision.value++;
+  }
+
+  /// Returns `true` when lyrics are already cached in preferences or a local `.lrc` sidecar.
+  static Future<bool> hasCachedLyricsFor(MediaItem item) async {
+    final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
+    final preferences = await SharedPreferences.getInstance();
+    final cached = preferences.getString(cacheKey);
+    if (cached != null && cached.trim().isNotEmpty) return true;
+
+    if (item.title.trim().isNotEmpty) {
+      final songCached = preferences.getString(
+        _canonicalSongKey(item.title, item.artist),
+      );
+      if (songCached != null && songCached.trim().isNotEmpty) return true;
+    }
+
+    if ((item.id.contains('/') || item.id.contains(r'\')) &&
+        !item.id.startsWith('http://') &&
+        !item.id.startsWith('https://') &&
+        !item.id.startsWith('youtube:') &&
+        !item.id.startsWith('spotify:')) {
+      try {
+        final filePath = item.id.startsWith('file://')
+            ? Uri.parse(item.id).toFilePath()
+            : item.id;
+        final dot = filePath.lastIndexOf('.');
+        final lrcPath =
+            dot > 0 ? '${filePath.substring(0, dot)}.lrc' : '$filePath.lrc';
+        if (File(lrcPath).existsSync()) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  /// Automatically fetches and caches lyrics for [item] with in-flight
+  /// deduplication, writing a sidecar `.lrc` file for local tracks when possible.
+  static Future<SongLyrics?> autoDownloadForMediaItem(
+    MediaItem item, {
+    OnlineLyricsLookup? onlineLookup,
+  }) {
+    final title = item.title.trim();
+    if (title.isEmpty || title.toLowerCase() == 'unknown title') {
+      return Future<SongLyrics?>.value();
+    }
+    final inFlight = _inFlightAutoDownloads[item.id];
+    if (inFlight != null) return inFlight;
+
+    final future = () async {
+      try {
+        final existing = await loadFor(item, onlineLookup: onlineLookup);
+        if (existing != null) return existing;
+        return await findOnlineFor(
+          item,
+          onlineLookup: onlineLookup,
+          forceOnline: true,
+        );
+      } catch (_) {
+        return null;
+      } finally {
+        _inFlightAutoDownloads.remove(item.id);
+      }
+    }();
+    _inFlightAutoDownloads[item.id] = future;
+    return future;
+  }
+
+  /// Sequentially downloads missing lyrics for all tracks in the user's library
+  /// in the background with polite pacing.
+  static Future<void> autoDownloadForLibrary(
+    Iterable<MediaItem> items,
+  ) async {
+    if (_isSyncingLibrary ||
+        Platform.environment.containsKey('FLUTTER_TEST')) {
+      return;
+    }
+    _isSyncingLibrary = true;
+    try {
+      for (final item in items) {
+        try {
+          if (await hasCachedLyricsFor(item)) continue;
+          await autoDownloadForMediaItem(item);
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        } catch (_) {}
+      }
+    } finally {
+      _isSyncingLibrary = false;
+    }
+  }
+
+  static Future<void> _tryWriteLocalLrcSidecar(
+    String idOrPath,
+    String rawLrc,
+  ) async {
+    if (rawLrc.trim().isEmpty) return;
+    if (!(idOrPath.contains('/') || idOrPath.contains(r'\'))) return;
+    if (idOrPath.startsWith('http://') ||
+        idOrPath.startsWith('https://') ||
+        idOrPath.startsWith('youtube:') ||
+        idOrPath.startsWith('spotify:') ||
+        idOrPath.startsWith('content:')) {
+      return;
+    }
+    try {
+      final filePath = idOrPath.startsWith('file://')
+          ? Uri.parse(idOrPath).toFilePath()
+          : idOrPath;
+      final audioFile = File(filePath);
+      if (!audioFile.existsSync()) return;
+      final dot = filePath.lastIndexOf('.');
+      final lrcPath =
+          dot > 0 ? '${filePath.substring(0, dot)}.lrc' : '$filePath.lrc';
+      final lrcFile = File(lrcPath);
+      if (!lrcFile.existsSync()) {
+        await lrcFile.writeAsString(rawLrc, flush: true);
+      }
+    } catch (_) {}
   }
 
   static Future<SongLyrics?> findOnlineFor(
@@ -502,8 +628,8 @@ class LyricsRepository {
     final title = item.title.trim();
     final artist = item.artist?.trim() ?? '';
     if (title.isEmpty) return null;
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
       final uri = Uri.https('api.lrc.red', '/get', {
         'title': title,
         if (artist.isNotEmpty && !artist.toLowerCase().contains('unknown'))
@@ -536,10 +662,14 @@ class LyricsRepository {
             _canonicalSongKey(item.title, item.artist),
             cacheValue,
           );
+          await _tryWriteLocalLrcSidecar(item.id, cacheValue);
+          revision.value++;
           return lyrics;
         }
       }
-    } catch (_) {}
+    } catch (_) {} finally {
+      client.close(force: true);
+    }
     return null;
   }
 
@@ -637,6 +767,8 @@ class LyricsRepository {
         cacheValue,
       );
     }
+    await _tryWriteLocalLrcSidecar(item.id, cacheValue);
+    revision.value++;
     return lyrics;
   }
 
@@ -744,6 +876,7 @@ class LyricsRepository {
     final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(cacheKey, lyricsText);
+    revision.value++;
     return lyrics;
   }
 

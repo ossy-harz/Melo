@@ -384,7 +384,7 @@ class _LiveDiscoverySectionState extends State<LiveDiscoverySection> {
                   padding: EdgeInsets.symmetric(horizontal: 6),
                   child: Icon(
                     Icons.check_circle_rounded,
-                    color: Colors.greenAccent,
+                    color: MeloColors.cherry,
                     size: 20,
                   ),
                 )

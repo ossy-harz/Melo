@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
@@ -39,12 +43,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    widget.library.addListener(_onPlaylistStateChanged);
+    PlaylistDownloadManager.instance.addListener(_onPlaylistStateChanged);
   }
 
   @override
   void dispose() {
+    widget.library.removeListener(_onPlaylistStateChanged);
+    PlaylistDownloadManager.instance.removeListener(_onPlaylistStateChanged);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onPlaylistStateChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onScroll() {
@@ -93,22 +105,53 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _playPlaylist({String? startTrackId, bool shuffle = false}) async {
     final handler = widget.audioHandler;
     if (handler == null) return;
-    final tracks = _tracks.where((t) => t.isAvailable).toList();
+    final tracks = _tracks
+        .where(
+          (t) =>
+              t.isAvailable ||
+              t.path.startsWith('youtube:') ||
+              t.path.startsWith('spotify:'),
+        )
+        .toList();
     if (tracks.isEmpty) {
       _showMessage('Add songs to this playlist before playing.');
       return;
     }
 
     try {
+      final ordered = [...tracks];
+      var startIndex = startTrackId == null
+          ? 0
+          : ordered.indexWhere((t) => t.id == startTrackId);
+      if (startIndex < 0) startIndex = 0;
       if (shuffle) {
-        final shuffled = [...tracks]..shuffle();
-        await widget.library.playMix(handler, shuffled);
-      } else {
-        await widget.library.playPlaylist(
-          handler,
-          _currentPlaylist.id,
-          startTrackId: startTrackId,
+        ordered.shuffle();
+        startIndex = 0;
+      }
+      final items = ordered
+          .map((t) {
+            final base = t.toMediaItem();
+            return base.copyWith(
+              extras: {
+                ...?base.extras,
+                'playlistTitle': _currentPlaylist.name,
+              },
+            );
+          })
+          .toList(growable: false);
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(
+          items,
+          initialIndex: startIndex,
+          playWhenReady: true,
         );
+      } else {
+        final rotated = startIndex > 0
+            ? [...items.skip(startIndex), ...items.take(startIndex)]
+            : items;
+        await handler.updateQueue(rotated);
+        await handler.skipToQueueItem(0);
+        await handler.play();
       }
     } catch (e) {
       _showMessage('Could not play playlist: $e');
@@ -135,34 +178,73 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  Future<void> _downloadSingleTrack(ImportedTrack track) async {
-    final library = widget.library;
-    final pId = track.providerTrackId ??
-        (track.path.startsWith('youtube:') ? track.path.substring(8) : null);
-    if (pId == null) {
-      _showMessage('This track is only available locally on device.');
-      return;
-    }
-
-    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
-      context,
-      title: track.title,
-      artist: track.artist,
-    );
-    if (chosenQuality == null || !mounted) return;
-
-    _showMessage('Downloading "${track.title}" in ${chosenQuality.shortLabel}...');
-    try {
-      final ytTrack = YoutubeTrack(
-        id: pId,
+  Future<YoutubeTrack?> _resolveDownloadableYoutubeTrack(
+    ImportedTrack track,
+  ) async {
+    final isSpotify =
+        track.path.startsWith('spotify:') ||
+        track.sourceProvider?.toLowerCase() == 'spotify';
+    if (isSpotify) {
+      final results = await YoutubeAudioService.instance.search(
+        '${track.title} ${track.artist}',
+      );
+      if (results.isEmpty) return null;
+      final first = results.first;
+      return YoutubeTrack(
+        id: first.id,
         title: track.title,
         author: track.artist,
         duration: track.durationMs != null
             ? Duration(milliseconds: track.durationMs!)
-            : const Duration(minutes: 3, seconds: 30),
-        thumbnailUrl: track.artworkUri,
+            : first.duration,
+        thumbnailUrl: track.artworkUri ?? first.thumbnailUrl,
         album: track.album,
       );
+    }
+    final pId =
+        track.providerTrackId ??
+        (track.path.startsWith('youtube:') ? track.path.substring(8) : null);
+    if (pId == null || pId.isEmpty) return null;
+    return YoutubeTrack(
+      id: pId,
+      title: track.title,
+      author: track.artist,
+      duration: track.durationMs != null
+          ? Duration(milliseconds: track.durationMs!)
+          : const Duration(minutes: 3, seconds: 30),
+      thumbnailUrl: track.artworkUri,
+      album: track.album,
+    );
+  }
+
+  Future<void> _downloadSingleTrack(ImportedTrack track) async {
+    final library = widget.library;
+    final hasRemoteSource =
+        track.providerTrackId != null ||
+        track.path.startsWith('youtube:') ||
+        track.path.startsWith('spotify:');
+    if (!hasRemoteSource) {
+      _showMessage('This track is already stored locally on device.');
+      return;
+    }
+
+    final chosenQuality = await LosslessAudioService.instance
+        .selectDownloadQuality(
+          context,
+          title: track.title,
+          artist: track.artist,
+        );
+    if (chosenQuality == null || !mounted) return;
+
+    _showMessage(
+      'Downloading "${track.title}" in ${chosenQuality.shortLabel}...',
+    );
+    try {
+      final ytTrack = await _resolveDownloadableYoutubeTrack(track);
+      if (ytTrack == null) {
+        _showMessage('No downloadable stream found for "${track.title}".');
+        return;
+      }
       await YoutubeAudioService.instance.downloadTrack(
         track: ytTrack,
         library: library,
@@ -180,57 +262,78 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<void> _downloadAllTracks() async {
     final library = widget.library;
-    final undownloaded = _tracks.where((t) {
-      final pId = t.providerTrackId ??
-          (t.path.startsWith('youtube:') ? t.path.substring(8) : null);
-      return pId != null &&
-          !library.isTrackDownloaded(
-            providerTrackId: pId,
-            title: t.title,
-            artist: t.artist,
-          );
-    }).toList();
-
-    if (undownloaded.isEmpty) {
-      _showMessage('All songs in this playlist are already on your phone.');
+    if (PlaylistDownloadManager.instance.isPlaylistDownloading(
+      _currentPlaylist.name,
+    )) {
+      _showMessage('Already downloading "${_currentPlaylist.name}" in background.');
       return;
     }
 
-    final chosenQuality = await LosslessAudioService.instance.selectDownloadQuality(
-      context,
-      title: _currentPlaylist.name,
-      artist: 'Playlist (${undownloaded.length} tracks)',
-    );
-    if (chosenQuality == null || !mounted) return;
-
-    _showMessage('Downloading ${undownloaded.length} tracks in background...');
-    for (final t in undownloaded) {
-      final pId = t.providerTrackId ??
-          (t.path.startsWith('youtube:') ? t.path.substring(8) : null);
-      if (pId == null) continue;
-      try {
-        final ytTrack = YoutubeTrack(
-          id: pId,
+    final remoteTracks = <YoutubeTrack>[];
+    for (final t in _tracks) {
+      final pId =
+          t.providerTrackId ??
+          (t.path.startsWith('youtube:')
+              ? t.path.substring(8)
+              : t.path.startsWith('spotify:')
+              ? t.path.substring(8)
+              : null);
+      if (pId == null || pId.isEmpty) continue;
+      if (library.isTrackDownloaded(
+        providerTrackId: pId,
+        title: t.title,
+        artist: t.artist,
+      )) {
+        continue;
+      }
+      final isSpotify =
+          t.path.startsWith('spotify:') ||
+          t.sourceProvider?.toLowerCase() == 'spotify';
+      remoteTracks.add(
+        YoutubeTrack(
+          id: isSpotify ? 'spotify:$pId' : pId,
           title: t.title,
           author: t.artist,
           duration: t.durationMs != null
               ? Duration(milliseconds: t.durationMs!)
-              : const Duration(minutes: 3, seconds: 30),
+              : const Duration(minutes: 3, seconds: 20),
           thumbnailUrl: t.artworkUri,
           album: t.album,
-        );
-        await YoutubeAudioService.instance.downloadTrack(
-          track: ytTrack,
-          library: library,
-          qualityOverride: chosenQuality,
-          onProgress: (_) {},
-        );
-      } catch (_) {}
+        ),
+      );
     }
-    if (mounted) {
-      setState(() {});
-      _showMessage('Finished downloading playlist tracks to phone!');
+
+    if (remoteTracks.isEmpty) {
+      _showMessage('All songs in this playlist are already on your phone.');
+      return;
     }
+
+    final chosenQuality = await LosslessAudioService.instance
+        .selectDownloadQuality(
+          context,
+          title: _currentPlaylist.name,
+          artist: 'Playlist (${remoteTracks.length} tracks)',
+        );
+    if (chosenQuality == null || !mounted) return;
+
+    _showMessage(
+      'Downloading ${remoteTracks.length} tracks from "${_currentPlaylist.name}" in background…',
+    );
+    final future = PlaylistDownloadManager.instance.downloadPlaylist(
+      playlistTitle: _currentPlaylist.name,
+      coverUrl: _currentPlaylist.customArtworkUri,
+      tracks: remoteTracks,
+      library: library,
+      qualityOverride: chosenQuality,
+      ensureSavedInLibrary: false,
+    );
+    unawaited(
+      future.then((savedCount) {
+        if (mounted && savedCount > 0) {
+          _showMessage('Downloaded $savedCount playlist tracks to phone!');
+        }
+      }),
+    );
   }
 
   Future<void> _addSongsDialog() async {
@@ -414,23 +517,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<void> _changeCoverThemeDialog() async {
     const themeNames = [
-      'Velvet Sunset (Melo Cherry)',
-      'Midnight Groove (Electric Sky)',
-      'Solar Flare (Radiant Amber)',
-      'Emerald Wave (Aqua Mint)',
-      'Cosmic Neon (Hot Magenta)',
-      'Rose Gold (Warm Blush)',
-      'Titanium Slate (Charcoal)',
+      'Apple Cherry Red',
+      'Crimson Velvet',
+      'Deep Bordeaux',
+      'Midnight Rose',
+      'Obsidian Charcoal',
+      'Titanium Slate',
+      'Pure Pitch Black',
     ];
 
     const themeColors = [
-      Color(0xFFFF2A4F),
-      Color(0xFF06B6D4),
-      Color(0xFFF59E0B),
-      Color(0xFF10B981),
-      Color(0xFFF43F5E),
-      Color(0xFFFB7185),
-      Color(0xFF94A3B8),
+      Color(0xFFFA243C),
+      Color(0xFFB81428),
+      Color(0xFF7A0C1E),
+      Color(0xFF3B0812),
+      Color(0xFF2C2C2E),
+      Color(0xFF1C1C1E),
+      Color(0xFF141416),
     ];
 
     await showModalBottomSheet<void>(
@@ -687,22 +790,26 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ? int.tryParse(playlist.coverStyle!)
         : null;
     final themeColors = const [
-      Color(0xFFFF2A4F),
-      Color(0xFF06B6D4),
-      Color(0xFFF59E0B),
-      Color(0xFF10B981),
-      Color(0xFFF43F5E),
-      Color(0xFFFB7185),
-      Color(0xFF94A3B8),
+      Color(0xFFFA243C),
+      Color(0xFFB81428),
+      Color(0xFF7A0C1E),
+      Color(0xFF3B0812),
+      Color(0xFF2C2C2E),
+      Color(0xFF1C1C1E),
+      Color(0xFF141416),
     ];
     final headerTint = themeIndex != null &&
             themeIndex >= 0 &&
             themeIndex < themeColors.length
         ? themeColors[themeIndex]
-        : const Color(0xFF4A6B82);
+        : MeloColors.cherry;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Colors.black,
+      bottomNavigationBar: PlaylistMiniPlayerDock(
+        audioHandler: widget.audioHandler,
+        musicLibrary: widget.library,
+      ),
       body: Stack(
         children: [
           CustomScrollView(
@@ -1285,6 +1392,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                             track.title.trim().toLowerCase() &&
                                         currentItem.artist?.trim().toLowerCase() ==
                                             track.artist.trim().toLowerCase()));
+                            final isStreamTrack =
+                                track.path.startsWith('youtube:') ||
+                                track.path.startsWith('spotify:') ||
+                                track.path.startsWith('http://') ||
+                                track.path.startsWith('https://');
+                            final rawPId =
+                                track.providerTrackId ??
+                                (track.path.startsWith('youtube:') ||
+                                        track.path.startsWith('spotify:')
+                                    ? track.path.substring(8)
+                                    : null);
+                            final dlProgress = rawPId != null
+                                ? PlaylistDownloadManager.instance
+                                      .progressForTrack(track.id, rawPId)
+                                : null;
 
                             return Material(
                               color: Colors.transparent,
@@ -1394,14 +1516,35 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                                   ),
                                                   const SizedBox(width: 6),
                                                 ],
-                                            if (track.isAvailable) ...[
-                                              const Icon(
-                                                Icons.check_circle_rounded,
-                                                size: 13.5,
-                                                color: MeloColors.cherrySoft,
-                                              ),
-                                              const SizedBox(width: 5),
-                                            ],
+                                                if (dlProgress != null) ...[
+                                                  SizedBox(
+                                                    width: 12,
+                                                    height: 12,
+                                                    child: CircularProgressIndicator(
+                                                      value: dlProgress > 0
+                                                          ? dlProgress
+                                                          : null,
+                                                      strokeWidth: 1.8,
+                                                      color: MeloColors.cherrySoft,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                ] else if (!isStreamTrack &&
+                                                    track.isAvailable) ...[
+                                                  const Icon(
+                                                    Icons.download_done_rounded,
+                                                    size: 13.5,
+                                                    color: MeloColors.cherrySoft,
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                ] else if (isStreamTrack) ...[
+                                                  const Icon(
+                                                    Icons.cloud_done_outlined,
+                                                    size: 13.5,
+                                                    color: Colors.white54,
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                ],
                                             Expanded(
                                               child: Text(
                                                 displayArtistName(track.artist),
@@ -1479,7 +1622,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                         ),
                                       ),
                                       if (track.providerTrackId != null ||
-                                          track.path.startsWith('youtube:'))
+                                          track.path.startsWith('youtube:') ||
+                                          track.path.startsWith('spotify:'))
                                         const PopupMenuItem(
                                           value: 'download',
                                           child: Row(

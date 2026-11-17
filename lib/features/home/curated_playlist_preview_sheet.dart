@@ -6,6 +6,7 @@ import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
@@ -84,10 +85,14 @@ class _CuratedPlaylistPreviewSheetState
         return true;
       }).toList();
 
-      _previewCache[widget.preset.title] = filtered;
+      if (filtered.isNotEmpty) {
+        _previewCache[widget.preset.title] = filtered;
+      }
       if (mounted) {
         setState(() {
           _tracks = filtered;
+          _errorMessage =
+              filtered.isEmpty ? 'No tracks found for this playlist.' : null;
           _loading = false;
         });
       }
@@ -105,30 +110,36 @@ class _CuratedPlaylistPreviewSheetState
     final handler = widget.audioHandler;
     if (handler == null || _tracks.isEmpty) return;
 
-    final mediaItems = _tracks.map((t) {
-      return MediaItem(
-        id: 'yt_${t.id}',
-        title: t.title,
-        artist: t.author,
-        album: widget.preset.title,
-        duration: t.duration,
-        artUri: t.thumbnailUrl != null ? Uri.tryParse(t.thumbnailUrl!) : null,
-        extras: {
-          'source': 'youtube',
-          'youtubeId': t.id,
-          'playlistTitle': widget.preset.title,
-        },
-      );
-    }).toList();
+    final mediaItems = _tracks
+        .map((t) => t.toMediaItem())
+        .toList(growable: false);
 
-    await handler.updateQueue(mediaItems);
-    if (shuffle) {
-      await handler.setShuffleMode(AudioServiceShuffleMode.all);
-    } else {
-      await handler.setShuffleMode(AudioServiceShuffleMode.none);
+    try {
+      await handler.setShuffleMode(
+        shuffle ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+      );
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(
+          mediaItems,
+          initialIndex: index,
+          playWhenReady: true,
+        );
+      } else {
+        await handler.updateQueue(mediaItems);
+        await handler.skipToQueueItem(index);
+        await handler.play();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not start playback: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
     }
-    await handler.skipToQueueItem(index);
-    await handler.play();
   }
 
   Future<void> _downloadSingleTrack(YoutubeTrack track) async {
@@ -399,7 +410,10 @@ class _CuratedPlaylistPreviewSheetState
                               const SizedBox(height: 12),
                               FilledButton(
                                 onPressed: () {
-                                  setState(() => _loading = true);
+                                  setState(() {
+                                    _loading = true;
+                                    _errorMessage = null;
+                                  });
                                   unawaited(_loadTracks());
                                 },
                                 child: const Text('Retry'),
@@ -408,15 +422,22 @@ class _CuratedPlaylistPreviewSheetState
                           ),
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        itemCount: _tracks.length,
-                        itemBuilder: (context, index) {
-                          final track = _tracks[index];
-                          final isPlaying = currentItem != null &&
-                              (currentItem.id == 'yt_${track.id}' ||
-                                  currentItem.title.trim().toLowerCase() ==
-                                      track.title.trim().toLowerCase());
+                    : StreamBuilder<MediaItem?>(
+                        stream: widget.audioHandler?.mediaItem,
+                        initialData: currentItem,
+                        builder: (context, snapshot) {
+                          final activeItem = snapshot.data ?? currentItem;
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                            itemCount: _tracks.length,
+                            itemBuilder: (context, index) {
+                              final track = _tracks[index];
+                              final isPlaying = activeItem != null &&
+                                  (activeItem.id == 'youtube:${track.id}' ||
+                                      activeItem.extras?['providerTrackId'] ==
+                                          track.id ||
+                                      activeItem.title.trim().toLowerCase() ==
+                                          track.title.trim().toLowerCase());
                           final progress = _downloadProgress[track.id];
 
                           return Padding(
@@ -544,7 +565,9 @@ class _CuratedPlaylistPreviewSheetState
                             ),
                           );
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

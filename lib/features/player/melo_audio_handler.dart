@@ -17,7 +17,9 @@ import 'package:melo_player/features/auto_mix/transition_diagnostic.dart';
 import 'package:melo_player/features/auto_mix/transition_plan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
+import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
@@ -99,6 +101,23 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _autoplayContinuous = true;
   bool _isExtendingAutoplay = false;
   double _userVolume = 1.0;
+  final List<MediaItem> _sessionHistory = [];
+  final Map<String, Duration> _incomingTrackCues = {};
+
+  void _recordSessionItem(MediaItem item) {
+    _sessionHistory.removeWhere((existing) => existing.id == item.id);
+    _sessionHistory.insert(0, item);
+    if (_sessionHistory.length > 30) {
+      _sessionHistory.removeRange(30, _sessionHistory.length);
+    }
+    final library = _musicLibrary;
+    if (library != null) {
+      unawaited(library.recordPlayedMediaItem(item).catchError((_) {}));
+    }
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      unawaited(LyricsRepository.autoDownloadForMediaItem(item));
+    }
+  }
 
   bool get autoplayContinuous => _autoplayContinuous;
 
@@ -124,27 +143,32 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (savedRepeatMode != null) {
       _repeatMode = AudioServiceRepeatMode.values.firstWhere(
         (mode) => mode.name == savedRepeatMode,
-        orElse: () => throw FormatException(
-          'Unknown saved repeat mode: $savedRepeatMode',
-        ),
+        orElse: () => AudioServiceRepeatMode.none,
       );
     }
     final savedShuffleMode = preferences.getString(_shuffleModeKey);
     if (savedShuffleMode != null) {
       _shuffleMode = AudioServiceShuffleMode.values.firstWhere(
         (mode) => mode.name == savedShuffleMode,
-        orElse: () => throw FormatException(
-          'Unknown saved shuffle mode: $savedShuffleMode',
-        ),
+        orElse: () => AudioServiceShuffleMode.none,
       );
     }
     final savedProfile = preferences.getString(_audioProfileKey);
     if (savedProfile != null) {
-      final decoded = jsonDecode(savedProfile);
-      if (decoded is! Map) {
-        throw const FormatException('Saved audio profile is not an object.');
+      try {
+        final decoded = jsonDecode(savedProfile);
+        if (decoded is Map) {
+          _audioProfile = AudioProfile.fromJson(
+            Map<String, Object?>.from(decoded),
+          );
+        }
+      } catch (error, stackTrace) {
+        _reportPlaybackError(
+          error,
+          stackTrace,
+          'while loading saved audio profile; falling back to defaults',
+        );
       }
-      _audioProfile = AudioProfile.fromJson(Map<String, Object?>.from(decoded));
     }
     _playerFilter.applyProfile(_audioProfile);
     _incomingPlayerFilter.applyProfile(_audioProfile);
@@ -157,9 +181,11 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> attachAudioSession(AudioSession session) async {
-    if (_audioSession != null) {
-      throw StateError('An audio session is already attached.');
+    if (identical(_audioSession, session)) return;
+    for (final subscription in _audioSessionSubscriptions) {
+      await subscription.cancel();
     }
+    _audioSessionSubscriptions.clear();
     _audioSession = session;
     _audioSessionSubscriptions
       ..add(
@@ -473,6 +499,20 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       return <String, Object?>{
         'automaticTransitions': next.automaticTransitions,
       };
+    }
+    if (name == 'autoMix.setCuePoints') {
+      final trackId = extras?['trackId'] as String?;
+      final entryMs = extras?['entryPositionMs'];
+      if (trackId != null &&
+          trackId.isNotEmpty &&
+          entryMs is int &&
+          entryMs >= 0) {
+        _incomingTrackCues[trackId] = Duration(milliseconds: entryMs);
+        if (_incomingTrackCues.length > 32) {
+          _incomingTrackCues.remove(_incomingTrackCues.keys.first);
+        }
+      }
+      return null;
     }
     if (name == 'autoplay.get') {
       await _settingsReady;
@@ -815,15 +855,31 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (remaining != null && remaining <= Duration.zero) {
       throw StateError('The outgoing track has no remaining transition time.');
     }
-    final effectivePlan =
+    final analyzedIntro = _incomingTrackCues[incomingItem.id];
+    final incomingEntry =
+        analyzedIntro != null &&
+            analyzedIntro > Duration.zero &&
+            (incomingState.duration == null ||
+                analyzedIntro < incomingState.duration!)
+        ? analyzedIntro
+        : plan.incomingEntryPosition;
+    final effectiveDuration =
         remaining != null && remaining < plan.transitionDuration
+        ? remaining
+        : plan.transitionDuration;
+    final effectivePlan =
+        (remaining != null && remaining < plan.transitionDuration) ||
+            incomingEntry != plan.incomingEntryPosition
         ? TransitionPlan(
             outgoingTrackId: plan.outgoingTrackId,
             incomingTrackId: plan.incomingTrackId,
             profile: plan.profile,
-            transitionDuration: remaining,
-            outgoingTransitionPosition: outgoingState.position,
-            incomingEntryPosition: plan.incomingEntryPosition,
+            transitionDuration: effectiveDuration,
+            outgoingTransitionPosition:
+                remaining != null && remaining < plan.transitionDuration
+                ? outgoingState.position
+                : plan.outgoingTransitionPosition,
+            incomingEntryPosition: incomingEntry,
             style: plan.style,
             tempoCompatibility: plan.tempoCompatibility,
             bpmDifferencePercent: plan.bpmDifferencePercent,
@@ -869,6 +925,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _currentIndex = nextIndex;
     _orderPosition = _playOrder.indexOf(nextIndex);
     mediaItem.add(incomingItem);
+    _recordSessionItem(incomingItem);
     _preloadedQueueIndex = null;
     await _autoMixController.promoteIncomingDeck();
     diagnostic
@@ -1284,11 +1341,11 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _rebuildPlayOrder(initialIndex);
     queue.add(_items);
     mediaItem.add(_items[initialIndex]);
-    final initialSource = _needsAsyncResolution(_items[initialIndex])
-        ? await _resolveSourceFor(_items[initialIndex])
-        : _sourceFor(_items[initialIndex]);
-    await _audioEngine.loadDeck(AudioDeck.a, initialSource);
-    await _audioEngine.setDeckGain(AudioDeck.a, _audioProfile.outputHeadroom);
+    final loadedSource = await _loadDeckAWithFallback(initialIndex);
+    final activeItem =
+        loadedSource.tag is MediaItem ? loadedSource.tag as MediaItem : _items[initialIndex];
+    mediaItem.add(activeItem);
+    _recordSessionItem(activeItem);
     _publishState();
     if (playWhenReady) await play();
     _prefetchUpcomingStream();
@@ -1316,6 +1373,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   bool _needsAsyncResolution(MediaItem item) {
     if (item.id.startsWith('/') || item.id.startsWith('file:')) {
+      return false;
+    }
+    final cachedStreamUrl = item.extras?['streamUrl'] as String?;
+    if (cachedStreamUrl != null &&
+        (cachedStreamUrl.startsWith('http://') ||
+            cachedStreamUrl.startsWith('https://'))) {
       return false;
     }
     return item.id.startsWith('youtube:') ||
@@ -1486,6 +1549,64 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final targetItem = _items[index];
     mediaItem.add(targetItem);
 
+    final incomingState = _audioEngine.stateFor(AudioDeck.b);
+    final canPromotePreloadedDeck =
+        _preloadedQueueIndex == index &&
+        incomingState.loaded &&
+        incomingState.processingState != AudioDeckProcessingState.error;
+    if (canPromotePreloadedDeck) {
+      final entryCue = _incomingTrackCues[targetItem.id];
+      if (entryCue != null &&
+          entryCue > Duration.zero &&
+          (incomingState.duration == null ||
+              entryCue < incomingState.duration!)) {
+        try {
+          await _audioEngine.seekDeck(AudioDeck.b, entryCue);
+        } catch (_) {}
+      }
+
+      final targetGain = _userVolume * _audioProfile.outputHeadroom;
+      final outgoingPlaying = _audioEngine.stateFor(AudioDeck.a).playing;
+      if (playWhenReady && outgoingPlaying) {
+        await _activateAudioSession();
+        await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
+        await _audioEngine.playDeck(AudioDeck.b);
+        if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+          for (final factor in const [0.65, 0.3, 0.08]) {
+            await Future<void>.delayed(const Duration(milliseconds: 35));
+            await _audioEngine.setDeckGain(AudioDeck.a, targetGain * factor);
+          }
+        }
+        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+        await _audioEngine.stopDeck(AudioDeck.a);
+      } else {
+        if (outgoingPlaying) {
+          await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+        }
+        await _audioEngine.stopDeck(AudioDeck.a);
+        await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
+      }
+
+      await _autoMixController.promoteIncomingDeck();
+      _preloadedQueueIndex = null;
+      await _audioEngine.stopDeck(AudioDeck.b);
+      await _autoMixController.unloadIncomingDeck();
+
+      _currentIndex = index;
+      _orderPosition = _playOrder.indexOf(index);
+      if (_orderPosition < 0) {
+        _rebuildPlayOrder(index);
+      }
+      _recordSessionItem(targetItem);
+      _automaticTransitionAttempt = null;
+      _publishState();
+      if (playWhenReady && !_audioEngine.stateFor(AudioDeck.a).playing) {
+        await play();
+      }
+      _prefetchUpcomingStream();
+      return;
+    }
+
     // Silence both decks immediately to eliminate popping and volume surge on track change
     if (_audioEngine.stateFor(AudioDeck.a).playing) {
       await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
@@ -1495,15 +1616,57 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await _audioEngine.stopDeck(AudioDeck.a);
     await _unloadDeckBBeforeQueueChange();
-    final source = _needsAsyncResolution(targetItem)
-        ? await _resolveSourceFor(targetItem)
-        : _sourceFor(targetItem);
+    final source = await _loadDeckAWithFallback(index);
+    _currentIndex = index;
+    _orderPosition = _playOrder.indexOf(index);
+    if (_orderPosition < 0) {
+      _rebuildPlayOrder(index);
+    }
+    final activeItem =
+        source.tag is MediaItem ? source.tag as MediaItem : _items[index];
+    mediaItem.add(activeItem);
+    _recordSessionItem(activeItem);
+    _automaticTransitionAttempt = null;
+    _publishState();
+    if (playWhenReady) await play();
+    _prefetchUpcomingStream();
+  }
+
+  /// Resolves and loads [_items[index]] onto Deck A, falling back to refreshing
+  /// an expired cached stream URL or a secondary proxy stream on HTTP failure.
+  Future<AudioDeckSource> _loadDeckAWithFallback(int index) async {
+    final targetItem = _items[index];
+    AudioDeckSource? source;
     try {
+      source = _needsAsyncResolution(targetItem)
+          ? await _resolveSourceFor(targetItem)
+          : _sourceFor(targetItem);
       await _audioEngine.loadDeck(AudioDeck.a, source);
       await _audioEngine.setDeckGain(AudioDeck.a, _audioProfile.outputHeadroom);
+      return source;
     } catch (error, stackTrace) {
-      // If network stream failed with a source error, attempt secondary fallback proxy stream
-      if (source.uri.scheme == 'http' || source.uri.scheme == 'https') {
+      if (source != null &&
+          (source.uri.scheme == 'http' || source.uri.scheme == 'https')) {
+        final hadCachedUrl = targetItem.extras?['streamUrl'] != null;
+        if (hadCachedUrl) {
+          try {
+            final clearedItem = targetItem.copyWith(
+              extras: {
+                ...?targetItem.extras,
+                'streamUrl': null,
+              },
+            );
+            if (_needsAsyncResolution(clearedItem)) {
+              final refreshed = await _resolveSourceFor(clearedItem);
+              await _audioEngine.loadDeck(AudioDeck.a, refreshed);
+              await _audioEngine.setDeckGain(
+                AudioDeck.a,
+                _audioProfile.outputHeadroom,
+              );
+              return refreshed;
+            }
+          } catch (_) {}
+        }
         debugPrint('Source load error ($error). Attempting secondary fallback proxy stream...');
         try {
           final item = _items[index];
@@ -1529,49 +1692,115 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
                 AudioDeck.a,
                 _audioProfile.outputHeadroom,
               );
-              _currentIndex = index;
-              _orderPosition = _playOrder.indexOf(index);
-              if (_orderPosition < 0) _rebuildPlayOrder(index);
-              final activeFallback = fallbackSource.tag is MediaItem
-                  ? fallbackSource.tag as MediaItem
-                  : item;
-              mediaItem.add(activeFallback);
-              _automaticTransitionAttempt = null;
-              _publishState();
-              if (playWhenReady) await play();
-              return;
+              return fallbackSource;
             }
           }
         } catch (fallbackError) {
           debugPrint('Secondary fallback also failed: $fallbackError');
         }
       }
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.error,
+          errorMessage: error.toString(),
+        ),
+      );
       _reportPlaybackError(error, stackTrace, 'while loading track for playback');
       rethrow;
     }
-    _currentIndex = index;
-    _orderPosition = _playOrder.indexOf(index);
-    if (_orderPosition < 0) {
-      _rebuildPlayOrder(index);
-    }
-    final activeItem = source.tag is MediaItem ? source.tag as MediaItem : _items[index];
-    mediaItem.add(activeItem);
-    _automaticTransitionAttempt = null;
-    _publishState();
-    if (playWhenReady) await play();
-    _prefetchUpcomingStream();
   }
 
   void _prefetchUpcomingStream() {
-    final nextIndex = _nextQueueIndex();
-    if (nextIndex == null || nextIndex < 0 || nextIndex >= _items.length) return;
-    final nextItem = _items[nextIndex];
-    if (_needsAsyncResolution(nextItem)) {
-      final pId = nextItem.extras?['providerTrackId'] as String? ??
-          (nextItem.id.startsWith('youtube:') ? nextItem.id.substring(8) : null);
-      if (pId != null && pId.isNotEmpty) {
-        unawaited(YoutubeAudioService.instance.getStreamDetails(pId));
+    _scheduleNextTrackPreload();
+    final upcomingIndices = _playOrder.skip(_orderPosition + 1).take(3).toList();
+    if (upcomingIndices.isEmpty &&
+        _repeatMode == AudioServiceRepeatMode.all &&
+        _playOrder.isNotEmpty) {
+      upcomingIndices.add(_playOrder.first);
+    }
+    if (upcomingIndices.isEmpty) return;
+
+    final firstItem = _items[upcomingIndices.first];
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      unawaited(LyricsRepository.autoDownloadForMediaItem(firstItem));
+    }
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+
+    for (var offset = 0; offset < upcomingIndices.length; offset++) {
+      final item = _items[upcomingIndices[offset]];
+      if (!_needsAsyncResolution(item)) continue;
+      final isSpotify = item.id.startsWith('spotify:') ||
+          item.extras?['downloadProvider'] == 'Spotify' ||
+          item.extras?['source'] == 'spotify';
+      if (isSpotify) {
+        if (item.extras?['streamUrl'] == null) {
+          unawaited(
+            _prefetchSpotifyStream(item).then((_) {
+              if (offset == 0) _scheduleNextTrackPreload();
+            }),
+          );
+        }
+        continue;
       }
+      final pId = item.extras?['providerTrackId'] as String? ??
+          (item.id.startsWith('youtube:') ? item.id.substring(8) : null);
+      if (pId != null && pId.isNotEmpty) {
+        unawaited(
+          YoutubeAudioService.instance
+              .getStreamDetails(pId)
+              .then((details) {
+                _updateQueueItem(
+                  item.copyWith(
+                    extras: {
+                      ...?item.extras,
+                      'streamUrl': details.url,
+                      'mimeType': details.mimeType,
+                      'bitRate': details.bitrate,
+                      'sampleRate': details.sampleRate,
+                      'channelCount': details.channelCount,
+                      'codec': details.codec,
+                      'userAgent': details.headers['User-Agent'],
+                      'providerTrackId': pId,
+                    },
+                  ),
+                );
+                if (offset == 0) _scheduleNextTrackPreload();
+              })
+              .catchError((Object error, StackTrace stackTrace) {
+                debugPrint('Prefetch stream failed for $pId: $error');
+              }),
+        );
+      }
+    }
+  }
+
+  Future<void> _prefetchSpotifyStream(MediaItem item) async {
+    try {
+      final query = '${item.title} ${item.artist ?? ''}'.trim();
+      if (query.isEmpty) return;
+      final ytTracks = await YoutubeAudioService.instance.search(query);
+      if (ytTracks.isEmpty) return;
+      final matched = ytTracks.first;
+      final streamDetails =
+          await YoutubeAudioService.instance.getStreamDetails(matched.id);
+      _updateQueueItem(
+        item.copyWith(
+          extras: {
+            ...?item.extras,
+            'streamUrl': streamDetails.url,
+            'mimeType': streamDetails.mimeType,
+            'bitRate': streamDetails.bitrate,
+            'sampleRate': streamDetails.sampleRate,
+            'channelCount': streamDetails.channelCount,
+            'codec': streamDetails.codec,
+            'userAgent': streamDetails.headers['User-Agent'],
+            'matchedYoutubeId': matched.id,
+            'source': 'spotify',
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('Prefetch Spotify stream failed for ${item.title}: $e');
     }
   }
 
@@ -1605,19 +1834,19 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   /// Advances to the next playable queue item, respecting the repeat mode.
   Future<void> _advanceAtEnd() async {
     if (_isAdvancing) return;
-    var nextIndex = _nextQueueIndex(automatic: true);
-    if (nextIndex == null && _autoplayContinuous && _items.isNotEmpty) {
-      final extended = await _ensureUpcomingAutoplayTracks();
-      if (extended) {
-        nextIndex = _nextQueueIndex(automatic: true);
-      }
-    }
-    if (nextIndex == null) {
-      _publishState();
-      return;
-    }
     _isAdvancing = true;
     try {
+      var nextIndex = _nextQueueIndex(automatic: true);
+      if (nextIndex == null && _autoplayContinuous && _items.isNotEmpty) {
+        final extended = await _ensureUpcomingAutoplayTracks();
+        if (extended) {
+          nextIndex = _nextQueueIndex(automatic: true);
+        }
+      }
+      if (nextIndex == null) {
+        _publishState();
+        return;
+      }
       final loaded = await _loadNextPlayable(
         firstIndex: nextIndex,
         playWhenReady: true,
@@ -1649,50 +1878,139 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
-  /// Automatically fetches and appends related tracks to create an infinite, continuous queue.
+  /// Automatically fetches and appends related tracks to create an infinite,
+  /// context-aware continuous queue using session & listening memory.
   Future<bool> _ensureUpcomingAutoplayTracks() async {
     if (!_autoplayContinuous || _isExtendingAutoplay || _items.isEmpty) return false;
     _isExtendingAutoplay = true;
 
     try {
       final currentItem = _items[_currentIndex];
-      final existingIds = _items.map((i) => i.id).toSet();
+      final library = _musicLibrary;
+      final excludeIds = <String>{
+        ..._items.map((i) => i.id),
+        ..._sessionHistory.map((i) => i.id),
+        if (library != null) ...library.excludedTrackIds,
+      };
+      final excludeTitleKeys = <String>{
+        for (final i in _items)
+          SongMetadataEnricher.cleanTitle(
+            i.title,
+            rawArtist: i.artist,
+          ).trim().toLowerCase(),
+        for (final i in _sessionHistory.take(15))
+          SongMetadataEnricher.cleanTitle(
+            i.title,
+            rawArtist: i.artist,
+          ).trim().toLowerCase(),
+      }..removeWhere((key) => key.isEmpty);
+
+      final recentArtists = <String>[];
+      final seenArtistKeys = <String>{};
+      void addArtist(String? raw) {
+        final clean = (raw ?? '').trim();
+        final lower = clean.toLowerCase();
+        if (clean.isNotEmpty &&
+            lower != 'unknown artist' &&
+            seenArtistKeys.add(lower)) {
+          recentArtists.add(clean);
+        }
+      }
+
+      for (final item in _sessionHistory) {
+        addArtist(item.artist);
+      }
+      if (library != null) {
+        for (final artist in library.topAffinityArtists) {
+          addArtist(artist);
+        }
+      }
+
       final rawId = currentItem.extras?['providerTrackId'] as String? ??
           (currentItem.id.startsWith('youtube:') ? currentItem.id.substring(8) : null);
 
       final newItems = <MediaItem>[];
 
-      // 1. Fetch related tracks from YouTube Audio Service
+      // 1. Fetch context-aware related tracks from YouTube/Deezer artist graph
       if (rawId != null || (currentItem.artist != null && currentItem.title.isNotEmpty)) {
         final related = await YoutubeAudioService.instance.getRelatedTracks(
           rawId ?? 'dQw4w9WgXcQ',
           artist: currentItem.artist,
           title: currentItem.title,
+          recentArtists: recentArtists,
+          excludeIds: excludeIds,
+          excludeTitleKeys: excludeTitleKeys,
         );
         for (final t in related) {
           final item = t.toMediaItem();
-          if (!existingIds.contains(item.id)) {
-            existingIds.add(item.id);
+          if (!excludeIds.contains(item.id)) {
+            excludeIds.add(item.id);
             newItems.add(item);
           }
           if (newItems.length >= 6) break;
         }
       }
 
-      // 2. Fallback to similar local library tracks
-      if (newItems.isEmpty && _musicLibrary != null) {
-        final artist = currentItem.artist?.toLowerCase().trim();
-        final candidates = _musicLibrary!.tracks.where((t) {
-          if (!t.isAvailable) return false;
-          final id = t.toMediaItem().id;
-          if (existingIds.contains(id)) return false;
-          if (artist != null && t.artist.toLowerCase().trim() == artist) return true;
-          return false;
-        }).toList();
+      // 2. Fallback to scored local library tracks (artist, genre, taste, BPM, favorites)
+      if (newItems.isEmpty && library != null) {
+        final currentArtist = currentItem.artist?.toLowerCase().trim() ?? '';
+        final currentGenre = currentItem.genre?.toLowerCase().trim() ?? '';
+        final currentBpm = (currentItem.extras?['bpm'] as num?)?.toDouble();
+        final recentArtistSet =
+            recentArtists.map((a) => a.toLowerCase().trim()).toSet();
 
-        candidates.shuffle();
-        for (final t in candidates.take(6)) {
-          newItems.add(t.toMediaItem());
+        final scored = <({MediaItem item, String artistKey, int score})>[];
+        for (final t in library.tracks) {
+          if (!t.isAvailable) continue;
+          if (library.isExcludedFromMixes(t.id)) continue;
+          final item = t.toMediaItem();
+          if (excludeIds.contains(item.id)) continue;
+
+          final tArtistLower = t.artist.toLowerCase().trim();
+          final tGenreLower = t.genre?.toLowerCase().trim() ?? '';
+          var score = 0;
+          if (currentArtist.isNotEmpty && tArtistLower == currentArtist) {
+            score += 4;
+          }
+          if (currentGenre.isNotEmpty && tGenreLower == currentGenre) {
+            score += 3;
+          }
+          if (recentArtistSet.contains(tArtistLower)) {
+            score += 2;
+          }
+          if (currentBpm != null &&
+              t.bpm != null &&
+              (t.bpm! - currentBpm).abs() <= 10) {
+            score += 2;
+          }
+          if (library.isFavorite(t.id)) {
+            score += 1;
+          }
+          if (score > 0) {
+            scored.add((item: item, artistKey: tArtistLower, score: score));
+          }
+        }
+
+        scored.shuffle();
+        scored.sort((a, b) => b.score.compareTo(a.score));
+
+        final artistCap = <String, int>{};
+        final deferred = <({MediaItem item, String artistKey, int score})>[];
+        for (final entry in scored) {
+          final count = artistCap[entry.artistKey] ?? 0;
+          if (count < 2) {
+            artistCap[entry.artistKey] = count + 1;
+            newItems.add(entry.item);
+            if (newItems.length >= 6) break;
+          } else {
+            deferred.add(entry);
+          }
+        }
+        if (newItems.length < 6) {
+          for (final entry in deferred) {
+            newItems.add(entry.item);
+            if (newItems.length >= 6) break;
+          }
         }
       }
 

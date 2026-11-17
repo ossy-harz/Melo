@@ -12,10 +12,10 @@ import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
-import 'package:melo_player/features/mix/local_discovery.dart';
 import 'package:melo_player/features/shell/app_shell.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 
@@ -134,11 +134,11 @@ void main() {
     await tester.pump();
     expect(handler.actions, contains('play'));
 
-    expect(find.text('MIX NEXT'), findsOneWidget);
-    expect(find.text('Manual crossfade · 10 sec'), findsOneWidget);
-    await tester.tap(
-      find.byTooltip('Manually crossfade to the next track over 10 seconds'),
+    final mixTrigger = find.byTooltip(
+      'Manually crossfade to the next track over 10 seconds',
     );
+    expect(mixTrigger, findsOneWidget);
+    await tester.tap(mixTrigger);
     await tester.pump();
     expect(handler.actions, contains('custom:autoMix.transitionToNextTrack'));
 
@@ -158,9 +158,7 @@ void main() {
     await tester.pump();
     expect(handler.actions.any((action) => action.startsWith('seek:')), isTrue);
 
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Up next'));
+    await tester.tap(find.byTooltip('Up next'));
     await tester.pumpAndSettle();
     expect(find.text('Next Song'), findsOneWidget);
     await tester.tap(find.text('Next Song'));
@@ -277,7 +275,12 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('MIXING'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Cancel the manual crossfade. Progress tracks gain-ramp commands, not rendered audio output.',
+      ),
+      findsOneWidget,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     expect(tester.takeException(), isNull);
@@ -367,8 +370,11 @@ void main() {
       () => Directory.systemTemp.createTemp('tone-home-taste-'),
     );
     if (directory == null) fail('Could not create taste test directory.');
-    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
 
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
@@ -484,13 +490,11 @@ void main() {
           playing: false,
         ),
       );
-    int? destination;
-
     await tester.pumpWidget(
       MaterialApp(
         home: NowPlayingScreen(
           audioHandler: handler,
-          onNavigate: (index) => destination = index,
+          onNavigate: (_) {},
         ),
       ),
     );
@@ -504,6 +508,84 @@ void main() {
     expect(find.text('Tone Test'), findsOneWidget);
     expect(find.byType(AlbumArtwork), findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Now Playing top title opens playlist and toggles motion canvas', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.melo.melo_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => null);
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..queue.add(const [
+        MediaItem(
+          id: 'pl-track-1',
+          title: 'First Jam',
+          artist: 'Matata',
+          extras: {'playlistTitle': 'Matata Radio'},
+          duration: Duration(minutes: 3),
+        ),
+        MediaItem(
+          id: 'pl-track-2',
+          title: 'Second Jam',
+          artist: 'Bien',
+          extras: {'playlistTitle': 'Matata Radio'},
+          duration: Duration(minutes: 4),
+        ),
+      ])
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'pl-track-1',
+          title: 'First Jam',
+          artist: 'Matata',
+          extras: {'playlistTitle': 'Matata Radio'},
+          duration: Duration(minutes: 3),
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: false,
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Playing Matata Radio'), findsOneWidget);
+    await tester.tap(find.text('Playing Matata Radio'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('Matata Radio'), findsOneWidget);
+    expect(find.text('Made for you'), findsOneWidget);
+    expect(find.text('First Jam'), findsAtLeastNWidgets(1));
+    expect(find.text('Second Jam'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.byTooltip('Video & motion canvas'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTION CANVAS'), findsOneWidget);
+    expect(find.text('Watch Music Video'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Show album artwork'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTION CANVAS'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -990,7 +1072,7 @@ void main() {
       120,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('FLAC'), findsAtLeastNWidgets(2));
+    expect(find.textContaining('FLAC'), findsAtLeastNWidgets(2));
     expect(find.text('96 kHz'), findsOneWidget);
     expect(find.text('Stereo'), findsOneWidget);
     expect(find.text('3000 kbps'), findsOneWidget);
@@ -1066,7 +1148,7 @@ void main() {
       120,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('FLAC'), findsAtLeastNWidgets(2));
+    expect(find.textContaining('FLAC'), findsAtLeastNWidgets(2));
     expect(find.text('96 kHz'), findsOneWidget);
     expect(find.text('Stereo'), findsOneWidget);
     expect(find.text('3000 kbps'), findsOneWidget);
@@ -1260,8 +1342,11 @@ void main() {
       () => Directory.systemTemp.createTemp('tone-mood-widget-'),
     );
     if (directory == null) fail('Could not create mood test directory.');
-    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
 
     final library = MusicLibrary.forTesting(
       musicDirectory: directory,
@@ -1297,7 +1382,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Top Picks for You'), findsOneWidget);
+    expect(find.text('Tune Vibe'), findsOneWidget);
+    expect(find.text('Dancehall'), findsOneWidget);
+    await tester.tap(find.text('Dancehall'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dancehall Heavyweights'), findsOneWidget);
+    expect(find.text('Kingston Street Riddims'), findsOneWidget);
+    await tester.tap(find.text('For You'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Spotify Feed'), findsOneWidget);
+    expect(find.text('Sync Account'), findsOneWidget);
     expect(find.text('Stations for You'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text("Today's Top Hits").first,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text("Today's Top Hits").first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Cloud Playlist Import'), findsNothing);
+    expect(find.text('Made for you'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
     expect(tester.takeException(), isNull);
   });
 
@@ -1308,8 +1418,11 @@ void main() {
       () => Directory.systemTemp.createTemp('tone-home-listening-'),
     );
     if (directory == null) fail('Could not create home test directory.');
-    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
 
     final library = MusicLibrary.forTesting(
       musicDirectory: directory,
@@ -1347,18 +1460,7 @@ void main() {
     expect(find.text('Your listening'), findsNothing);
     expect(find.text('FAVORITES'), findsNothing);
     expect(find.text('MOST PLAYED'), findsNothing);
-    expect(find.text('Your playlists'), findsOneWidget);
-    await tester.ensureVisible(find.text('Mornye downloads'));
-    await tester.pumpAndSettle();
-    expect(find.text('Mornye downloads'), findsOneWidget);
-    await tester.tap(find.text('Mornye downloads'));
-    await tester.pumpAndSettle();
-    expect(find.byType(PlaylistDetailScreen), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Play'));
-    await tester.pumpAndSettle();
-    expect(handler.queue.value.map((item) => item.title), ['Favorite Song']);
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
+    expect(find.text('Your playlists'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1434,8 +1536,11 @@ void main() {
       () => Directory.systemTemp.createTemp('tone-discovery-widget-'),
     );
     if (directory == null) fail('Could not create discovery test directory.');
-    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
 
     final library = MusicLibrary.forTesting(
       musicDirectory: directory,
@@ -1491,6 +1596,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Artist Radio'), findsOneWidget);
     expect(find.text('Artist A'), findsAtLeastNWidgets(1));
+    await tester.ensureVisible(find.text('Artist A').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Artist A').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -1531,8 +1638,11 @@ void main() {
       () => Directory.systemTemp.createTemp('tone-mix-widget-'),
     );
     if (directory == null) fail('Could not create the mix test directory.');
-    addTearDown(() => tester.runAsync(() => directory.delete(recursive: true)));
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
     final library = MusicLibrary.forTesting(
       musicDirectory: directory,
       preferences: preferences,
@@ -1635,7 +1745,7 @@ void main() {
     await tester.pumpWidget(const MeloApp.preview());
 
     expect(find.text('Search'), findsNothing);
-    await tester.tap(find.byTooltip('Search').first);
+    await tester.tap(find.text('Search songs, artists, online or library...'));
     await tester.pumpAndSettle();
     expect(find.text('Search'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
@@ -1736,6 +1846,253 @@ void main() {
     expect(handler.audioProfile['loudnessNormalization'], isFalse);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Tune Vibe dialog survives keyboard viewInsets and dismissal without controller or overflow errors',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final directory = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('tone-tune-vibe-dialog-'),
+      );
+      if (directory == null) fail('Could not create tune vibe test directory.');
+      addTearDown(() async {
+        if (await directory.exists()) {
+          await directory.delete(recursive: true);
+        }
+      });
+
+      final library = MusicLibrary.forTesting(
+        musicDirectory: directory,
+        preferences: preferences,
+        pickAudio: () async => const [],
+        scanDeviceAudio: () async => const [
+          DeviceAudio(
+            uri: 'content://media/external/audio/media/802',
+            name: 'dancehall.mp3',
+            title: 'Warm Riddim',
+            artist: 'Tone Test',
+            genre: 'Dancehall',
+            bpm: 104,
+            durationMs: 185000,
+          ),
+        ],
+      );
+      await library.load();
+      await library.scanDeviceMusic();
+      final handler = _PreviewAudioHandler();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeScreen(
+              onOpenLibrary: () {},
+              library: library,
+              audioHandler: handler,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Tune Vibe'));
+      await tester.pumpAndSettle();
+      expect(find.text('Influence Your Top Picks'), findsOneWidget);
+
+      // Simulate soft keyboard opening & shrinking viewport height.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 1050);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(find.byType(TextField), 'Gengetone Classics');
+      await tester.tap(find.text('Tune Mix'));
+      await tester.pump();
+
+      // Simulate IME animating closed across dialog exit frames.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 520);
+      await tester.pump(const Duration(milliseconds: 50));
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gengetone Classics Radio'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Re-open and cancel while keyboard insets are open.
+      await tester.tap(find.text('Tune Vibe'));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 1050);
+      await tester.pump();
+      await tester.tap(find.text('Cancel'));
+      await tester.pump();
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Influence Your Top Picks'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Saving curated playlist keeps all downloaded and streaming tracks plus bottom MiniPlayer',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final directory = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('tone-curated-save-'),
+      );
+      if (directory == null) fail('Could not create curated save test directory.');
+      addTearDown(() async {
+        if (await directory.exists()) {
+          await directory.delete(recursive: true);
+        }
+      });
+
+      final library = MusicLibrary.forTesting(
+        musicDirectory: directory,
+        preferences: preferences,
+        pickAudio: () async => const [],
+        scanDeviceAudio: () async => const [
+          DeviceAudio(
+            uri: 'content://media/external/audio/media/901',
+            name: 'mpishi.mp3',
+            title: 'MPISHI',
+            artist: 'Matata',
+            album: 'Matata Radio Test',
+            durationMs: 182000,
+          ),
+        ],
+      );
+      await library.load();
+      await library.scanDeviceMusic();
+      addTearDown(library.close);
+
+      final handler = _PreviewAudioHandler()
+        ..mediaItem.add(
+          const MediaItem(
+            id: 'content://media/external/audio/media/901',
+            title: 'MPISHI',
+            artist: 'Matata',
+            duration: Duration(minutes: 3),
+          ),
+        );
+
+      const preset = CuratedPlaylistPreset(
+        title: 'Matata Radio Test',
+        curatorSubtitle: 'With Matata and more',
+        badge: 'MADE FOR YOU',
+        searchQuery: '',
+        gradient: [Color(0xFFFA243C), Color(0xFF000000)],
+        icon: Icons.radio_rounded,
+        initialMediaItems: [
+          MediaItem(
+            id: 'youtube:track_001',
+            title: 'MPISHI',
+            artist: 'Matata',
+            duration: Duration(minutes: 3, seconds: 2),
+          ),
+          MediaItem(
+            id: 'youtube:track_002',
+            title: 'Chai ya saa kumi',
+            artist: 'Ywaya Tajiri',
+            duration: Duration(minutes: 3, seconds: 15),
+          ),
+          MediaItem(
+            id: 'spotify:track_003',
+            title: 'Angusha',
+            artist: 'Genes1s',
+            duration: Duration(minutes: 2, seconds: 54),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CuratedPlaylistScreen(
+            preset: preset,
+            audioHandler: handler,
+            library: library,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(find.byType(MiniPlayer), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Save to Library').first);
+      await tester.tap(find.byTooltip('Save to Library').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final savedPlaylist = library.playlists.firstWhere(
+        (p) => p.name == 'Matata Radio Test',
+      );
+      var playlistTracks = library.tracksForPlaylist(savedPlaylist.id);
+      expect(playlistTracks.length, 3);
+      expect(
+        playlistTracks.map((t) => t.title),
+        containsAll(['MPISHI', 'Chai ya saa kumi', 'Angusha']),
+      );
+
+      // Downloading one track replaces the temporary stream ID inside the playlist
+      // without dropping the remaining non-downloaded curated tracks.
+      await tester.runAsync(
+        () => library.importLicensedDownload(
+          provider: 'YouTube',
+          providerTrackId: 'track_002',
+          fileName: 'chai.m4a',
+          bytes: Stream<List<int>>.fromIterable([
+            [1, 2, 3, 4],
+          ]),
+          title: 'Chai ya saa kumi',
+          artist: 'Ywaya Tajiri',
+          album: 'Matata Radio Test',
+          durationMs: 195000,
+          artworkUri: null,
+          year: 2025,
+          licenseUrl: 'https://music.youtube.com/watch?v=track_002',
+        ),
+      );
+      await tester.pump();
+
+      playlistTracks = library.tracksForPlaylist(savedPlaylist.id);
+      expect(playlistTracks.length, 3);
+      expect(
+        playlistTracks.map((t) => t.title),
+        containsAll(['MPISHI', 'Chai ya saa kumi', 'Angusha']),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlaylistDetailScreen(
+            playlist: savedPlaylist,
+            library: library,
+            audioHandler: handler,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(find.byType(MiniPlayer), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Angusha'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+      expect(find.text('MPISHI'), findsNWidgets(2));
+      expect(find.text('Chai ya saa kumi'), findsOneWidget);
+      expect(find.text('Angusha'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {

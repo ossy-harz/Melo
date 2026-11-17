@@ -271,12 +271,9 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                         ),
                       ),
                     IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.star_border_rounded, color: Colors.white70, size: 22),
-                    ),
-                    IconButton(
+                      tooltip: 'Close queue',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.more_horiz_rounded, color: Colors.white70, size: 22),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
                     ),
                   ],
                 ),
@@ -611,6 +608,7 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           IconButton(
+                            tooltip: 'Previous track',
                             iconSize: 36,
                             onPressed: () => widget.audioHandler.skipToPrevious(),
                             icon: const Icon(Icons.fast_rewind_rounded, color: Colors.white),
@@ -621,6 +619,7 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                               color: Colors.white,
                             ),
                             child: IconButton(
+                              tooltip: isPlaying ? 'Pause' : 'Play',
                               iconSize: 42,
                               color: Colors.black,
                               onPressed: () {
@@ -636,6 +635,7 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'Next track',
                             iconSize: 36,
                             onPressed: () => widget.audioHandler.skipToNext(),
                             icon: const Icon(Icons.fast_forward_rounded, color: Colors.white),

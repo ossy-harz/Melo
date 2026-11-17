@@ -971,36 +971,41 @@ class YoutubeAudioService {
     String videoId, {
     YoutubeAudioQuality? quality,
   }) async {
-    final cached = _streamCache[videoId];
+    final effectiveQuality = quality ?? await getPreferredQuality();
+    final cacheKey = '$videoId:${effectiveQuality.name}';
+    final cached = _streamCache[cacheKey];
     if (cached != null && !cached.isExpired) {
       return cached.details;
     }
 
-    final existingInFlight = _inFlightResolutions[videoId];
+    final existingInFlight = _inFlightResolutions[cacheKey];
     if (existingInFlight != null) {
       return existingInFlight;
     }
 
-    final future = _resolveStreamDetailsInternal(videoId, quality: quality);
-    _inFlightResolutions[videoId] = future;
+    final future = _resolveStreamDetailsInternal(
+      videoId,
+      preferredQuality: effectiveQuality,
+      cacheKey: cacheKey,
+    );
+    _inFlightResolutions[cacheKey] = future;
     try {
       return await future;
     } finally {
-      _inFlightResolutions.remove(videoId);
+      _inFlightResolutions.remove(cacheKey);
     }
   }
 
   Future<YoutubeStreamDetails> _resolveStreamDetailsInternal(
     String videoId, {
-    YoutubeAudioQuality? quality,
+    required YoutubeAudioQuality preferredQuality,
+    required String cacheKey,
   }) async {
-    final preferredQuality = quality ?? await getPreferredQuality();
-
     // 1. Fast Innertube VISIONOS / IOS / ANDROID_SDKLESS resolution (~600ms)
     final innertubeDetails =
         await _resolveInnertubeStream(videoId, preferredQuality);
     if (innertubeDetails != null) {
-      _streamCache[videoId] = _CachedStream(
+      _streamCache[cacheKey] = _CachedStream(
         innertubeDetails,
         DateTime.now().add(const Duration(hours: 4)),
       );
@@ -1030,9 +1035,13 @@ class YoutubeAudioService {
           case YoutubeAudioQuality.standard:
             final mp4Streams =
                 audioStreams.where((s) => s.container.name == 'mp4').toList();
-            streamInfo = mp4Streams.isNotEmpty
-                ? mp4Streams.withHighestBitrate()
-                : audioStreams.withHighestBitrate();
+            final candidates = mp4Streams.isNotEmpty ? mp4Streams : audioStreams;
+            const targetBitrate = 128000;
+            streamInfo = candidates.reduce((curr, next) {
+              final currDiff = (curr.bitrate.bitsPerSecond - targetBitrate).abs();
+              final nextDiff = (next.bitrate.bitsPerSecond - targetBitrate).abs();
+              return currDiff <= nextDiff ? curr : next;
+            });
         }
 
         final streamUrl = streamInfo.url.toString();
@@ -1052,7 +1061,7 @@ class YoutubeAudioService {
           },
         );
         if (await _probeStreamUrl(details.url, headers: details.headers)) {
-          _streamCache[videoId] = _CachedStream(
+          _streamCache[cacheKey] = _CachedStream(
             details,
             DateTime.now().add(const Duration(hours: 4)),
           );
@@ -1071,7 +1080,7 @@ class YoutubeAudioService {
           invidiousDetails.url,
           headers: invidiousDetails.headers,
         )) {
-      _streamCache[videoId] = _CachedStream(
+      _streamCache[cacheKey] = _CachedStream(
         invidiousDetails,
         DateTime.now().add(const Duration(hours: 4)),
       );
@@ -1082,7 +1091,7 @@ class YoutubeAudioService {
     final matchingDetails =
         await _resolveMatchingAudioStream(videoId, preferredQuality);
     if (matchingDetails != null) {
-      _streamCache[videoId] = _CachedStream(
+      _streamCache[cacheKey] = _CachedStream(
         matchingDetails,
         DateTime.now().add(const Duration(hours: 4)),
       );
@@ -1119,18 +1128,19 @@ class YoutubeAudioService {
   }
 
   void clearStreamCache(String videoId) {
-    _streamCache.remove(videoId);
+    _streamCache.removeWhere((key, _) => key == videoId || key.startsWith('$videoId:'));
   }
 
   /// Attempts to resolve an alternative working stream when an active playback stream errors out.
   Future<YoutubeStreamDetails?> getFallbackStream(String videoId) async {
     clearStreamCache(videoId);
+    final cacheKey = '$videoId:${YoutubeAudioQuality.standard.name}';
     final fresh = await _resolveInnertubeStream(
       videoId,
       YoutubeAudioQuality.standard,
     );
     if (fresh != null) {
-      _streamCache[videoId] = _CachedStream(
+      _streamCache[cacheKey] = _CachedStream(
         fresh,
         DateTime.now().add(const Duration(hours: 4)),
       );
@@ -1142,7 +1152,7 @@ class YoutubeAudioService {
       YoutubeAudioQuality.standard,
     );
     if (match != null) {
-      _streamCache[videoId] = _CachedStream(
+      _streamCache[cacheKey] = _CachedStream(
         match,
         DateTime.now().add(const Duration(hours: 4)),
       );
@@ -1182,10 +1192,17 @@ class YoutubeAudioService {
               'Audio download failed at byte $downloaded (HTTP ${res.statusCode})',
             );
           }
+          var chunkBytes = 0;
           await for (final chunk in res.stream) {
+            chunkBytes += chunk.length;
             downloaded += chunk.length;
             onProgress?.call((downloaded / totalLen).clamp(0.01, 1.0));
             yield chunk;
+          }
+          if (chunkBytes == 0) {
+            throw StateError(
+              'Audio download stalled at byte $downloaded of $totalLen',
+            );
           }
         }
         return;
@@ -1212,40 +1229,142 @@ class YoutubeAudioService {
     }
   }
 
-  /// Fetches continuous related / radio recommendations for a given YouTube track or artist.
+  /// Fetches continuous related / radio recommendations using multi-signal
+  /// Spotify-style similarity: related artists from the artist graph, session
+  /// taste artists, deduplication by video ID and normalized song title, and
+  /// round-robin artist diversity interleaving.
   Future<List<YoutubeTrack>> getRelatedTracks(
     String videoId, {
     String? artist,
     String? title,
+    List<String> recentArtists = const [],
+    Set<String> excludeIds = const {},
+    Set<String> excludeTitleKeys = const {},
   }) async {
-    final related = <YoutubeTrack>[];
-    final seenIds = <String>{videoId};
+    final cleanSeedArtist = (artist ?? '').trim();
+    final cleanSeedArtistLower = cleanSeedArtist.toLowerCase();
+    final hasValidArtist =
+        cleanSeedArtist.isNotEmpty && cleanSeedArtistLower != 'unknown artist';
+    final cleanSeedTitle = SongMetadataEnricher.cleanTitle(
+      title ?? '',
+      rawArtist: artist,
+    ).trim().toLowerCase();
 
-    // 1. Search similar tracks via YouTube Music songs API for fast, clean studio tracks
-    final query = (artist != null &&
-            artist.isNotEmpty &&
-            title != null &&
-            title.isNotEmpty)
-        ? '$artist $title'
-        : (artist != null && artist.isNotEmpty)
-            ? '$artist top songs'
-            : '${title ?? ''} music';
+    final seenIds = <String>{
+      videoId,
+      ...excludeIds.map((id) => id.replaceFirst('youtube:', '')),
+    };
+    final seenTitleKeys = <String>{
+      if (cleanSeedTitle.isNotEmpty) cleanSeedTitle,
+      ...excludeTitleKeys,
+    };
 
     try {
-      final searchResults = await search(query);
-      for (final t in searchResults) {
-        if (!seenIds.contains(t.id)) {
-          seenIds.add(t.id);
-          related.add(t);
+      // 1. Resolve related artists from Deezer's artist graph + session taste
+      final graphArtists = hasValidArtist
+          ? await SongMetadataEnricher.instance.fetchRelatedArtists(
+              cleanSeedArtist,
+              limit: 4,
+            )
+          : const <String>[];
+
+      final mergedArtists = <String>[];
+      final seenArtistKeys = <String>{
+        if (hasValidArtist) cleanSeedArtistLower,
+      };
+      for (final candidate in graphArtists) {
+        final lower = candidate.trim().toLowerCase();
+        if (lower.isNotEmpty && seenArtistKeys.add(lower)) {
+          mergedArtists.add(candidate.trim());
         }
-        if (related.length >= 10) break;
       }
-      if (related.isNotEmpty) return related;
+      var addedTasteArtists = 0;
+      for (final candidate in recentArtists) {
+        if (addedTasteArtists >= 2) break;
+        final clean = candidate.trim();
+        final lower = clean.toLowerCase();
+        if (clean.isNotEmpty &&
+            lower != 'unknown artist' &&
+            seenArtistKeys.add(lower)) {
+          mergedArtists.add(clean);
+          addedTasteArtists++;
+        }
+      }
+
+      // 2. Build up to 3 diverse discovery queries and run them in parallel
+      final queries = <String>[
+        if (hasValidArtist)
+          '$cleanSeedArtist official audio'
+        else if (cleanSeedTitle.isNotEmpty)
+          '$cleanSeedTitle music'
+        else
+          'top hits official audio',
+        if (mergedArtists.isNotEmpty) '${mergedArtists[0]} official audio',
+        if (mergedArtists.length > 1) '${mergedArtists[1]} official audio',
+      ];
+
+      final rawBuckets = await Future.wait(
+        queries.map(
+          (q) => search(q, filterMixtapes: true).catchError((_) => <YoutubeTrack>[]),
+        ),
+      );
+
+      // 3. Filter each bucket to clean, unqueued, non-repetitive studio tracks
+      final filteredBuckets = <List<YoutubeTrack>>[];
+      for (final bucket in rawBuckets) {
+        final filtered = <YoutubeTrack>[];
+        for (final t in bucket) {
+          if (seenIds.contains(t.id)) continue;
+          if (t.duration.inSeconds > 0 &&
+              (t.duration.inSeconds < 45 || t.duration.inSeconds > 660)) {
+            continue;
+          }
+          if (isMixtapeOrNonstop(t.title, t.duration)) continue;
+
+          final normTitle = SongMetadataEnricher.cleanTitle(
+            t.title,
+            rawArtist: t.author,
+          ).trim().toLowerCase();
+          if (normTitle.isEmpty || seenTitleKeys.contains(normTitle)) continue;
+          if (cleanSeedTitle.length >= 4 && normTitle.contains(cleanSeedTitle)) {
+            continue;
+          }
+
+          seenIds.add(t.id);
+          seenTitleKeys.add(normTitle);
+          filtered.add(t);
+        }
+        if (filtered.isNotEmpty) filteredBuckets.add(filtered);
+      }
+
+      // 4. Round-robin interleave across buckets with a per-artist cap of 2
+      final related = <YoutubeTrack>[];
+      final artistCounts = <String, int>{};
+      final bucketIndices = List<int>.filled(filteredBuckets.length, 0);
+      var progress = true;
+      while (related.length < 12 && progress) {
+        progress = false;
+        for (var b = 0; b < filteredBuckets.length; b++) {
+          final bucket = filteredBuckets[b];
+          while (bucketIndices[b] < bucket.length) {
+            final track = bucket[bucketIndices[b]++];
+            final artistKey = track.author.trim().toLowerCase();
+            final count = artistCounts[artistKey] ?? 0;
+            if (count >= 2) continue;
+            artistCounts[artistKey] = count + 1;
+            related.add(track);
+            progress = true;
+            break;
+          }
+          if (related.length >= 12) break;
+        }
+      }
+
+      return related;
     } catch (e) {
       debugPrint('Related search failed: $e');
+      return const [];
     }
-
-    return related;
   }
 
   /// Downloads a YouTube track directly to the user's device (Music/Tone) and Tone's library,

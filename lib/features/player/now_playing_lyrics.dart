@@ -1,5 +1,106 @@
 part of 'mini_player.dart';
 
+/// A compact 3-line live glance at the current lyric (previous line, highlighted
+/// current line, next line) that expands into full lyrics when tapped.
+class _ThreeLineLyricsPeek extends StatelessWidget {
+  const _ThreeLineLyricsPeek({
+    required this.lyrics,
+    required this.audioHandler,
+    required this.onExpand,
+  });
+
+  final SongLyrics lyrics;
+  final AudioHandler audioHandler;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration>(
+      stream: playbackPositionStream(audioHandler),
+      builder: (context, snapshot) {
+        final position = snapshot.data ?? Duration.zero;
+        final hasStarted = position > Duration.zero;
+        final resolved = (hasStarted && lyrics.isSynchronized)
+            ? lyrics.activeLineAt(position)
+            : -1;
+        final active = resolved < 0 ? 0 : resolved;
+
+        final prevLine = (active > 0 && active - 1 < lyrics.lines.length)
+            ? lyrics.lines[active - 1].text
+            : null;
+        final currLine = (active >= 0 && active < lyrics.lines.length)
+            ? lyrics.lines[active].text
+            : (lyrics.lines.isNotEmpty ? lyrics.lines.first.text : 'Tap to read lyrics');
+        final nextLine = (active + 1 < lyrics.lines.length)
+            ? lyrics.lines[active + 1].text
+            : null;
+
+        return InkWell(
+          onTap: onExpand,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (prevLine != null && prevLine.trim().isNotEmpty)
+                  Text(
+                    prevLine,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                  ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        currLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Colors.white.withValues(alpha: 0.55),
+                    ),
+                  ],
+                ),
+                if (nextLine != null && nextLine.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    nextLine,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Inline, auto-scrolling lyrics that follow playback, shown in place of the
 /// artwork on the Now Playing screen.
 class _NowPlayingLyrics extends StatefulWidget {

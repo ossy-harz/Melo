@@ -22,266 +22,74 @@ class _MixNextControl extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: transitioning
+  Widget build(BuildContext context) {
+    final tooltipText = transitioning
         ? 'Cancel the manual crossfade. Progress tracks gain-ramp commands, not rendered audio output.'
-        : 'Manually crossfade to the next track over 10 seconds',
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: MeloMotion.respecting(context, MeloMotion.fast),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: transitioning
-                  ? [
-                      accent.withValues(alpha: 0.22),
-                      Colors.white.withValues(alpha: 0.08),
-                    ]
-                  : [
-                      Colors.white.withValues(alpha: 0.07),
-                      Colors.white.withValues(alpha: 0.03),
-                    ],
-            ),
-            border: Border.all(
-              color: transitioning
-                  ? accent.withValues(alpha: 0.45)
-                  : Colors.white.withValues(alpha: 0.1),
-              width: 0.8,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        : 'Manually crossfade to the next track over 10 seconds';
+    return Tooltip(
+      message: tooltipText,
+      child: Semantics(
+        button: true,
+        label: transitioning
+            ? 'Cancel crossfade'
+            : (nextTrackTitle == null || nextTrackTitle!.isEmpty
+                ? 'Crossfade to next track'
+                : 'Crossfade to $nextTrackTitle'),
+        value: transitioning
+            ? '${(progress.clamp(0, 1) * 100).round()}%'
+            : null,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            customBorder: const CircleBorder(),
+            child: AnimatedContainer(
+              duration: MeloMotion.respecting(context, MeloMotion.fast),
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: transitioning
+                    ? accent.withValues(alpha: 0.22)
+                    : Colors.white.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: transitioning
+                      ? accent.withValues(alpha: 0.55)
+                      : Colors.white.withValues(alpha: 0.14),
+                  width: 0.9,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  AnimatedContainer(
-                    duration: MeloMotion.respecting(context, MeloMotion.fast),
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: transitioning
-                          ? accent.withValues(alpha: 0.24)
-                          : Colors.white.withValues(alpha: 0.07),
+                  if (transitioning)
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(
+                        value: progress > 0 ? progress.clamp(0, 1) : null,
+                        strokeWidth: 2.2,
+                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      ),
                     ),
-                    child: Icon(
-                      transitioning
-                          ? Icons.close_rounded
-                          : Icons.multitrack_audio_rounded,
-                      color: MeloColors.playerText,
-                      size: 15,
-                    ),
+                  Icon(
+                    transitioning
+                        ? Icons.close_rounded
+                        : Icons.multitrack_audio_rounded,
+                    color: enabled
+                        ? (transitioning ? accent : Colors.white)
+                        : Colors.white38,
+                    size: transitioning ? 17 : 20,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              transitioning ? 'MIXING' : 'MIX NEXT',
-                              style: TextStyle(
-                                color: transitioning
-                                    ? accent
-                                    : MeloColors.playerMuted,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _transitionLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: MeloColors.playerText,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (analysisHint != null) ...[
-                          const SizedBox(height: 1),
-                          Semantics(
-                            label:
-                                '$analysisHint. Relative waveform energy estimate; not beat or phrase detection.',
-                            child: Text(
-                              analysisHint!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: MeloColors.playerMuted,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (transitioning) ...[
-                    const SizedBox(width: 6),
-                    _MixActivityWaveform(
-                      active: true,
-                      color: accent,
-                    ),
-                  ],
                 ],
               ),
-              if (transitioning) ...[
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0, 1),
-                    minHeight: 3,
-                    backgroundColor: Colors.white.withValues(alpha: 0.12),
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
-                    semanticsLabel:
-                        'Gain ramp command progress; not rendered audio output',
-                    semanticsValue:
-                        '${(progress.clamp(0, 1) * 100).round()}',
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-
-  String get _transitionLabel {
-    if (!transitioning) return 'Manual crossfade · 10 sec';
-    final duration = transitionDuration;
-    if (duration == null) return 'Preparing mix · tap to cancel';
-    final percentage = (progress.clamp(0, 1) * 100).round();
-    return 'Gain ramp $percentage% · '
-        '${_formatTime(duration.inMilliseconds)} target';
-  }
-}
-
-class _MixActivityWaveform extends StatefulWidget {
-  const _MixActivityWaveform({required this.active, required this.color});
-
-  final bool active;
-  final Color color;
-
-  @override
-  State<_MixActivityWaveform> createState() => _MixActivityWaveformState();
-}
-
-class _MixActivityWaveformState extends State<_MixActivityWaveform>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
     );
   }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncAnimation();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MixActivityWaveform oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.active != widget.active || oldWidget.color != widget.color) {
-      _syncAnimation();
-    }
-  }
-
-  void _syncAnimation() {
-    if (widget.active && !MeloMotion.reduced(context)) {
-      _controller.repeat();
-    } else {
-      _controller
-        ..stop()
-        ..value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => RepaintBoundary(
-    child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => CustomPaint(
-        size: const Size(42, 28),
-        painter: _MixActivityWaveformPainter(
-          phase: _controller.value,
-          color: widget.color,
-          active: widget.active,
-        ),
-      ),
-    ),
-  );
-}
-
-class _MixActivityWaveformPainter extends CustomPainter {
-  const _MixActivityWaveformPainter({
-    required this.phase,
-    required this.color,
-    required this.active,
-  });
-
-  final double phase;
-  final Color color;
-  final bool active;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const count = 9;
-    const barWidth = 2.5;
-    final gap = (size.width - count * barWidth) / (count - 1);
-    final paint = Paint()
-      ..color = color.withValues(alpha: active ? 0.95 : 0.68)
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = barWidth;
-
-    for (var index = 0; index < count; index++) {
-      final wave = math.sin(index * 1.15 + phase * math.pi * 2).abs();
-      final level = active ? 0.2 + wave * 0.8 : 0.25 + wave * 0.35;
-      final height = 6 + (size.height - 6) * level;
-      final x = index * (barWidth + gap) + barWidth / 2;
-      canvas.drawLine(
-        Offset(x, (size.height - height) / 2),
-        Offset(x, (size.height + height) / 2),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _MixActivityWaveformPainter oldDelegate) =>
-      oldDelegate.phase != phase ||
-      oldDelegate.color != color ||
-      oldDelegate.active != active;
 }
 
 /// A soft, tempo-adaptive pulse around the artwork. It reads the live playback

@@ -11,11 +11,13 @@ import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/settings/audio_settings_screen.dart';
 import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
+import 'package:melo_player/features/settings/spotify_settings_screen.dart';
 import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/youtube_settings_screen.dart';
 import 'package:melo_player/features/sources/addons_screen.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/updates/app_update_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_auth_service.dart';
@@ -486,42 +488,9 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
   }
 
   Future<void> _editRepositoryDialog() async {
-    final controller = TextEditingController(text: _updater.repository);
     final saved = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('GitHub Repository'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter your GitHub repository (owner/repo) where Melo releases and APKs are published:',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'owner/repo',
-                hintText: 'ossy-harz/Tone',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _RepositoryEditDialog(initialValue: _updater.repository),
     );
     if (saved != null) {
       await _updater.setRepository(saved);
@@ -708,7 +677,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                             : Icons.verified_rounded,
                         color: isUpdateAvailable
                             ? MeloColors.cherry
-                            : Colors.greenAccent,
+                            : MeloColors.cherry,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -820,17 +789,17 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                                           vertical: 10,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.green.withValues(alpha: 0.12),
+                                          color: MeloColors.cherry.withValues(alpha: 0.12),
                                           borderRadius: BorderRadius.circular(12),
                                           border: Border.all(
-                                            color: Colors.green.withValues(alpha: 0.35),
+                                            color: MeloColors.cherry.withValues(alpha: 0.35),
                                           ),
                                         ),
                                         child: Row(
                                           children: [
                                             const Icon(
                                               Icons.verified_rounded,
-                                              color: Colors.greenAccent,
+                                              color: MeloColors.cherry,
                                               size: 20,
                                             ),
                                             const SizedBox(width: 10),
@@ -840,7 +809,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 13,
-                                                  color: Colors.greenAccent,
+                                                  color: Colors.white,
                                                 ),
                                               ),
                                             ),
@@ -873,7 +842,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                                         : () => _downloadAndInstall(latest),
                                     style: isAlreadyDownloaded
                                         ? FilledButton.styleFrom(
-                                            backgroundColor: const Color(0xFF1DB954),
+                                            backgroundColor: MeloColors.cherry,
                                             foregroundColor: Colors.white,
                                           )
                                         : null,
@@ -1170,13 +1139,17 @@ class _ProfileHero extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            MeloColors.shellRaised,
-            Color(0xFF2A0C14),
+            MeloColors.qledCard,
+            Color(0xFF280B16),
             MeloColors.cherryDeep,
           ],
           stops: [0, 0.55, 1],
         ),
-        boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.16),
+          width: 1.0,
+        ),
+        boxShadow: MeloShadows.hdrBloom(MeloColors.cherry, opacity: 0.28),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(MeloRadii.xl),
@@ -1653,6 +1626,44 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
               height: 1,
               color: colors.outlineVariant.withValues(alpha: 0.3),
             ),
+            ValueListenableBuilder<bool>(
+              valueListenable: SpotifyService.instance.authState,
+              builder: (context, isSpotifyLoggedIn, _) {
+                final spotify = SpotifyService.instance;
+                return ListTile(
+                  leading: const Icon(
+                    Icons.radar_rounded,
+                    color: MeloColors.cherry,
+                  ),
+                  title: const Text(
+                    'Spotify Account',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    isSpotifyLoggedIn
+                        ? 'Connected as ${spotify.displayName ?? "Spotify User"} · Personal feed active'
+                        : 'Sign in to sync your Spotify feed, playlists & liked songs',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context)
+                      .push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SpotifySettingsScreen(
+                            library: widget.library,
+                            audioHandler: widget.audioHandler,
+                          ),
+                        ),
+                      )
+                      .then((_) {
+                        if (mounted) setState(() {});
+                      }),
+                );
+              },
+            ),
+            Divider(
+              height: 1,
+              color: colors.outlineVariant.withValues(alpha: 0.3),
+            ),
             ListTile(
               leading: const Icon(
                 Icons.playlist_add_check_circle_rounded,
@@ -1701,6 +1712,74 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Stateful dialog so [_controller] outlives the route pop and IME animations.
+class _RepositoryEditDialog extends StatefulWidget {
+  const _RepositoryEditDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_RepositoryEditDialog> createState() => _RepositoryEditDialogState();
+}
+
+class _RepositoryEditDialogState extends State<_RepositoryEditDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      scrollable: true,
+      title: const Text('GitHub Repository'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter your GitHub repository (owner/repo) where Melo releases and APKs are published:',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            onSubmitted: (_) => _submit(),
+            decoration: const InputDecoration(
+              labelText: 'owner/repo',
+              hintText: 'ossy-harz/Melo',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

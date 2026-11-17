@@ -1148,6 +1148,67 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  test('playback memory records local and streamed tracks for affinity ranking', () async {
+    final database = MeloDatabase.inMemory();
+    final repository = DriftLibraryRepository(
+      database: database,
+      legacyPreferences: preferences,
+    );
+    await repository.initialize();
+    const localTrack = ImportedTrack(
+      id: 'local-1',
+      path: '/music/local-1.mp3',
+      title: 'Midnight Drive',
+      artist: 'Local Synth',
+      album: 'Neon',
+      durationMs: 200000,
+    );
+    await repository.saveTracks([localTrack]);
+
+    final library = MusicLibrary.forTesting(
+      musicDirectory: musicDirectory,
+      preferences: preferences,
+      pickAudio: () async => const [],
+      repository: repository,
+    );
+    await library.load();
+    addTearDown(library.close);
+
+    await library.recordPlayedMediaItem(localTrack.toMediaItem());
+    await library.recordPlayedMediaItem(
+      const MediaItem(
+        id: 'youtube:abc123',
+        title: 'Essence (Official Audio)',
+        artist: 'Wizkid',
+        album: 'Made in Lagos',
+      ),
+    );
+    await library.recordPlayedMediaItem(
+      const MediaItem(
+        id: 'youtube:def456',
+        title: 'Ginger',
+        artist: 'Wizkid',
+        album: 'Made in Lagos',
+      ),
+    );
+
+    expect(library.recentSessionItems.map((i) => i.id), [
+      'youtube:def456',
+      'youtube:abc123',
+      '/music/local-1.mp3',
+    ]);
+    expect(library.topAffinityArtists.first, 'Wizkid');
+    expect(library.topAffinityArtists, contains('Local Synth'));
+    expect(library.recentCanonicalSongKeys, contains('essence|wizkid'));
+
+    final history = await library.listeningHistory(limit: 10);
+    expect(history.map((h) => h.trackId), containsAll([
+      'local-1',
+      'youtube:abc123',
+      'youtube:def456',
+    ]));
+  });
 }
 
 class _LibraryTestAudioHandler extends BaseAudioHandler with QueueHandler {

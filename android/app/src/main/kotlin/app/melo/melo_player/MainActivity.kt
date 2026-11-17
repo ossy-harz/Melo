@@ -1,10 +1,15 @@
 package app.melo.melo_player
 
 import android.app.RecoverableSecurityException
+import android.content.Context
 import android.content.Intent
 import android.content.ContentUris
 import android.content.IntentSender
+import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioMixerAttributes
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -45,8 +50,24 @@ class MainActivity : AudioServiceActivity() {
     private var pendingDeleteResult: MethodChannel.Result? = null
     private var pendingDeleteUri: Uri? = null
     private var retryDeleteAfterConfirmation = false
+    private var pendingInstallApkPath: String? = null
     @Volatile
     private var audioGenreCache: Map<Long, String>? = null
+
+    override fun onResume() {
+        super.onResume()
+        val pendingPath = pendingInstallApkPath ?: return
+        val canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            packageManager.canRequestPackageInstalls()
+        if (!canInstall) return
+        pendingInstallApkPath = null
+        val apkFile = File(pendingPath)
+        if (apkFile.exists() && apkFile.length() > 0L) {
+            try {
+                launchApkInstaller(apkFile)
+            } catch (_: Exception) {}
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -82,12 +103,16 @@ class MainActivity : AudioServiceActivity() {
             "readAudioWaveform" -> readAudioWaveform(call, result)
             "getArtwork" -> loadArtwork(call, result)
             "openYtMusicLogin" -> openYtMusicLogin(result)
+            "openSpotifyLogin" -> openSpotifyLogin(call, result)
             "saveToDeviceMusic" -> saveToDeviceMusic(call, result)
             "convertToLosslessFlac" -> convertToLosslessFlac(call, result)
             "getAppVersion" -> getAppVersion(result)
             "installUpdateApk" -> installUpdateApk(call, result)
             "openUrl" -> openUrl(call, result)
             "getDeviceName" -> getDeviceName(result)
+            "getAudioOutputDevices" -> getAudioOutputDevices(result)
+            "setBitPerfectMode" -> setBitPerfectMode(call, result)
+            "openMediaOutputSwitcher" -> openMediaOutputSwitcher(result)
             else -> result.notImplemented()
         }
     }
@@ -134,6 +159,200 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun isUsbOutputType(type: Int): Boolean {
+        if (type == AudioDeviceInfo.TYPE_USB_DEVICE || type == AudioDeviceInfo.TYPE_USB_ACCESSORY) {
+            return true
+        }
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && type == AudioDeviceInfo.TYPE_USB_HEADSET
+    }
+
+    private fun isBluetoothOutputType(type: Int): Boolean {
+        if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+            return true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+        ) {
+            return true
+        }
+        return false
+    }
+
+    private fun isWiredOutputType(type: Int): Boolean =
+        type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+            type == AudioDeviceInfo.TYPE_LINE_DIGITAL ||
+            type == AudioDeviceInfo.TYPE_AUX_LINE
+
+    private fun getAudioOutputDevices(result: MethodChannel.Result) {
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val rawDevices = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList()
+            } else {
+                emptyList()
+            }
+            val mapped = mutableListOf<Map<String, Any>>()
+            var hasExternal = false
+            for (device in rawDevices) {
+                val t = device.type
+                if (t == AudioDeviceInfo.TYPE_TELEPHONY || t == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE) {
+                    continue
+                }
+                val category = when {
+                    isUsbOutputType(t) -> "usb_dac"
+                    isBluetoothOutputType(t) -> "bluetooth"
+                    isWiredOutputType(t) -> "wired"
+                    else -> "speaker"
+                }
+                if (category != "speaker") hasExternal = true
+            }
+            val seenKeys = mutableSetOf<String>()
+            for (device in rawDevices) {
+                val t = device.type
+                if (t == AudioDeviceInfo.TYPE_TELEPHONY || t == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE) {
+                    continue
+                }
+                val category = when {
+                    isUsbOutputType(t) -> "usb_dac"
+                    isBluetoothOutputType(t) -> "bluetooth"
+                    isWiredOutputType(t) -> "wired"
+                    t == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+                    else -> continue
+                }
+                val productName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    device.productName?.toString()?.trim().orEmpty()
+                } else {
+                    ""
+                }
+                val fallbackLabel = when (category) {
+                    "usb_dac" -> "USB Hi-Res DAC"
+                    "bluetooth" -> "Bluetooth Audio"
+                    "wired" -> "Wired Headphones"
+                    else -> "Phone Speaker"
+                }
+                val name = if (productName.isNotEmpty() && productName != Build.MODEL) {
+                    productName
+                } else {
+                    fallbackLabel
+                }
+                val maxSampleRate = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && device.sampleRates.isNotEmpty()) {
+                    device.sampleRates.maxOrNull() ?: 48000
+                } else {
+                    48000
+                }
+                val encodings = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) device.encodings else intArrayOf()
+                val bitDepth = when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && encodings.contains(AudioFormat.ENCODING_PCM_32BIT) -> 32
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && encodings.contains(AudioFormat.ENCODING_PCM_24BIT_PACKED) -> 24
+                    encodings.contains(AudioFormat.ENCODING_PCM_FLOAT) -> 32
+                    else -> 16
+                }
+                var bitPerfectCapable = Build.VERSION.SDK_INT >= 34 && category == "usb_dac"
+                if (Build.VERSION.SDK_INT >= 34 && category == "usb_dac") {
+                    try {
+                        val attrsList = audioManager.getSupportedMixerAttributes(device)
+                        if (attrsList.isNotEmpty()) {
+                            bitPerfectCapable = attrsList.any {
+                                it.mixerBehavior == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+                val dedupKey = "$category|$name"
+                if (!seenKeys.add(dedupKey)) continue
+                val isActive = if (hasExternal) category != "speaker" else category == "speaker"
+                mapped.add(
+                    mapOf(
+                        "id" to (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) device.id else 0),
+                        "name" to name,
+                        "type" to category,
+                        "maxSampleRate" to maxSampleRate,
+                        "bitDepth" to bitDepth,
+                        "isBitPerfectCapable" to bitPerfectCapable,
+                        "isActive" to isActive,
+                    ),
+                )
+            }
+            result.success(mapped)
+        } catch (e: Exception) {
+            Log.e("TonePlayer", "Failed to enumerate audio output devices", e)
+            result.success(emptyList<Map<String, Any>>())
+        }
+    }
+
+    private fun setBitPerfectMode(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val enabled = call.argument<Boolean>("enabled") ?: false
+        var applied = false
+        var usbDeviceName: String? = null
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val audioAttrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+                val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                for (device in outputs) {
+                    if (!isUsbOutputType(device.type)) continue
+                    usbDeviceName = device.productName?.toString()?.trim()?.ifEmpty { null }
+                        ?: "USB Hi-Res DAC"
+                    if (enabled) {
+                        val bitPerfectAttr = audioManager.getSupportedMixerAttributes(device)
+                            .firstOrNull {
+                                it.mixerBehavior == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT
+                            }
+                        if (bitPerfectAttr != null) {
+                            applied = audioManager.setPreferredMixerAttributes(
+                                audioAttrs,
+                                device,
+                                bitPerfectAttr,
+                            )
+                        }
+                    } else {
+                        applied = audioManager.clearPreferredMixerAttributes(audioAttrs, device)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("TonePlayer", "Bit-perfect USB DAC route update error", e)
+        }
+        result.success(
+            mapOf(
+                "enabled" to enabled,
+                "activeOnHardware" to applied,
+                "deviceName" to (usbDeviceName ?: "System Audio"),
+            ),
+        )
+    }
+
+    private fun openMediaOutputSwitcher(result: MethodChannel.Result) {
+        try {
+            val panelIntent = Intent("com.android.settings.panel.action.MEDIA_OUTPUT").apply {
+                putExtra("com.android.settings.panel.extra.PACKAGE_NAME", packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (panelIntent.resolveActivity(packageManager) != null) {
+                startActivity(panelIntent)
+                result.success(true)
+                return
+            }
+        } catch (_: Exception) {}
+        try {
+            val btIntent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(btIntent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.success(false)
+        }
+    }
+
     private fun installUpdateApk(
         call: io.flutter.plugin.common.MethodCall,
         result: MethodChannel.Result,
@@ -152,6 +371,7 @@ class MainActivity : AudioServiceActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()
             ) {
+                pendingInstallApkPath = apkFile.absolutePath
                 val permIntent = Intent(
                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     Uri.parse("package:$packageName"),
@@ -163,21 +383,26 @@ class MainActivity : AudioServiceActivity() {
                 return
             }
 
-            val apkUri = FileProvider.getUriForFile(
-                this,
-                "$packageName.fileprovider",
-                apkFile,
-            )
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(installIntent)
+            pendingInstallApkPath = null
+            launchApkInstaller(apkFile)
             result.success("INSTALLER_LAUNCHED")
         } catch (e: Exception) {
             result.error("INSTALL_FAILED", e.message ?: "Failed to launch APK installer.", null)
         }
+    }
+
+    private fun launchApkInstaller(apkFile: File) {
+        val apkUri = FileProvider.getUriForFile(
+            this,
+            "$packageName.fileprovider",
+            apkFile,
+        )
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(installIntent)
     }
 
     private fun openUrl(
@@ -464,6 +689,209 @@ class MainActivity : AudioServiceActivity() {
                 webView.loadUrl("https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com%2F")
             } catch (e: Exception) {
                 Log.e("TonePlayer", "Error opening YouTube login webview", e)
+                result.error("LOGIN_ERROR", e.message, null)
+            }
+        }
+    }
+
+    private fun openSpotifyLogin(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val customAuthUrl = call.argument<String>("authUrl")?.trim()
+        val redirectPrefix = call.argument<String>("redirectPrefix")?.trim()
+        val targetUrl = if (!customAuthUrl.isNullOrEmpty()) {
+            customAuthUrl
+        } else {
+            "https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
+        }
+
+        mainHandler.post {
+            try {
+                var finished = false
+                lateinit var dialog: android.app.Dialog
+
+                fun finishOnce(payload: Any?) {
+                    if (finished) return
+                    finished = true
+                    mainHandler.post {
+                        try {
+                            if (dialog.isShowing) dialog.dismiss()
+                        } catch (_: Exception) {}
+                        result.success(payload)
+                    }
+                }
+
+                dialog = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+                val layout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    setBackgroundColor(0xFF000000.toInt())
+                }
+
+                val topBar = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(36, 54, 24, 24)
+                    setBackgroundColor(0xFF141416.toInt())
+                }
+                val titleView = android.widget.TextView(this).apply {
+                    text = "Sign in to Spotify"
+                    setTextColor(0xFFFFFFFF.toInt())
+                    textSize = 17f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f,
+                    )
+                }
+
+                val cookieManager = android.webkit.CookieManager.getInstance()
+                val doneButton = android.widget.Button(this).apply {
+                    text = "Done"
+                    setTextColor(0xFFFA243C.toInt())
+                    setBackgroundColor(0x00000000)
+                    textSize = 14f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setOnClickListener {
+                        val cookies = cookieManager.getCookie("https://open.spotify.com")
+                            ?: cookieManager.getCookie("https://accounts.spotify.com")
+                            ?: ""
+                        finishOnce(
+                            mapOf(
+                                "cookies" to cookies,
+                                "accessToken" to "",
+                                "url" to "https://open.spotify.com/",
+                            ),
+                        )
+                    }
+                }
+                val closeButton = android.widget.Button(this).apply {
+                    text = "Close"
+                    setTextColor(0xFFA1A1A6.toInt())
+                    setBackgroundColor(0x00000000)
+                    textSize = 14f
+                    setOnClickListener {
+                        finishOnce(null)
+                    }
+                }
+                topBar.addView(titleView)
+                topBar.addView(doneButton)
+                topBar.addView(closeButton)
+                layout.addView(topBar)
+
+                val webView = android.webkit.WebView(this).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        0,
+                        1f,
+                    )
+                    setBackgroundColor(0xFF000000.toInt())
+                }
+                val webSettings = webView.settings
+                webSettings.javaScriptEnabled = true
+                webSettings.domStorageEnabled = true
+                webSettings.databaseEnabled = true
+                webSettings.userAgentString =
+                    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+
+                cookieManager.setAcceptCookie(true)
+                cookieManager.setAcceptThirdPartyCookies(webView, true)
+
+                webView.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: android.webkit.WebView?,
+                        request: android.webkit.WebResourceRequest?,
+                    ): Boolean {
+                        val nextUrl = request?.url?.toString() ?: return false
+                        if (!redirectPrefix.isNullOrEmpty() && nextUrl.startsWith(redirectPrefix)) {
+                            val cookies = cookieManager.getCookie("https://open.spotify.com")
+                                ?: cookieManager.getCookie("https://accounts.spotify.com")
+                                ?: ""
+                            finishOnce(
+                                mapOf(
+                                    "redirectUrl" to nextUrl,
+                                    "cookies" to cookies,
+                                ),
+                            )
+                            return true
+                        }
+                        return false
+                    }
+
+                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        if (finished || url == null) return
+                        if (!redirectPrefix.isNullOrEmpty() && url.startsWith(redirectPrefix)) {
+                            val cookies = cookieManager.getCookie("https://open.spotify.com")
+                                ?: cookieManager.getCookie("https://accounts.spotify.com")
+                                ?: ""
+                            finishOnce(
+                                mapOf(
+                                    "redirectUrl" to url,
+                                    "cookies" to cookies,
+                                ),
+                            )
+                            return
+                        }
+                        if (url.contains("open.spotify.com")) {
+                            val cookies = cookieManager.getCookie("https://open.spotify.com") ?: ""
+                            if (cookies.contains("sp_dc=")) {
+                                cookieManager.flush()
+                                view?.evaluateJavascript(
+                                    """
+                                    (function() {
+                                      try {
+                                        var sessionEl = document.getElementById('session');
+                                        if (sessionEl && sessionEl.textContent) {
+                                          var data = JSON.parse(sessionEl.textContent);
+                                          if (data && data.accessToken) return data.accessToken;
+                                        }
+                                        for (var i = 0; i < localStorage.length; i++) {
+                                          var k = localStorage.key(i);
+                                          if (k && k.indexOf('token') !== -1) {
+                                            var v = localStorage.getItem(k);
+                                            if (v && v.indexOf('BQ') !== -1) return v;
+                                          }
+                                        }
+                                      } catch (e) {}
+                                      return '';
+                                    })();
+                                    """.trimIndent(),
+                                ) { rawToken ->
+                                    val cleanToken = rawToken
+                                        ?.trim()
+                                        ?.removeSurrounding("\"")
+                                        ?.takeIf { it.isNotEmpty() && it != "null" }
+                                        ?: ""
+                                    mainHandler.postDelayed({
+                                        val latestCookies =
+                                            cookieManager.getCookie("https://open.spotify.com") ?: cookies
+                                        finishOnce(
+                                            mapOf(
+                                                "cookies" to latestCookies,
+                                                "accessToken" to cleanToken,
+                                                "url" to url,
+                                            ),
+                                        )
+                                    }, 500)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                dialog.setOnCancelListener { finishOnce(null) }
+                layout.addView(webView)
+                dialog.setContentView(layout)
+                dialog.show()
+
+                webView.loadUrl(targetUrl)
+            } catch (e: Exception) {
+                Log.e("TonePlayer", "Error opening Spotify login webview", e)
                 result.error("LOGIN_ERROR", e.message, null)
             }
         }
