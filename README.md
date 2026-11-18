@@ -73,7 +73,13 @@
 
 ## 📋 Release Changelog
 
-### Version 1.4.3 (Latest)
+### Version 1.4.4 (Latest)
+- **Active Loudness Leveling & Output Routing**: Enabled track-aware loudness attenuation in `MeloAudioHandler` (`getAudioCapabilities` + `_effectiveTargetGain`) and added an **Audio Output & Bit-Perfect USB DAC** switcher card inside **Sound & playback**.
+- **Real Cache & Storage Eviction**: Replaced legacy placeholder text in **Offline & data** with live controls to clear artwork/stream caches, cached lyrics, and temporary update APKs.
+- **Live Negotiated Codec Badges & Swipeable Mini-Player**: Fixed stale stream quality caching once streaming metadata resolves, and added horizontal swipe-to-skip & vertical swipe-up gestures on `MiniPlayer`.
+- **AutoMix Settings Polish**: Selecting a mix profile now resets custom transition duration overrides cleanly and provides a `'Reset to profile default'` button.
+
+### Version 1.4.3
 - **Immersive Player Mode**: Added full-screen edge-to-edge mode in Now Playing that collapses navigation chrome and quality badges for distraction-free playback.
 - **Word-Synced 3-Line Lyrics Peek**: Upgraded the inline Now Playing lyrics preview to highlight every word in sync with playback.
 - **Native Media3 Custom Actions**: Added vector Heart (Like/Unlike) and Repeat (`Off` / `All` / `One`) controls to the Android notification and Samsung Media Pill with automatic artwork syncing.

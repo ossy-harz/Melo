@@ -18,6 +18,7 @@ import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
 import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 
@@ -1772,9 +1773,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Your music, without the signal.'), findsOneWidget);
     expect(
-      find.textContaining('Automatic overnight downloads'),
+      find.text('CACHE & STORAGE MANAGEMENT'),
       findsOneWidget,
     );
+    expect(find.textContaining('not available yet'), findsNothing);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
@@ -2170,7 +2172,7 @@ void main() {
 
     expect(find.textContaining('Buy Me a Coffee'), findsNothing);
     expect(find.byIcon(Icons.coffee_rounded), findsNothing);
-    expect(find.textContaining('Melo v1.4.3'), findsWidgets);
+    expect(find.textContaining('Melo v1.4.4'), findsWidgets);
     expect(find.textContaining('github.com/ossy-harz/Tone'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -2365,6 +2367,127 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('MiniPlayer horizontal swipe triggers skipToNext and skipToPrevious', (
+    tester,
+  ) async {
+    final handler = _PreviewAudioHandler()
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'swipe-track',
+          title: 'Swipe Jam',
+          artist: 'Melo',
+          duration: Duration(minutes: 3),
+        ),
+      );
+    var opened = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: MiniPlayer(
+              audioHandler: handler,
+              onOpen: () => opened = true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.fling(find.byType(MiniPlayer), const Offset(-200, 0), 1000);
+    await tester.pump();
+    expect(handler.actions, contains('next'));
+
+    await tester.fling(find.byType(MiniPlayer), const Offset(200, 0), 1000);
+    await tester.pump();
+    expect(handler.actions, contains('previous'));
+    expect(opened, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('OfflineDataScreen clears caches cleanly without legacy placeholder', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    clearPlayerMemoryCaches();
+    SharedPreferences.setMockInitialValues({});
+    await LyricsRepository.cacheLyricsForId(
+      'sample-track',
+      '[00:01.00]Sample lyric',
+    );
+    var popped = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineDataScreen(onOpenLibrary: () => popped = true),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('not available yet'), findsNothing);
+    expect(find.text('CACHE & STORAGE MANAGEMENT'), findsOneWidget);
+    expect(find.text('Clear artwork & stream cache'), findsOneWidget);
+    expect(find.text('Clear cached lyrics'), findsOneWidget);
+    expect(find.text('Clear downloaded update APKs'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Clear').first);
+    await tester.tap(find.text('Clear').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Artwork & stream caches are already clear.'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Clear').at(1));
+    await tester.tap(find.text('Clear').at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Cleared cached lyrics for 1 songs.'), findsOneWidget);
+    expect(popped, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AutoMixSettingsScreen resets manual duration override when switching profiles', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _PreviewAudioHandler();
+    await tester.pumpWidget(
+      MaterialApp(home: AutoMixSettingsScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reset to profile default'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byType(Slider),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 15.0);
+
+    await tester.scrollUntilVisible(
+      find.text('Energetic'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Energetic'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reset to profile default'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byType(Slider),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 4.0);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {
@@ -2408,6 +2531,14 @@ class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {
         return completion.future;
       }
       return {'completed': true, 'trackId': 'next-track'};
+    }
+    if (name == 'autoMix.getSettings') {
+      return {
+        'profile': 'balanced',
+        'transitionDurationMs': 15000,
+        'automaticTransitions': true,
+        'effectiveTransitionDurationMs': 15000,
+      };
     }
     if (name == 'getAudioProfile') return audioProfile;
     if (name == 'getAudioCapabilities') {

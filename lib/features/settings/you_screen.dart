@@ -9,6 +9,8 @@ import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/player/mini_player.dart'
+    show clearPlayerMemoryCaches;
 import 'package:melo_player/features/settings/audio_settings_screen.dart';
 import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
 import 'package:melo_player/features/settings/spotify_settings_screen.dart';
@@ -183,7 +185,7 @@ class YouScreen extends StatelessWidget {
       );
 }
 
-class OfflineDataScreen extends StatelessWidget {
+class OfflineDataScreen extends StatefulWidget {
   const OfflineDataScreen({
     required this.onOpenLibrary,
     this.library,
@@ -196,8 +198,63 @@ class OfflineDataScreen extends StatelessWidget {
   final VoidCallback onOpenLibrary;
 
   @override
+  State<OfflineDataScreen> createState() => _OfflineDataScreenState();
+}
+
+class _OfflineDataScreenState extends State<OfflineDataScreen> {
+  bool _isClearing = false;
+
+  void _showStatus(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+  }
+
+  Future<void> _clearArtworkAndStreamCache() async {
+    final cleared = clearPlayerMemoryCaches();
+    _showStatus(
+      cleared == 0
+          ? 'Artwork & stream caches are already clear.'
+          : 'Cleared $cleared cached artwork and stream metadata entries.',
+    );
+  }
+
+  Future<void> _clearLyricsCache() async {
+    setState(() => _isClearing = true);
+    try {
+      final count = await LyricsRepository.clearCache();
+      if (!mounted) return;
+      _showStatus(
+        count == 0
+            ? 'There were no cached lyrics to clear.'
+            : 'Cleared cached lyrics for $count songs.',
+      );
+    } finally {
+      if (mounted) setState(() => _isClearing = false);
+    }
+  }
+
+  Future<void> _clearUpdateApks() async {
+    setState(() => _isClearing = true);
+    try {
+      final removed = await AppUpdateService.instance.clearCachedApks();
+      if (!mounted) return;
+      _showStatus(
+        removed == 0
+            ? 'No downloaded update APKs to remove.'
+            : 'Removed $removed cached APK installer(s).',
+      );
+    } finally {
+      if (mounted) setState(() => _isClearing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tracks = library?.tracks ?? const [];
+    final colors = Theme.of(context).colorScheme;
+    final tracks = widget.library?.tracks ?? const [];
     final deviceCount = tracks.where((track) => track.isDeviceMedia).length;
     final importedCount = tracks.length - deviceCount;
     return Scaffold(
@@ -207,13 +264,15 @@ class OfflineDataScreen extends StatelessWidget {
         children: [
           Text(
             'Your music, without the signal.',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
           Text(
-            'Melo plays music already on this device. Local playback does not '
-            'use mobile data, and scanned originals stay where they are.',
+            'Melo plays music stored on your device offline. Downloaded songs '
+            'and artwork saved to Music/Tone remain available with zero mobile '
+            'data usage.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 22),
@@ -229,56 +288,128 @@ class OfflineDataScreen extends StatelessWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.folder_copy_outlined),
-                  title: const Text('Private imported copies'),
+                  title: const Text('Saved downloads & imports'),
                   trailing: Text('$importedCount'),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
           Text(
-            'Automatic overnight downloads, streaming caches, and storage '
-            'eviction are not available yet. Optional online lyrics use data '
-            'only when you enable that lookup in Privacy & your data.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.45,
+            'CACHE & STORAGE MANAGEMENT',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          MeloGlass(
+            borderRadius: MeloRadii.lg,
+            shadow: false,
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.image_outlined,
+                      color: MeloColors.cherry,
+                    ),
+                    title: const Text(
+                      'Clear artwork & stream cache',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Free in-memory cover thumbnails, waveforms & stream tags',
+                    ),
+                    trailing: TextButton(
+                      onPressed: _isClearing
+                          ? null
+                          : _clearArtworkAndStreamCache,
+                      child: const Text('Clear'),
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: colors.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.lyrics_outlined,
+                      color: MeloColors.cherry,
+                    ),
+                    title: const Text(
+                      'Clear cached lyrics',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Local .lrc sidecar files stay untouched on storage',
+                    ),
+                    trailing: TextButton(
+                      onPressed: _isClearing ? null : _clearLyricsCache,
+                      child: const Text('Clear'),
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: colors.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.cleaning_services_outlined,
+                      color: MeloColors.cherry,
+                    ),
+                    title: const Text(
+                      'Clear downloaded update APKs',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Remove temporary GitHub installer packages from cache',
+                    ),
+                    trailing: TextButton(
+                      onPressed: _isClearing ? null : _clearUpdateApks,
+                      child: const Text('Clear'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'STREAMING & DOWNLOAD QUALITY',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
           ),
           const SizedBox(height: 12),
           _QualityAndStreamingSection(
-            library: library,
-            audioHandler: audioHandler,
+            library: widget.library,
+            audioHandler: widget.audioHandler,
           ),
           const SizedBox(height: 24),
           Text(
             'CONNECTED STREAMING SOURCES',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
           ),
           const SizedBox(height: 12),
           _ConnectedSourcesSection(
-            library: library,
-            audioHandler: audioHandler,
-            onOpenLibrary: onOpenLibrary,
+            library: widget.library,
+            audioHandler: widget.audioHandler,
+            onOpenLibrary: widget.onOpenLibrary,
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () {
               Navigator.of(context).pop();
-              onOpenLibrary();
+              widget.onOpenLibrary();
             },
             icon: const Icon(Icons.library_music_rounded),
             label: const Text('Open your library'),

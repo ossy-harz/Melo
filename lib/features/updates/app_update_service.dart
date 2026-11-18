@@ -120,8 +120,8 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.4.3';
-  int _currentBuildNumber = 17;
+  String _currentVersion = '1.4.4';
+  int _currentBuildNumber = 18;
 
   /// Opens an external web URL using the Android platform channel or intent.
   static Future<bool> openExternalUrl(String url) async {
@@ -608,5 +608,31 @@ class AppUpdateService extends ChangeNotifier {
       {'apkPath': apkPath},
     );
     return status ?? 'INSTALLER_LAUNCHED';
+  }
+
+  /// Deletes cached update APK files in the temporary directory to reclaim storage.
+  Future<int> clearCachedApks() async {
+    var removedCount = 0;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await for (final entity in tempDir.list()) {
+          if (entity is File) {
+            final lower = entity.path.toLowerCase();
+            if (lower.endsWith('.apk') &&
+                (lower.contains('melo_update_') ||
+                    lower.contains('tone_update_'))) {
+              await entity.delete();
+              removedCount++;
+            }
+          }
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('melo_downloaded_apk_path');
+      _downloadedApkPath = null;
+      notifyListeners();
+    } catch (_) {}
+    return removedCount;
   }
 }

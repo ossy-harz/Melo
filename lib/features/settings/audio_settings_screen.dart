@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/player_device_helper.dart';
 
 class AudioSettingsScreen extends StatefulWidget {
   const AudioSettingsScreen({required this.audioProfileService, super.key});
@@ -120,9 +122,30 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
           const SizedBox(height: 6),
           Text(
             'Equalizer settings apply on supported Android playback routes. '
-            'Tone does not claim bit-perfect or universal Hi-Res output.',
+            'Melo keeps peak headroom automatically to prevent EQ clipping.',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          Material(
+            color: colors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: ListTile(
+              leading: const Icon(
+                Icons.usb_rounded,
+                color: MeloColors.cherry,
+              ),
+              title: const Text(
+                'Audio Output & Bit-Perfect USB DAC',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: const Text(
+                'Switch active output devices or enable Android 14+ exclusive USB DAC passthrough',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => PlayerDeviceHelper.showAudioOutputSheet(context),
+            ),
           ),
           const SizedBox(height: 12),
           if (_capabilities?.equalizer ?? false) ...[
@@ -214,9 +237,8 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
             ),
           const SizedBox(height: 12),
           Text(
-            'Balance, manual output routing, and headphone-specific profiles '
-            'are not exposed because this device integration cannot reliably '
-            'control them.',
+            'Stereo channel balance and hardware-specific headphone profiles '
+            'remain hidden where Android audio routes do not report them.',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: colors.onSurfaceVariant),
           ),
@@ -234,9 +256,9 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Audio processing is optional and happens on this device. '
-                    'Unsupported equalizers stay unavailable, and Tone does not '
-                    'claim bit-perfect or universal Hi-Res output.',
+                    'Audio processing runs on this device. Unsupported hardware '
+                    'equalizers fall back safely, and bit-perfect routing requires '
+                    'Android 14+ with a compatible USB DAC.',
                     style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: colors.onSurfaceVariant, height: 1.4),
                   ),

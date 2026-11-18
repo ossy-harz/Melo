@@ -51,6 +51,23 @@ final Map<String, Future<Map<String, Object?>?>> _audioQualityCache = {};
 final Map<String, Future<Map<String, Object?>?>> _audioTagsCache = {};
 final Map<String, Future<AudioWaveformData>> _audioWaveformCache = {};
 
+int clearPlayerMemoryCaches() {
+  final totalCleared =
+      _artworkCache.length +
+      _resolvedArtworkBytes.length +
+      _paletteCache.length +
+      _audioQualityCache.length +
+      _audioTagsCache.length +
+      _audioWaveformCache.length;
+  _artworkCache.clear();
+  _resolvedArtworkBytes.clear();
+  _paletteCache.clear();
+  _audioQualityCache.clear();
+  _audioTagsCache.clear();
+  _audioWaveformCache.clear();
+  return totalCleared;
+}
+
 /// Ensures that [AnimatedSwitcher] layout never encounters duplicate widget keys
 /// in its child stack during rapid state updates, line jumps, or seeks.
 Widget _safeAnimatedSwitcherLayout(
@@ -177,9 +194,26 @@ class MiniPlayer extends StatelessWidget {
           borderColor: Colors.white.withValues(alpha: 0.12),
           child: Material(
             color: Colors.transparent,
-            child: InkWell(
-              onTap: onOpen,
-              borderRadius: radius,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragEnd: (details) {
+                if ((details.primaryVelocity ?? 0) < -180) {
+                  onOpen();
+                }
+              },
+              onHorizontalDragEnd: (details) {
+                final v = details.primaryVelocity ?? 0;
+                if (v < -220) {
+                  HapticFeedback.selectionClick();
+                  _run(context, audioHandler.skipToNext);
+                } else if (v > 220) {
+                  HapticFeedback.selectionClick();
+                  _run(context, audioHandler.skipToPrevious);
+                }
+              },
+              child: InkWell(
+                onTap: onOpen,
+                borderRadius: radius,
               child: ClipRRect(
                 borderRadius: radius,
                 child: Stack(
@@ -340,6 +374,7 @@ class MiniPlayer extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
             ),
           ),
         ),

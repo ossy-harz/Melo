@@ -1,62 +1,70 @@
 part of 'mini_player.dart';
 
-Future<Map<String, Object?>?> _audioQualityFor(MediaItem item) =>
-    _audioQualityCache.putIfAbsent(item.id, () async {
-      final extras = item.extras;
-      if (extras != null && extras['mimeType'] != null) {
-        return {
-          'mimeType': extras['mimeType'] as String?,
-          'bitRate': extras['bitRate'] as num?,
-          'sampleRate': extras['sampleRate'] as num?,
-          'channelCount': extras['channelCount'] as num?,
-        };
-      }
-
-      final isOnline = item.id.startsWith('youtube:') ||
-          item.id.startsWith('spotify:') ||
-          item.id.startsWith('http://') ||
-          item.id.startsWith('https://') ||
-          extras?['source'] == 'youtube' ||
-          extras?['source'] == 'spotify' ||
-          extras?['isLiveStream'] == true;
-      if (isOnline) {
-        final isFlac = extras?['quality'] == 'flacHiRes' ||
-            item.title.contains('FLAC') ||
-            (extras?['isLossless'] == true);
-        return {
-          'mimeType': isFlac ? 'audio/flac' : 'audio/mp4a-latm',
-          'sampleRate': isFlac ? 48000 : 44100,
-          'channelCount': 2,
-          'bitRate': isFlac ? 1411200 : 320000,
-        };
-      }
-
-      if (defaultTargetPlatform != TargetPlatform.android) return null;
-      try {
-        return await _artworkChannel.invokeMapMethod<String, Object?>(
-          'readAudioQuality',
-          {'uri': item.id},
-        );
-      } catch (e) {
-        debugPrint('Could not read audio quality: $e');
-        return null;
-      }
+Future<Map<String, Object?>?> _audioQualityFor(MediaItem item) {
+  final extras = item.extras;
+  if (extras != null && extras['mimeType'] != null) {
+    final liveResult = Future<Map<String, Object?>?>.value({
+      'mimeType': extras['mimeType'] as String?,
+      'bitRate': extras['bitRate'] as num?,
+      'sampleRate': extras['sampleRate'] as num?,
+      'channelCount': extras['channelCount'] as num?,
     });
+    _audioQualityCache[item.id] = liveResult;
+    return liveResult;
+  }
+  return _audioQualityCache.putIfAbsent(item.id, () async {
+    final isOnline =
+        item.id.startsWith('youtube:') ||
+        item.id.startsWith('spotify:') ||
+        item.id.startsWith('http://') ||
+        item.id.startsWith('https://') ||
+        extras?['source'] == 'youtube' ||
+        extras?['source'] == 'spotify' ||
+        extras?['isLiveStream'] == true;
+    final localPath = extras?['localPath'] as String?;
+    if (isOnline && localPath == null) {
+      final isFlac =
+          extras?['quality'] == 'flacHiRes' ||
+          item.title.contains('FLAC') ||
+          (extras?['isLossless'] == true);
+      return {
+        'mimeType': isFlac ? 'audio/flac' : 'audio/mp4a-latm',
+        'sampleRate': isFlac ? 48000 : 44100,
+        'channelCount': 2,
+        'bitRate': isFlac ? 1411200 : 320000,
+      };
+    }
+
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return await _artworkChannel.invokeMapMethod<String, Object?>(
+        'readAudioQuality',
+        {'uri': localPath ?? item.id},
+      );
+    } catch (e) {
+      debugPrint('Could not read audio quality: $e');
+      return null;
+    }
+  });
+}
 
 Future<Map<String, Object?>?> _audioTagsFor(MediaItem item) =>
     _audioTagsCache.putIfAbsent(item.id, () async {
-      final isOnline = item.id.startsWith('youtube:') ||
-          item.id.startsWith('spotify:') ||
-          item.id.startsWith('http://') ||
-          item.id.startsWith('https://') ||
-          item.extras?['source'] == 'youtube' ||
-          item.extras?['source'] == 'spotify';
+      final localPath = item.extras?['localPath'] as String?;
+      final isOnline =
+          localPath == null &&
+          (item.id.startsWith('youtube:') ||
+              item.id.startsWith('spotify:') ||
+              item.id.startsWith('http://') ||
+              item.id.startsWith('https://') ||
+              item.extras?['source'] == 'youtube' ||
+              item.extras?['source'] == 'spotify');
       if (isOnline) {
         return {
-          'mimeType': 'audio/opus',
-          'sampleRate': 48000,
-          'channelCount': 2,
-          'bitRate': 256000,
+          'mimeType': item.extras?['mimeType'] ?? 'audio/opus',
+          'sampleRate': item.extras?['sampleRate'] ?? 48000,
+          'channelCount': item.extras?['channelCount'] ?? 2,
+          'bitRate': item.extras?['bitRate'] ?? 256000,
           'title': item.title,
           'artist': item.artist,
           'album': item.album,
@@ -68,7 +76,7 @@ Future<Map<String, Object?>?> _audioTagsFor(MediaItem item) =>
       try {
         return await _artworkChannel.invokeMapMethod<String, Object?>(
           'readLocalAudioMetadata',
-          {'path': item.id, 'fallbackTitle': item.title},
+          {'path': localPath ?? item.id, 'fallbackTitle': item.title},
         );
       } catch (e) {
         debugPrint('Could not read audio tags: $e');

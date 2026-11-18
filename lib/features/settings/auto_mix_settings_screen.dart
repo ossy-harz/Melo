@@ -189,7 +189,7 @@ class _AutoMixSettingsScreenState extends State<AutoMixSettingsScreen> {
           const SizedBox(height: 6),
           Text(
             'AutoMix crossfades between the current track and the next one '
-            'in your queue. It works with local files on this device.',
+            'in your queue across both local files and streaming tracks.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 26),
@@ -232,20 +232,31 @@ class _AutoMixSettingsScreenState extends State<AutoMixSettingsScreen> {
                     ? null
                     : (value) {
                         if (value == null) return;
-                        setState(() => _profile = value);
-                        if (_transitionDuration == null) {
-                          // Reset to profile default when switching profiles.
-                          // The saved duration is profile-agnostic; only
-                          // explicitly set durations are preserved.
-                        }
+                        setState(() {
+                          _profile = value;
+                          _transitionDuration = null;
+                        });
                       },
               ),
             ),
             const SizedBox(height: 22),
-            Text(
-              'Manual transition duration',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Manual transition duration',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (_transitionDuration != null)
+                  TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () => setState(() => _transitionDuration = null),
+                    child: const Text('Reset to profile default'),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             const Text(

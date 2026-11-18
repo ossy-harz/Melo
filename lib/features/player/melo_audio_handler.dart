@@ -108,8 +108,21 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _isExtendingAutoplay = false;
   double _userVolume = 1.0;
 
-  double get _effectiveTargetGain =>
-      (_userVolume * _audioProfile.outputHeadroom).clamp(0.0, 1.0);
+  double get _effectiveTargetGain {
+    final current =
+        mediaItem.value ??
+        (_items.isNotEmpty && _currentIndex < _items.length
+            ? _items[_currentIndex]
+            : null);
+    final relLoudness =
+        (current?.extras?['relativeLoudnessDb'] as num?)?.toDouble();
+    final peakToRms = (current?.extras?['peakToRmsDb'] as num?)?.toDouble();
+    final profileGain = _audioProfile.gainForTrack(
+      relativeLoudnessDb: relLoudness,
+      peakToRmsDb: peakToRms,
+    );
+    return (_userVolume * profileGain).clamp(0.0, 1.0);
+  }
   final List<MediaItem> _sessionHistory = [];
   final Map<String, Duration> _incomingTrackCues = {};
   final Map<String, Duration> _outgoingTrackCues = {};
@@ -305,9 +318,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       return <String, Object>{
         'equalizer':
             _playerFilter.isAvailable && _incomingPlayerFilter.isAvailable,
-        'loudnessNormalization': false,
+        'loudnessNormalization': true,
         'balance': false,
-        'outputSelection': false,
+        'outputSelection': _dspSupported,
         'headphoneProfiles': false,
       };
     }
