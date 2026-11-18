@@ -43,6 +43,7 @@ part 'now_playing_more_sheet.dart';
 
 const _artworkChannel = MethodChannel('app.melo.melo_player/library');
 final Map<Uri, Future<Uint8List?>> _artworkCache = {};
+final Map<Uri, Uint8List?> _resolvedArtworkBytes = {};
 final Map<Uri, Future<MeloPalette?>> _paletteCache = {};
 final Map<String, Future<Map<String, Object?>?>> _audioQualityCache = {};
 final Map<String, Future<Map<String, Object?>?>> _audioTagsCache = {};
@@ -97,11 +98,17 @@ Future<AudioWaveformData> _audioWaveformFor(MediaItem item) {
     if (isRemoteStream) {
       final seed = item.id.codeUnits.fold<int>(17, (acc, c) => (acc * 31 + c) & 0x7fffffff);
       final bins = List<double>.generate(128, (i) {
+        if (i < 4) {
+          return 0.03 + (i * 0.008);
+        }
+        if (i >= 123) {
+          return 0.06 - ((i - 123) * 0.007);
+        }
         final t = i / 127.0;
-        final envelope = math.sin(t * math.pi).clamp(0.22, 1.0);
-        final wave1 = math.sin(i * 0.43 + (seed % 97)) * 0.25;
-        final wave2 = math.cos(i * 1.17 + (seed % 53)) * 0.18;
-        return ((0.52 + wave1 + wave2) * envelope).clamp(0.14, 0.96);
+        final envelope = math.sin(t * math.pi).clamp(0.32, 1.0);
+        final wave1 = math.sin(i * 0.43 + (seed % 97)) * 0.22;
+        final wave2 = math.cos(i * 1.17 + (seed % 53)) * 0.14;
+        return ((0.56 + wave1 + wave2) * envelope).clamp(0.22, 0.96);
       }, growable: false);
       return AudioWaveformData.fromPlatform(bins);
     }
@@ -360,6 +367,19 @@ String _formatTime(int milliseconds) => formatPlaybackTime(milliseconds);
 /// accumulated time between real updates and making progress stutter or jump
 /// backwards.
 final _positionStreams = Expando<Stream<Duration>>('tonePlaybackPosition');
+
+/// Synchronous current playback position for initial lyrics/UI alignment.
+Duration currentPlaybackPosition(AudioHandler audioHandler) {
+  if (audioHandler is MeloAudioHandler) {
+    final deckPos = audioHandler.currentPosition;
+    if (deckPos > Duration.zero) return deckPos;
+  }
+  final state = audioHandler.playbackState.value;
+  if (!state.playing) return state.updatePosition;
+  return state.position > Duration.zero
+      ? state.position
+      : state.updatePosition;
+}
 
 /// Emits the live playback position for [audioHandler].
 ///

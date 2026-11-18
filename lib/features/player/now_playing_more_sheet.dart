@@ -180,6 +180,12 @@ class NowPlayingMoreSheet extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   _artworkCache.remove(item.artUri);
+                  _resolvedArtworkBytes.remove(item.artUri);
+                  final sourceUri = Uri.tryParse(item.id);
+                  if (sourceUri != null) {
+                    _artworkCache.remove(sourceUri);
+                    _resolvedArtworkBytes.remove(sourceUri);
+                  }
                   _paletteCache.remove(item.artUri);
                   _audioQualityCache.remove(item.id);
                   _audioTagsCache.remove(item.id);

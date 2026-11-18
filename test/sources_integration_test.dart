@@ -381,5 +381,26 @@ void main() {
       expect(release.preferredApkAsset, isNotNull);
       expect(release.preferredApkAsset!.name, 'app-release.apk');
     });
+
+    test('never reports legacy Tone 1.3.6 as latest when Melo 1.4.0 is installed', () {
+      const legacyRemote = GithubReleaseInfo(
+        tagName: 'v1.3.6',
+        title: 'Tone 1.3.6',
+        body: 'Legacy Tone release notes',
+        htmlUrl: 'https://github.com/ossy-harz/Melo/releases/tag/v1.3.6',
+        publishedAt: null,
+        isPrerelease: false,
+        assets: [],
+      );
+      final effective = AppUpdateService.resolveEffectiveLatestRelease(
+        currentVersion: '1.4.0',
+        currentBuild: 14,
+        repository: 'ossy-harz/Melo',
+        remoteLatest: legacyRemote,
+      );
+      expect(effective.title, 'Melo v1.4.0');
+      expect(effective.tagName, 'v1.4.0');
+      expect(effective.title.toLowerCase(), isNot(contains('tone')));
+    });
   });
 }

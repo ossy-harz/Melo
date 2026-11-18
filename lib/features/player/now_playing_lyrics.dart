@@ -1,5 +1,85 @@
 part of 'mini_player.dart';
 
+/// Aligns the active lyric line into view inside a lazy [ListView.builder],
+/// jumping near [index] first when the target item is not yet mounted.
+void _scrollToLyricLine({
+  required ScrollController controller,
+  required List<GlobalKey> lineKeys,
+  required int index,
+  required double alignment,
+  required bool instant,
+  required bool Function() isMounted,
+  required VoidCallback onScrolled,
+  required VoidCallback onNeedRetry,
+  int hop = 0,
+}) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!isMounted() ||
+        !controller.hasClients ||
+        index < 0 ||
+        index >= lineKeys.length) {
+      if (isMounted()) onNeedRetry();
+      return;
+    }
+    final lineContext = lineKeys[index].currentContext;
+    if (lineContext != null) {
+      onScrolled();
+      Scrollable.ensureVisible(
+        lineContext,
+        duration: instant ? Duration.zero : const Duration(milliseconds: 280),
+        curve: MeloMotion.emphasized,
+        alignment: alignment,
+      );
+      return;
+    }
+    if (hop >= 4) {
+      onNeedRetry();
+      return;
+    }
+    final position = controller.position;
+    final maxExtent = position.maxScrollExtent;
+    if (maxExtent <= 0) {
+      onNeedRetry();
+      return;
+    }
+
+    var targetOffset =
+        ((index / math.max(1, lineKeys.length - 1)) * maxExtent).toDouble();
+    if (hop > 0) {
+      int? firstMounted;
+      int? lastMounted;
+      for (var i = 0; i < lineKeys.length; i++) {
+        if (lineKeys[i].currentContext != null) {
+          firstMounted ??= i;
+          lastMounted = i;
+        }
+      }
+      final viewport = position.viewportDimension;
+      if (firstMounted != null && index < firstMounted) {
+        final deltaLines = firstMounted - index;
+        targetOffset = (position.pixels - math.max(viewport * 0.65, deltaLines * 44.0))
+            .clamp(0.0, maxExtent);
+      } else if (lastMounted != null && index > lastMounted) {
+        final deltaLines = index - lastMounted;
+        targetOffset = (position.pixels + math.max(viewport * 0.65, deltaLines * 44.0))
+            .clamp(0.0, maxExtent);
+      }
+    }
+    controller.jumpTo(targetOffset.clamp(0.0, maxExtent));
+    _scrollToLyricLine(
+      controller: controller,
+      lineKeys: lineKeys,
+      index: index,
+      alignment: alignment,
+      instant: instant,
+      isMounted: isMounted,
+      onScrolled: onScrolled,
+      onNeedRetry: onNeedRetry,
+      hop: hop + 1,
+    );
+  });
+}
+
 /// A compact 3-line live glance at the current lyric (previous line, highlighted
 /// current line, next line) that expands into full lyrics when tapped.
 class _ThreeLineLyricsPeek extends StatelessWidget {
@@ -13,24 +93,34 @@ class _ThreeLineLyricsPeek extends StatelessWidget {
   final AudioHandler audioHandler;
   final VoidCallback onExpand;
 
+  int _resolvedActiveLine(Duration position) {
+    final resolved = lyrics.isSynchronized
+        ? lyrics.activeLineAt(position)
+        : -1;
+    return resolved < 0 ? 0 : resolved;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Duration>(
-      stream: playbackPositionStream(audioHandler),
+    final initialLine = _resolvedActiveLine(
+      currentPlaybackPosition(audioHandler),
+    );
+    return StreamBuilder<int>(
+      initialData: initialLine,
+      stream: playbackPositionStream(
+        audioHandler,
+      ).map(_resolvedActiveLine).distinct(),
       builder: (context, snapshot) {
-        final position = snapshot.data ?? Duration.zero;
-        final hasStarted = position > Duration.zero;
-        final resolved = (hasStarted && lyrics.isSynchronized)
-            ? lyrics.activeLineAt(position)
-            : -1;
-        final active = resolved < 0 ? 0 : resolved;
+        final active = snapshot.data ?? initialLine;
 
         final prevLine = (active > 0 && active - 1 < lyrics.lines.length)
             ? lyrics.lines[active - 1].text
             : null;
         final currLine = (active >= 0 && active < lyrics.lines.length)
             ? lyrics.lines[active].text
-            : (lyrics.lines.isNotEmpty ? lyrics.lines.first.text : 'Tap to read lyrics');
+            : (lyrics.lines.isNotEmpty
+                  ? lyrics.lines.first.text
+                  : 'Tap to read lyrics');
         final nextLine = (active + 1 < lyrics.lines.length)
             ? lyrics.lines[active + 1].text
             : null;
@@ -131,6 +221,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
   final ScrollController _scrollController = ScrollController();
   List<GlobalKey> _lineKeys = const [];
   int? _lastScrolledIndex;
+  bool _didInitialScroll = false;
   int _syncOffsetMs = 0;
   String? _loadedItemId;
 
@@ -147,6 +238,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
     if (!identical(oldWidget.lyrics, widget.lyrics)) {
       _lineKeys = _buildLineKeys();
       _lastScrolledIndex = null;
+      _didInitialScroll = false;
       _loadSyncOffset();
     }
   }
@@ -185,19 +277,24 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
   }
 
   void _scrollToActiveLine(int index) {
-    if (index < 0 || index == _lastScrolledIndex) return;
+    if (index < 0) return;
+    final isInitial = !_didInitialScroll;
+    if (!isInitial && index == _lastScrolledIndex) return;
     _lastScrolledIndex = index;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || index >= _lineKeys.length) return;
-      final lineContext = _lineKeys[index].currentContext;
-      if (lineContext == null) return;
-      Scrollable.ensureVisible(
-        lineContext,
-        duration: MeloMotion.slow,
-        curve: MeloMotion.emphasized,
-        alignment: 0.42,
-      );
-    });
+    _scrollToLyricLine(
+      controller: _scrollController,
+      lineKeys: _lineKeys,
+      index: index,
+      alignment: 0.42,
+      instant: isInitial,
+      isMounted: () => mounted,
+      onScrolled: () => _didInitialScroll = true,
+      onNeedRetry: () {
+        if (_lastScrolledIndex == index) {
+          _lastScrolledIndex = null;
+        }
+      },
+    );
   }
 
   @override
@@ -472,153 +569,177 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
     );
   }
 
+  ({int line, int word}) _activeLyricsState(
+    SongLyrics lyrics,
+    Duration rawPosition,
+  ) {
+    final leadInMs = (widget.audioHandler is MeloAudioHandler) ? 120 : 0;
+    final adjustedMs = (rawPosition.inMilliseconds + _syncOffsetMs + leadInMs)
+        .clamp(0, 86400000);
+    final position = Duration(milliseconds: adjustedMs);
+    final activeIndex = lyrics.isSynchronized
+        ? lyrics.activeLineAt(position)
+        : -1;
+    final activeWord =
+        (activeIndex >= 0 && lyrics.lines[activeIndex].words.isNotEmpty)
+        ? lyrics.activeWordAt(activeIndex, position)
+        : -1;
+    return (line: activeIndex, word: activeWord);
+  }
+
   Widget _lyricsList(BuildContext context, SongLyrics lyrics) {
     final base = Theme.of(context).textTheme.titleLarge ?? const TextStyle();
-    return StreamBuilder<Duration>(
-      stream: playbackPositionStream(widget.audioHandler),
+    final initialState = _activeLyricsState(
+      lyrics,
+      currentPlaybackPosition(widget.audioHandler),
+    );
+    return StreamBuilder<({int line, int word})>(
+      initialData: initialState,
+      stream: playbackPositionStream(
+        widget.audioHandler,
+      ).map((pos) => _activeLyricsState(lyrics, pos)).distinct(),
       builder: (context, snapshot) {
-        final rawPosition = snapshot.data ?? Duration.zero;
-        final hasStarted = rawPosition > Duration.zero;
-        final leadInMs = (hasStarted && widget.audioHandler is MeloAudioHandler) ? 120 : 0;
-        final adjustedMs =
-            (rawPosition.inMilliseconds + _syncOffsetMs + leadInMs).clamp(
-              0,
-              86400000,
-            );
-        final position = Duration(milliseconds: adjustedMs);
-        final activeIndex = (hasStarted && lyrics.isSynchronized)
-            ? lyrics.activeLineAt(position)
-            : -1;
+        final state = snapshot.data ?? initialState;
+        final activeIndex = state.line;
+        final activeWord = state.word;
         if (activeIndex >= 0) {
           _scrollToActiveLine(activeIndex);
         }
         return LayoutBuilder(
           builder: (context, constraints) {
             final verticalPadding = constraints.maxHeight * 0.34;
-            return ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black,
-                  Colors.black,
-                  Colors.transparent,
-                ],
-                stops: [0, 0.16, 0.84, 1],
-              ).createShader(rect),
-              child: ListView.builder(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(
-                  26,
-                  verticalPadding,
-                  26,
-                  verticalPadding,
-                ),
-                itemCount: lyrics.lines.length,
-                itemBuilder: (context, index) {
-                  final line = lyrics.lines[index];
-                  final isActive = index == activeIndex;
-                  final activeWord = isActive && line.words.isNotEmpty
-                      ? lyrics.activeWordAt(index, position)
-                      : -1;
-                  final distance = activeIndex < 0
-                      ? 0
-                      : (index - activeIndex).abs();
-                  final dim = isActive ? 1.0 : (distance == 1 ? 0.6 : 0.38);
-                  return Padding(
-                    key: _lineKeys[index],
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: line.time != null
-                          ? () => unawaited(widget.audioHandler.seek(line.time!))
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: AnimatedDefaultTextStyle(
-                          duration: MeloMotion.slow,
-                          curve: MeloMotion.emphasized,
-                          style: base.copyWith(
-                            fontSize: isActive ? 24 : 21,
-                            height: 1.26,
-                            letterSpacing: isActive ? -0.6 : -0.3,
-                            fontWeight: isActive
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                            color: isActive
-                                ? widget.palette.accent
-                                : MeloColors.playerText.withValues(alpha: dim),
-                            shadows: isActive
-                                ? [
-                                    Shadow(
-                                      color: widget.palette.accent.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      blurRadius: 20,
-                                    ),
-                                  ]
-                                : null,
+            return RepaintBoundary(
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black,
+                    Colors.black,
+                    Colors.transparent,
+                  ],
+                  stops: [0, 0.16, 0.84, 1],
+                ).createShader(rect),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  cacheExtent: 320,
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    26,
+                    verticalPadding,
+                    26,
+                    verticalPadding,
+                  ),
+                  itemCount: lyrics.lines.length,
+                  itemBuilder: (context, index) {
+                    final line = lyrics.lines[index];
+                    final isActive = index == activeIndex;
+                    final lineActiveWord = isActive ? activeWord : -1;
+                    final distance = activeIndex < 0
+                        ? 0
+                        : (index - activeIndex).abs();
+                    final dim = isActive ? 1.0 : (distance == 1 ? 0.6 : 0.38);
+                    return Padding(
+                      key: _lineKeys[index],
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: line.time != null
+                            ? () =>
+                                  unawaited(widget.audioHandler.seek(line.time!))
+                            : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          child: line.words.isEmpty
-                              ? Text(line.text, textAlign: TextAlign.center)
-                              : Text.rich(
-                                  TextSpan(
-                                    children: [
-                                      for (
-                                        var wordIndex = 0;
-                                        wordIndex < line.words.length;
-                                        wordIndex++
-                                      )
-                                        TextSpan(
-                                          text:
-                                              '${line.words[wordIndex].text}'
-                                              '${wordIndex + 1 == line.words.length ? '' : ' '}',
-                                          style: isActive
-                                              ? TextStyle(
-                                                  color: activeWord >= 0 &&
-                                                          wordIndex < activeWord
-                                                      ? Colors.white
-                                                      : activeWord == wordIndex
-                                                      ? widget.palette.accent
-                                                      : Colors.white.withValues(
-                                                          alpha: 0.38,
-                                                        ),
-                                                  fontWeight:
-                                                      wordIndex <= activeWord
-                                                          ? FontWeight.w800
-                                                          : FontWeight.w600,
-                                                  shadows:
-                                                      activeWord == wordIndex
-                                                          ? [
-                                                              Shadow(
-                                                                color: widget
-                                                                    .palette
-                                                                    .accent
-                                                                    .withValues(
-                                                                      alpha: 0.7,
-                                                                    ),
-                                                                blurRadius: 18,
-                                                              ),
-                                                            ]
-                                                          : null,
-                                                )
-                                              : null,
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 220),
+                            curve: MeloMotion.emphasized,
+                            style: base.copyWith(
+                              fontSize: isActive ? 24 : 21,
+                              height: 1.26,
+                              letterSpacing: isActive ? -0.6 : -0.3,
+                              fontWeight: isActive
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: isActive
+                                  ? widget.palette.accent
+                                  : MeloColors.playerText.withValues(alpha: dim),
+                              shadows: isActive
+                                  ? [
+                                      Shadow(
+                                        color: widget.palette.accent.withValues(
+                                          alpha: 0.42,
                                         ),
-                                    ],
+                                        blurRadius: 12,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: line.words.isEmpty
+                                ? Text(line.text, textAlign: TextAlign.center)
+                                : Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        for (
+                                          var wordIndex = 0;
+                                          wordIndex < line.words.length;
+                                          wordIndex++
+                                        )
+                                          TextSpan(
+                                            text:
+                                                '${line.words[wordIndex].text}'
+                                                '${wordIndex + 1 == line.words.length ? '' : ' '}',
+                                            style: isActive
+                                                ? TextStyle(
+                                                    color:
+                                                        lineActiveWord >= 0 &&
+                                                            wordIndex <
+                                                                lineActiveWord
+                                                        ? Colors.white
+                                                        : lineActiveWord ==
+                                                              wordIndex
+                                                        ? widget.palette.accent
+                                                        : Colors.white
+                                                              .withValues(
+                                                                alpha: 0.38,
+                                                              ),
+                                                    fontWeight:
+                                                        wordIndex <=
+                                                            lineActiveWord
+                                                        ? FontWeight.w800
+                                                        : FontWeight.w600,
+                                                    shadows:
+                                                        lineActiveWord ==
+                                                            wordIndex
+                                                        ? [
+                                                            Shadow(
+                                                              color: widget
+                                                                  .palette
+                                                                  .accent
+                                                                  .withValues(
+                                                                    alpha: 0.55,
+                                                                  ),
+                                                              blurRadius: 10,
+                                                            ),
+                                                          ]
+                                                        : null,
+                                                  )
+                                                : null,
+                                          ),
+                                      ],
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -649,6 +770,7 @@ class _FullLyricsSheetState extends State<_FullLyricsSheet> {
   late final ScrollController _scrollController;
   late final List<GlobalKey> _lineKeys;
   int? _lastScrolledIndex;
+  bool _didInitialScroll = false;
 
   @override
   void initState() {
@@ -664,23 +786,41 @@ class _FullLyricsSheetState extends State<_FullLyricsSheet> {
   }
 
   void _scrollToActiveLine(int index) {
-    if (index < 0 || index == _lastScrolledIndex) return;
+    if (index < 0) return;
+    final isInitial = !_didInitialScroll;
+    if (!isInitial && index == _lastScrolledIndex) return;
     _lastScrolledIndex = index;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || index >= _lineKeys.length) return;
-      final lineContext = _lineKeys[index].currentContext;
-      if (lineContext == null) return;
-      Scrollable.ensureVisible(
-        lineContext,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeInOut,
-        alignment: 0.5,
-      );
-    });
+    _scrollToLyricLine(
+      controller: _scrollController,
+      lineKeys: _lineKeys,
+      index: index,
+      alignment: 0.45,
+      instant: isInitial,
+      isMounted: () => mounted,
+      onScrolled: () => _didInitialScroll = true,
+      onNeedRetry: () {
+        if (_lastScrolledIndex == index) {
+          _lastScrolledIndex = null;
+        }
+      },
+    );
+  }
+
+  ({int line, int word}) _activeSheetState(Duration position) {
+    final activeIndex = widget.lyrics.isSynchronized
+        ? widget.lyrics.activeLineAt(position)
+        : -1;
+    final activeWord = activeIndex >= 0
+        ? widget.lyrics.activeWordAt(activeIndex, position)
+        : -1;
+    return (line: activeIndex, word: activeWord);
   }
 
   @override
   Widget build(BuildContext context) {
+    final initialState = _activeSheetState(
+      currentPlaybackPosition(widget.audioHandler),
+    );
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.86,
       child: Padding(
@@ -720,106 +860,123 @@ class _FullLyricsSheetState extends State<_FullLyricsSheet> {
                 ),
               ),
               Expanded(
-                child: StreamBuilder<Duration>(
-                  stream: playbackPositionStream(widget.audioHandler),
+                child: StreamBuilder<({int line, int word})>(
+                  initialData: initialState,
+                  stream: playbackPositionStream(
+                    widget.audioHandler,
+                  ).map(_activeSheetState).distinct(),
                   builder: (context, snapshot) {
-                    final activeIndex = widget.lyrics.isSynchronized
-                        ? widget.lyrics.activeLineAt(
-                            snapshot.data ?? Duration.zero,
-                          )
-                        : -1;
+                    final state = snapshot.data ?? initialState;
+                    final activeIndex = state.line;
+                    final activeWord = state.word;
                     _scrollToActiveLine(activeIndex);
-                    return ListView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                      children: List.generate(widget.lyrics.lines.length, (
-                        index,
-                      ) {
-                        final isActive = index == activeIndex;
-                        final line = widget.lyrics.lines[index];
-                        final activeWord = isActive
-                            ? widget.lyrics.activeWordAt(
-                                index,
-                                snapshot.data ?? Duration.zero,
-                              )
-                            : -1;
-                        return Padding(
-                          key: _lineKeys[index],
-                          padding: const EdgeInsets.symmetric(vertical: 5),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: line.time != null
-                                ? () => unawaited(widget.audioHandler.seek(line.time!))
-                                : null,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 180),
-                                style:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium?.copyWith(
-                                      color: isActive
-                                          ? const Color(0xFFFF756C)
-                                          : Colors.white.withValues(alpha: 0.68),
-                                      fontWeight: isActive
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ) ??
-                                    const TextStyle(),
-                                child: !line.hasExplicitWords
-                                    ? Text(
-                                        line.text,
-                                        textAlign: TextAlign.center,
-                                        key: isActive
-                                            ? const ValueKey('active-lyrics-line')
-                                            : null,
-                                      )
-                                    : Text.rich(
-                                        TextSpan(
-                                          children: [
-                                            for (
-                                              var wordIndex = 0;
-                                              wordIndex < line.words.length;
-                                              wordIndex++
-                                            )
-                                              TextSpan(
-                                                text:
-                                                    '${line.words[wordIndex].text}${wordIndex + 1 == line.words.length ? '' : ' '}',
-                                                style: TextStyle(
-                                                  color: isActive && wordIndex == activeWord
-                                                      ? const Color(0xFFFF827A)
-                                                      : null,
-                                                  fontWeight: isActive &&
-                                                          wordIndex <= activeWord
-                                                      ? FontWeight.w800
-                                                      : FontWeight.w500,
-                                                  shadows: isActive &&
-                                                          wordIndex == activeWord
-                                                      ? const [
-                                                          Shadow(
-                                                            color: Color(0x99FF827A),
-                                                            blurRadius: 16,
-                                                          ),
-                                                        ]
-                                                      : null,
-                                                ),
+                    return RepaintBoundary(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        cacheExtent: 320,
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                        itemCount: widget.lyrics.lines.length,
+                        itemBuilder: (context, index) {
+                          final isActive = index == activeIndex;
+                          final line = widget.lyrics.lines[index];
+                          final lineActiveWord = isActive ? activeWord : -1;
+                          return Padding(
+                            key: _lineKeys[index],
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: line.time != null
+                                  ? () => unawaited(
+                                      widget.audioHandler.seek(line.time!),
+                                    )
+                                  : null,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                child: AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 180),
+                                  style:
+                                      Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium?.copyWith(
+                                        color: isActive
+                                            ? const Color(0xFFFF756C)
+                                            : Colors.white.withValues(
+                                                alpha: 0.68,
                                               ),
-                                          ],
+                                        fontWeight: isActive
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ) ??
+                                      const TextStyle(),
+                                  child: !line.hasExplicitWords
+                                      ? Text(
+                                          line.text,
+                                          textAlign: TextAlign.center,
+                                          key: isActive
+                                              ? const ValueKey(
+                                                  'active-lyrics-line',
+                                                )
+                                              : null,
+                                        )
+                                      : Text.rich(
+                                          TextSpan(
+                                            children: [
+                                              for (
+                                                var wordIndex = 0;
+                                                wordIndex < line.words.length;
+                                                wordIndex++
+                                              )
+                                                TextSpan(
+                                                  text:
+                                                      '${line.words[wordIndex].text}${wordIndex + 1 == line.words.length ? '' : ' '}',
+                                                  style: TextStyle(
+                                                    color:
+                                                        isActive &&
+                                                            wordIndex ==
+                                                                lineActiveWord
+                                                        ? const Color(
+                                                            0xFFFF827A,
+                                                          )
+                                                        : null,
+                                                    fontWeight:
+                                                        isActive &&
+                                                            wordIndex <=
+                                                                lineActiveWord
+                                                        ? FontWeight.w800
+                                                        : FontWeight.w500,
+                                                    shadows:
+                                                        isActive &&
+                                                            wordIndex ==
+                                                                lineActiveWord
+                                                        ? const [
+                                                            Shadow(
+                                                              color: Color(
+                                                                0x99FF827A,
+                                                              ),
+                                                              blurRadius: 10,
+                                                            ),
+                                                          ]
+                                                        : null,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          key: isActive
+                                              ? const ValueKey(
+                                                  'active-lyrics-line',
+                                                )
+                                              : null,
                                         ),
-                                        textAlign: TextAlign.center,
-                                        key: isActive
-                                            ? const ValueKey('active-lyrics-line')
-                                            : null,
-                                      ),
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),

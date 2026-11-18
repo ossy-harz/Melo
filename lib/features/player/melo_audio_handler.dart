@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -60,6 +59,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   /// The player's actual position, so progress never relies on projection.
   Stream<Duration> get positionStream => _positions.stream;
+  Duration get currentPosition => _audioEngine.stateFor(AudioDeck.a).position;
   final StreamController<Duration> _positions =
       StreamController<Duration>.broadcast();
 
@@ -103,6 +103,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   double _userVolume = 1.0;
   final List<MediaItem> _sessionHistory = [];
   final Map<String, Duration> _incomingTrackCues = {};
+  final Map<String, Duration> _outgoingTrackCues = {};
 
   void _recordSessionItem(MediaItem item) {
     _sessionHistory.removeWhere((existing) => existing.id == item.id);
@@ -503,13 +504,19 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (name == 'autoMix.setCuePoints') {
       final trackId = extras?['trackId'] as String?;
       final entryMs = extras?['entryPositionMs'];
-      if (trackId != null &&
-          trackId.isNotEmpty &&
-          entryMs is int &&
-          entryMs >= 0) {
-        _incomingTrackCues[trackId] = Duration(milliseconds: entryMs);
-        if (_incomingTrackCues.length > 32) {
-          _incomingTrackCues.remove(_incomingTrackCues.keys.first);
+      final exitMs = extras?['exitPositionMs'];
+      if (trackId != null && trackId.isNotEmpty) {
+        if (entryMs is int && entryMs >= 0) {
+          _incomingTrackCues[trackId] = Duration(milliseconds: entryMs);
+          if (_incomingTrackCues.length > 32) {
+            _incomingTrackCues.remove(_incomingTrackCues.keys.first);
+          }
+        }
+        if (exitMs is int && exitMs > 0) {
+          _outgoingTrackCues[trackId] = Duration(milliseconds: exitMs);
+          if (_outgoingTrackCues.length > 32) {
+            _outgoingTrackCues.remove(_outgoingTrackCues.keys.first);
+          }
         }
       }
       return null;
@@ -632,15 +639,24 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final remaining = duration - state.position;
     final attemptKey = '${_items[_currentIndex].id}:${_items[nextIndex].id}';
 
-    // Start the mix well before the track ends so both tracks overlap like a
-    // DJ crossfade instead of a hard cut at the very end. Begin mixing when
-    // there's at least one full transition plus an overlap window remaining.
-    final mixAhead = Duration(
-      seconds: math.max(
-        30,
-        (transitionDuration.inSeconds * 2).toInt(),
-      ),
-    );
+    // Preload Deck B well before the crossfade begins so transitions enter on beat
+    // without stream-loading stalls.
+    if (remaining <= const Duration(seconds: 28)) {
+      _scheduleNextTrackPreload();
+    }
+
+    // Begin crossfade at the detected quiet outro (when within the final 18s and
+    // long enough for the crossfade) or transitionDuration + 2s before track end.
+    final defaultWindowSeconds = (transitionDuration.inSeconds + 2).clamp(6, 14);
+    var mixAhead = Duration(seconds: defaultWindowSeconds);
+    final outroCue = _outgoingTrackCues[_items[_currentIndex].id];
+    if (outroCue != null && outroCue < duration) {
+      final cueRemaining = duration - outroCue;
+      if (cueRemaining <= const Duration(seconds: 18) &&
+          cueRemaining >= transitionDuration) {
+        mixAhead = cueRemaining;
+      }
+    }
 
     if (remaining > mixAhead) {
       if (_automaticTransitionAttempt == attemptKey) {

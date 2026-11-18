@@ -389,6 +389,51 @@ class CuratedPlaylistPreset {
   final bool allowLongEpisodes;
 }
 
+/// Builds a canonical [CuratedPlaylistPreset] for a [SmartVibe] station so
+/// Home shelves and background preloading share identical cache keys.
+CuratedPlaylistPreset smartVibeStationPreset(SmartVibe vibe) {
+  final (title, subtitle, badge, gradient, icon) = switch (vibe) {
+    SmartVibe.dailyFlow => (
+      'Personal Station',
+      'Continuous dynamic stream tailored to your favorites',
+      'PERSONAL STATION',
+      const [Color(0xFFFA243C), Color(0xFF7A0C1E), Color(0xFF0A0A0C)],
+      Icons.graphic_eq_rounded,
+    ),
+    SmartVibe.highEnergy => (
+      'Discovery Station',
+      'Endless exploration & fresh music discoveries',
+      'DISCOVERY',
+      const [Color(0xFF3B0812), Color(0xFFFA243C), Color(0xFF080808)],
+      Icons.radar_rounded,
+    ),
+    SmartVibe.deepFocus => (
+      'Deep Focus & Study',
+      'Calm instrumental grooves and ambient lofi beats',
+      'INSTRUMENTAL',
+      const [Color(0xFF1C1C1E), Color(0xFF3A0A14), Color(0xFF000000)],
+      Icons.headphones_rounded,
+    ),
+    SmartVibe.lateNightChill => (
+      'Late Night Chill',
+      'Mellow acoustic & atmospheric midnight soul',
+      'LATE NIGHT',
+      const [Color(0xFF4A0915), Color(0xFF140307), Color(0xFF000000)],
+      Icons.nightlight_round,
+    ),
+  };
+
+  return CuratedPlaylistPreset(
+    title: title,
+    curatorSubtitle: subtitle,
+    badge: badge,
+    searchQuery: '',
+    gradient: gradient,
+    icon: icon,
+    vibe: vibe,
+  );
+}
+
 /// Full-screen playlist and radio view matching the hero overlapping artwork,
 /// metadata summary, single-row action bar (preview art, Save, Download, Share,
 /// Shuffle, and Play FAB), and transparent track list design.
@@ -404,12 +449,37 @@ class CuratedPlaylistScreen extends StatefulWidget {
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
 
+  static List<YoutubeTrack>? cachedTracksFor(CuratedPlaylistPreset preset) =>
+      _CuratedPlaylistScreenState._cache[_CuratedPlaylistScreenState._cacheKeyFor(
+        preset,
+      )];
+
+  static Future<List<YoutubeTrack>> preloadPreset(
+    CuratedPlaylistPreset preset, {
+    MusicLibrary? library,
+  }) => _CuratedPlaylistScreenState._preloadPreset(preset, library: library);
+
+  static Future<void> preloadPresets(
+    Iterable<CuratedPlaylistPreset> presets, {
+    MusicLibrary? library,
+    int maxConcurrent = 2,
+  }) => _CuratedPlaylistScreenState._preloadPresets(
+    presets,
+    library: library,
+    maxConcurrent: maxConcurrent,
+  );
+
   @override
   State<CuratedPlaylistScreen> createState() => _CuratedPlaylistScreenState();
 }
 
 class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   static final Map<String, List<YoutubeTrack>> _cache = {};
+  static final Map<String, String> _coverCache = {};
+  static final Map<String, Future<List<YoutubeTrack>>> _inFlightPreloads = {};
+
+  static String _cacheKeyFor(CuratedPlaylistPreset preset) =>
+      '${preset.spotifyPlaylistId ?? ""}|${preset.title}|${preset.searchQuery}';
 
   List<YoutubeTrack> _tracks = const [];
   bool _loading = true;
@@ -428,6 +498,12 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     super.initState();
     widget.library?.addListener(_onLibraryChanged);
     PlaylistDownloadManager.instance.addListener(_onLibraryChanged);
+    final cached = _cache[_cacheKey];
+    if (cached != null && cached.isNotEmpty) {
+      _tracks = cached;
+      _resolvedArtistCoverUrl = _coverCache[_cacheKey];
+      _loading = false;
+    }
     unawaited(_loadTracks());
   }
 
@@ -452,8 +528,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     if (mounted) setState(() {});
   }
 
-  String get _cacheKey =>
-      '${widget.preset.spotifyPlaylistId ?? ""}|${widget.preset.title}';
+  String get _cacheKey => _cacheKeyFor(widget.preset);
 
   List<YoutubeTrack> get _filteredTracks {
     if (_searchFilter.isEmpty) return _tracks;
@@ -471,7 +546,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   static String _rawTrackId(String id) =>
       PlaylistDownloadManager.rawTrackId(id);
 
-  YoutubeTrack _fromSpotifyTrack(SpotifyTrack t) => YoutubeTrack(
+  static YoutubeTrack _fromSpotifyTrackStatic(SpotifyTrack t) => YoutubeTrack(
     id: 'spotify:${t.id}',
     title: t.title,
     author: t.artist,
@@ -479,6 +554,8 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     thumbnailUrl: t.artworkUrl,
     album: t.album,
   );
+
+  YoutubeTrack _fromSpotifyTrack(SpotifyTrack t) => _fromSpotifyTrackStatic(t);
 
   ImportedTrack _trackToImportedTrack(YoutubeTrack t) {
     final enrichedArt = _enrichedTrackArtworks[t.id] ?? t.thumbnailUrl;
@@ -543,10 +620,188 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     }
   }
 
+  static List<YoutubeTrack> _filterYoutubeTracksForPreset(
+    List<YoutubeTrack> results,
+    CuratedPlaylistPreset preset,
+  ) {
+    final maxSeconds = preset.allowLongEpisodes ? 14400 : 660;
+    return results
+        .where((t) {
+          if (t.duration.inSeconds > maxSeconds) return false;
+          if (t.duration.inSeconds > 0 && t.duration.inSeconds < 40) {
+            return false;
+          }
+          if (!preset.allowLongEpisodes &&
+              YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) {
+            return false;
+          }
+          return true;
+        })
+        .take(25)
+        .toList(growable: false);
+  }
+
+  static List<YoutubeTrack> _mapMediaItemsStatic(
+    List<MediaItem> items, {
+    required String fallbackArtist,
+  }) {
+    return items
+        .map((m) {
+          final isSpotify =
+              m.id.startsWith('spotify:') ||
+              m.extras?['downloadProvider'] == 'Spotify' ||
+              m.extras?['source'] == 'spotify';
+          final pId =
+              m.extras?['providerTrackId'] as String? ?? _rawTrackId(m.id);
+          return YoutubeTrack(
+            id: isSpotify ? 'spotify:$pId' : pId,
+            title: m.title,
+            author: m.artist ?? fallbackArtist,
+            duration: m.duration ?? const Duration(minutes: 3, seconds: 20),
+            thumbnailUrl: m.artUri?.toString(),
+            album: m.album,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  static Future<List<YoutubeTrack>> _resolvePresetTracks(
+    CuratedPlaylistPreset preset, {
+    MusicLibrary? library,
+    void Function(String coverUrl)? onCoverResolved,
+  }) async {
+    final key = _cacheKeyFor(preset);
+    var valid = const <YoutubeTrack>[];
+    final spotifyId = preset.spotifyPlaylistId?.trim();
+    final artistSeed =
+        preset.artistName ??
+        (preset.isArtistRadio
+            ? preset.title
+                  .replaceAll(RegExp(r'\s+Radio$', caseSensitive: false), '')
+                  .trim()
+            : null);
+
+    if (spotifyId != null && spotifyId.isNotEmpty) {
+      if (spotifyId == 'liked') {
+        final spotifyTracks = SpotifyService.instance.likedTracks.isNotEmpty
+            ? SpotifyService.instance.likedTracks
+            : SpotifyService.instance.personalFeedTracks;
+        valid = spotifyTracks
+            .map(_fromSpotifyTrackStatic)
+            .toList(growable: false);
+      } else {
+        try {
+          final data = await SpotifyService.instance.fetchPlaylist(spotifyId);
+          if (data.artworkUrl != null && data.artworkUrl!.isNotEmpty) {
+            _coverCache[key] = data.artworkUrl!;
+            onCoverResolved?.call(data.artworkUrl!);
+          }
+          valid = data.tracks
+              .map(_fromSpotifyTrackStatic)
+              .toList(growable: false);
+        } catch (e) {
+          debugPrint('Spotify playlist fetch failed ($spotifyId): $e');
+        }
+      }
+      if (valid.isEmpty) {
+        final fallbackQuery = preset.searchQuery.isNotEmpty
+            ? preset.searchQuery
+            : '${preset.title} official audio';
+        final results = await YoutubeAudioService.instance.search(
+          fallbackQuery,
+          filterMixtapes: true,
+        );
+        valid = _filterYoutubeTracksForPreset(results, preset);
+      }
+    } else if (artistSeed != null && artistSeed.isNotEmpty) {
+      if (preset.coverUrl == null || preset.coverUrl!.isEmpty) {
+        unawaited(
+          SongMetadataEnricher.instance.fetchArtistImageUrl(artistSeed).then((
+            url,
+          ) {
+            if (url != null && url.isNotEmpty) {
+              _coverCache[key] = url;
+              onCoverResolved?.call(url);
+            }
+          }),
+        );
+      }
+      final radio = await SmartPlaylistService.instance.generateArtistRadio(
+        artist: artistSeed,
+        library: library,
+        artworkUri: preset.coverUrl,
+      );
+      valid = _mapMediaItemsStatic(radio.tracks, fallbackArtist: artistSeed);
+    } else if (preset.vibe != null) {
+      final smart = await SmartPlaylistService.instance.generateVibeMix(
+        vibe: preset.vibe!,
+        library: library,
+      );
+      valid = _mapMediaItemsStatic(smart.tracks, fallbackArtist: 'Melo');
+    } else if (preset.searchQuery.trim().isNotEmpty) {
+      final results = await YoutubeAudioService.instance.search(
+        preset.searchQuery,
+        filterMixtapes: !preset.allowLongEpisodes,
+      );
+      valid = _filterYoutubeTracksForPreset(results, preset);
+    }
+
+    if (valid.isNotEmpty) {
+      _cache[key] = valid;
+    }
+    return valid;
+  }
+
+  static Future<List<YoutubeTrack>> _preloadPreset(
+    CuratedPlaylistPreset preset, {
+    MusicLibrary? library,
+  }) async {
+    if (preset.initialMediaItems != null &&
+        preset.initialMediaItems!.isNotEmpty) {
+      return _mapMediaItemsStatic(
+        preset.initialMediaItems!,
+        fallbackArtist: preset.artistName ?? 'Melo',
+      );
+    }
+    if (preset.initialSpotifyTracks != null &&
+        preset.initialSpotifyTracks!.isNotEmpty) {
+      return preset.initialSpotifyTracks!
+          .map(_fromSpotifyTrackStatic)
+          .toList(growable: false);
+    }
+    final key = _cacheKeyFor(preset);
+    final cached = _cache[key];
+    if (cached != null && cached.isNotEmpty) return cached;
+    final inFlight = _inFlightPreloads[key];
+    if (inFlight != null) return inFlight;
+
+    final future = _resolvePresetTracks(preset, library: library)
+        .catchError((_) => const <YoutubeTrack>[])
+        .whenComplete(() => _inFlightPreloads.remove(key));
+    _inFlightPreloads[key] = future;
+    return future;
+  }
+
+  static Future<void> _preloadPresets(
+    Iterable<CuratedPlaylistPreset> presets, {
+    MusicLibrary? library,
+    int maxConcurrent = 2,
+  }) async {
+    final queue = presets.toList(growable: false);
+    if (queue.isEmpty) return;
+    final stride = maxConcurrent.clamp(1, 4);
+    for (var i = 0; i < queue.length; i += stride) {
+      final batch = queue.skip(i).take(stride);
+      await Future.wait(
+        batch.map((preset) => _preloadPreset(preset, library: library)),
+      );
+    }
+  }
+
   Future<void> _loadTracks() async {
     final initialItems = widget.preset.initialMediaItems;
     if (initialItems != null && initialItems.isNotEmpty) {
-      final mapped = _mapMediaItemsToTracks(
+      final mapped = _mapMediaItemsStatic(
         initialItems,
         fallbackArtist: widget.preset.artistName ?? 'Melo',
       );
@@ -589,6 +844,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       if (mounted) {
         setState(() {
           _tracks = cached;
+          _resolvedArtistCoverUrl ??= _coverCache[_cacheKey];
           _loading = false;
         });
       }
@@ -598,84 +854,23 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     }
 
     try {
-      var valid = const <YoutubeTrack>[];
-      final spotifyId = widget.preset.spotifyPlaylistId?.trim();
-      final artistSeed =
-          widget.preset.artistName ??
-          (widget.preset.isArtistRadio
-              ? widget.preset.title
-                    .replaceAll(RegExp(r'\s+Radio$', caseSensitive: false), '')
-                    .trim()
-              : null);
-
-      if (spotifyId != null && spotifyId.isNotEmpty) {
-        if (spotifyId == 'liked') {
-          final spotifyTracks = SpotifyService.instance.likedTracks.isNotEmpty
-              ? SpotifyService.instance.likedTracks
-              : SpotifyService.instance.personalFeedTracks;
-          valid = spotifyTracks.map(_fromSpotifyTrack).toList(growable: false);
-        } else {
-          try {
-            final data = await SpotifyService.instance.fetchPlaylist(spotifyId);
-            if (mounted &&
-                data.artworkUrl != null &&
-                data.artworkUrl!.isNotEmpty) {
-              setState(() => _resolvedArtistCoverUrl = data.artworkUrl);
-            }
-            valid = data.tracks.map(_fromSpotifyTrack).toList(growable: false);
-          } catch (e) {
-            debugPrint('Spotify playlist fetch failed ($spotifyId): $e');
-          }
-        }
-        if (valid.isEmpty) {
-          final fallbackQuery = widget.preset.searchQuery.isNotEmpty
-              ? widget.preset.searchQuery
-              : '${widget.preset.title} official audio';
-          final results = await YoutubeAudioService.instance.search(
-            fallbackQuery,
-            filterMixtapes: true,
-          );
-          valid = _filterValidYoutubeTracks(results);
-        }
-      } else if (artistSeed != null && artistSeed.isNotEmpty) {
-        if (widget.preset.coverUrl == null || widget.preset.coverUrl!.isEmpty) {
-          unawaited(
-            SongMetadataEnricher.instance.fetchArtistImageUrl(artistSeed).then((
-              url,
-            ) {
-              if (mounted && url != null && url.isNotEmpty) {
-                setState(() => _resolvedArtistCoverUrl = url);
-              }
-            }),
-          );
-        }
-        final radio = await SmartPlaylistService.instance.generateArtistRadio(
-          artist: artistSeed,
-          library: widget.library,
-          artworkUri: widget.preset.coverUrl,
-        );
-        valid = _mapMediaItemsToTracks(radio.tracks, fallbackArtist: artistSeed);
-      } else if (widget.preset.vibe != null) {
-        final smart = await SmartPlaylistService.instance.generateVibeMix(
-          vibe: widget.preset.vibe!,
-          library: widget.library,
-        );
-        valid = _mapMediaItemsToTracks(smart.tracks, fallbackArtist: 'Melo');
-      } else {
-        final results = await YoutubeAudioService.instance.search(
-          widget.preset.searchQuery,
-          filterMixtapes: !widget.preset.allowLongEpisodes,
-        );
-        valid = _filterValidYoutubeTracks(results);
-      }
-
-      if (valid.isNotEmpty) {
-        _cache[_cacheKey] = valid;
-      }
+      final inFlight = _inFlightPreloads[_cacheKey];
+      final valid = inFlight != null
+          ? await inFlight
+          : await _resolvePresetTracks(
+              widget.preset,
+              library: widget.library,
+              onCoverResolved: (url) {
+                if (mounted && url.isNotEmpty) {
+                  setState(() => _resolvedArtistCoverUrl = url);
+                }
+              },
+            );
 
       if (mounted) {
         setState(() {
           _tracks = valid;
+          _resolvedArtistCoverUrl ??= _coverCache[_cacheKey];
           _loading = false;
           _errorMessage = valid.isEmpty
               ? 'No tracks found for this playlist.'
@@ -694,29 +889,6 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
         });
       }
     }
-  }
-
-  List<YoutubeTrack> _mapMediaItemsToTracks(
-    List<MediaItem> items, {
-    required String fallbackArtist,
-  }) {
-    return items
-        .map((m) {
-          final isSpotify =
-              m.id.startsWith('spotify:') ||
-              m.extras?['downloadProvider'] == 'Spotify' ||
-              m.extras?['source'] == 'spotify';
-          final pId = m.extras?['providerTrackId'] as String? ?? _rawTrackId(m.id);
-          return YoutubeTrack(
-            id: isSpotify ? 'spotify:$pId' : pId,
-            title: m.title,
-            author: m.artist ?? fallbackArtist,
-            duration: m.duration ?? const Duration(minutes: 3, seconds: 20),
-            thumbnailUrl: m.artUri?.toString(),
-            album: m.album,
-          );
-        })
-        .toList(growable: false);
   }
 
   Future<void> _appendRelatedTracksInBackground(
@@ -748,23 +920,8 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     } catch (_) {}
   }
 
-  List<YoutubeTrack> _filterValidYoutubeTracks(List<YoutubeTrack> results) {
-    final maxSeconds = widget.preset.allowLongEpisodes ? 14400 : 660;
-    return results
-        .where((t) {
-          if (t.duration.inSeconds > maxSeconds) return false;
-          if (t.duration.inSeconds > 0 && t.duration.inSeconds < 40) {
-            return false;
-          }
-          if (!widget.preset.allowLongEpisodes &&
-              YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) {
-            return false;
-          }
-          return true;
-        })
-        .take(25)
-        .toList(growable: false);
-  }
+  List<YoutubeTrack> _filterValidYoutubeTracks(List<YoutubeTrack> results) =>
+      _filterYoutubeTracksForPreset(results, widget.preset);
 
   Future<void> _enrichTrackArtworks(List<YoutubeTrack> tracks) async {
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;

@@ -17,6 +17,7 @@ import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 
 void main() {
@@ -511,7 +512,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Now Playing top title opens playlist and toggles motion canvas', (
+  testWidgets('Now Playing top title opens playlist without video canvas button', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -564,6 +565,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('Video & motion canvas'), findsNothing);
+    expect(find.text('MOTION CANVAS'), findsNothing);
     expect(find.text('Playing Matata Radio'), findsOneWidget);
     await tester.tap(find.text('Playing Matata Radio'));
     await tester.pump();
@@ -578,14 +581,6 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    await tester.tap(find.byTooltip('Video & motion canvas'));
-    await tester.pumpAndSettle();
-    expect(find.text('MOTION CANVAS'), findsOneWidget);
-    expect(find.text('Watch Music Video'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Show album artwork'));
-    await tester.pumpAndSettle();
-    expect(find.text('MOTION CANVAS'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -2093,6 +2088,155 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'Read lyrics scrolls straight to current mid-song line instead of staying at line 1',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      const channel = MethodChannel('app.melo.melo_player/library');
+      final longLrc = List.generate(40, (i) {
+        final totalSec = i * 4;
+        final mm = (totalSec ~/ 60).toString().padLeft(2, '0');
+        final ss = (totalSec % 60).toString().padLeft(2, '0');
+        return '[$mm:$ss.00]Lyric line number ${i + 1}';
+      }).join('\n');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'readLyrics') return longLrc;
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      tester.view.physicalSize = const Size(432, 960);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      // Line 30 is at 116 seconds (offscreen far down a 40-line list).
+      final handler = _PreviewAudioHandler()
+        ..mediaItem.add(
+          const MediaItem(
+            id: 'long-lyrics-song',
+            title: 'Long Song',
+            artist: 'Melo Test',
+            duration: Duration(minutes: 4),
+            extras: {'lyricsUri': 'content://music/lyrics/long.lrc'},
+          ),
+        )
+        ..playbackState.add(
+          PlaybackState(
+            processingState: AudioProcessingState.ready,
+            playing: false,
+            updatePosition: const Duration(seconds: 117),
+          ),
+        );
+      await tester.pumpWidget(
+        MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Read lyrics'));
+      await tester.pumpAndSettle();
+
+      final activeText = tester.widget<Text>(
+        find.byKey(const ValueKey('active-lyrics-line')),
+      );
+      expect(activeText.data, 'Lyric line number 30');
+      expect(find.text('Lyric line number 1'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Buy Me a Coffee is removed and About Melo shows Melo version cleanly', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SupportFeedbackScreen(initialTab: 0)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Buy Me a Coffee'), findsNothing);
+    expect(find.byIcon(Icons.coffee_rounded), findsNothing);
+    expect(find.text('Community'), findsOneWidget);
+    expect(find.text('Melo is 100% Free & Open Source'), findsOneWidget);
+
+    await tester.pumpWidget(const MaterialApp(home: AboutToneScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Buy Me a Coffee'), findsNothing);
+    expect(find.byIcon(Icons.coffee_rounded), findsNothing);
+    expect(find.textContaining('Melo v1.4.1'), findsWidgets);
+    expect(find.textContaining('github.com/ossy-harz/Tone'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home time-of-day greeting resolves morning and evening accurately and hides No quiet intro/outro detected', (
+    tester,
+  ) async {
+    expect(HomeScreen.timeOfDayGreeting(DateTime(2026, 11, 18, 8, 53)), 'Good morning');
+    expect(HomeScreen.timeOfDayGreeting(DateTime(2026, 11, 18, 13, 30)), 'Good afternoon');
+    expect(HomeScreen.timeOfDayGreeting(DateTime(2026, 11, 18, 19, 0)), 'Good evening');
+    expect(HomeScreen.timeOfDayGreeting(DateTime(2026, 11, 18, 23, 30)), 'Late night vibes');
+
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('app.melo.melo_player/library');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'readAudioWaveform') {
+            return List<double>.filled(64, 0.5);
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    tester.view.physicalSize = const Size(432, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final handler = _PreviewAudioHandler()
+      ..queue.add(const [
+        MediaItem(
+          id: 'track-a',
+          title: 'Track A',
+          artist: 'Artist A',
+          duration: Duration(minutes: 3),
+        ),
+        MediaItem(
+          id: 'track-b',
+          title: 'Track B',
+          artist: 'Artist B',
+          duration: Duration(minutes: 3),
+        ),
+      ])
+      ..mediaItem.add(
+        const MediaItem(
+          id: 'track-a',
+          title: 'Track A',
+          artist: 'Artist A',
+          duration: Duration(minutes: 3),
+        ),
+      )
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(home: NowPlayingScreen(audioHandler: handler)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No quiet intro/outro detected'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {

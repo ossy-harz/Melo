@@ -208,6 +208,7 @@ class TopPicksShelf extends StatefulWidget {
     required this.onPlayPreset,
     this.library,
     this.onOpenArtistRadio,
+    this.refreshGeneration = 0,
     super.key,
   });
 
@@ -218,9 +219,52 @@ class TopPicksShelf extends StatefulWidget {
   final ValueChanged<CuratedPlaylistPreset> onPlayPreset;
   final MusicLibrary? library;
   final ValueChanged<String>? onOpenArtistRadio;
+  final int refreshGeneration;
 
   @override
   State<TopPicksShelf> createState() => _TopPicksShelfState();
+}
+
+int _timeOfDayPresetBoost(CuratedPlaylistPreset preset, [DateTime? now]) {
+  final hour = (now ?? DateTime.now()).hour;
+  final genre = preset.genre.toLowerCase();
+  if (hour >= 4 && hour < 12) {
+    return (genre.contains('focus') ||
+            genre.contains('gospel') ||
+            genre.contains('pop') ||
+            genre.contains('afro') ||
+            genre.contains('kenyan') ||
+            genre.contains('reggae'))
+        ? 2
+        : 0;
+  }
+  if (hour >= 12 && hour < 17) {
+    return (genre.contains('afro') ||
+            genre.contains('pop') ||
+            genre.contains('kenyan') ||
+            genre.contains('dancehall') ||
+            genre.contains('amapiano') ||
+            genre.contains('hip'))
+        ? 2
+        : 0;
+  }
+  if (hour >= 17 && hour < 22) {
+    return (genre.contains('dancehall') ||
+            genre.contains('amapiano') ||
+            genre.contains('dance') ||
+            genre.contains('hip') ||
+            genre.contains('afro') ||
+            genre.contains('kenyan'))
+        ? 2
+        : 0;
+  }
+  return (genre.contains('r&b') ||
+          genre.contains('focus') ||
+          genre.contains('reggae') ||
+          genre.contains('podcast') ||
+          genre.contains('rock'))
+      ? 2
+      : 0;
 }
 
 class _TopPickEntry {
@@ -232,6 +276,7 @@ class _TopPickEntry {
     required this.icon,
     required this.onTap,
     this.coverUrl,
+    this.preset,
   });
 
   final String categoryBadge;
@@ -241,6 +286,7 @@ class _TopPickEntry {
   final IconData icon;
   final VoidCallback onTap;
   final String? coverUrl;
+  final CuratedPlaylistPreset? preset;
 }
 
 /// Stateful vibe-tuning dialog so [_controller] survives route pop & IME close animations.
@@ -375,6 +421,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
 
   List<String> _customVibes = const [];
   int _rotationSeed = 0;
+  String? _preloadedSignature;
 
   @override
   void initState() {
@@ -383,6 +430,14 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     SpotifyService.instance.authState.addListener(_onSpotifyChanged);
     SpotifyService.instance.feedRevision.addListener(_onSpotifyChanged);
     unawaited(_loadSavedVibePrefs());
+  }
+
+  @override
+  void didUpdateWidget(covariant TopPicksShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshGeneration != widget.refreshGeneration) {
+      setState(() => _rotationSeed++);
+    }
   }
 
   @override
@@ -499,11 +554,22 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
               gradient: preset.gradient,
               icon: preset.icon,
               coverUrl: preset.coverUrl,
+              preset: preset,
               onTap: () => widget.onPlayPreset(preset),
             ),
           );
         }
       } else {
+        final dynamicPreset = CuratedPlaylistPreset(
+          title: '$activeGenre Essentials',
+          curatorSubtitle: 'Tailored $activeGenre essentials',
+          badge: activeGenre.toUpperCase(),
+          searchQuery: '$activeGenre top hits songs official audio',
+          gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+          icon: Icons.local_fire_department_rounded,
+          genre: activeGenre,
+          allowLongEpisodes: isPodcastMode,
+        );
         entries.add(
           _TopPickEntry(
             categoryBadge: activeGenre.toUpperCase(),
@@ -513,86 +579,77 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
             icon: Icons.local_fire_department_rounded,
             coverUrl:
                 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&q=80',
-            onTap: () => widget.onPlayPreset(
-              CuratedPlaylistPreset(
-                title: '$activeGenre Essentials',
-                curatorSubtitle: 'Tailored $activeGenre essentials',
-                badge: activeGenre.toUpperCase(),
-                searchQuery: '$activeGenre top hits songs official audio',
-                gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
-                icon: Icons.local_fire_department_rounded,
-                genre: activeGenre,
-                allowLongEpisodes: isPodcastMode,
-              ),
-            ),
+            preset: dynamicPreset,
+            onTap: () => widget.onPlayPreset(dynamicPreset),
           ),
         );
       }
 
+      final genreRadioPreset = CuratedPlaylistPreset(
+        title: '$activeGenre Radio',
+        curatorSubtitle: 'With top $activeGenre artists & similar tracks',
+        badge: 'MADE FOR YOU',
+        searchQuery: '$activeGenre radio mix songs official audio',
+        gradient: const [MeloColors.cherry, Color(0xFF0A0A0C)],
+        icon: Icons.sensors_rounded,
+        isArtistRadio: true,
+        genre: activeGenre,
+        allowLongEpisodes: isPodcastMode,
+      );
+      final genreFreshPreset = CuratedPlaylistPreset(
+        title: '$activeGenre Fresh & Trending',
+        curatorSubtitle: 'Newest $activeGenre hits & street anthems',
+        badge: 'NEW RELEASES',
+        searchQuery: 'new $activeGenre songs 2025 2026 official audio',
+        gradient: const [Color(0xFF4A0915), Color(0xFF000000)],
+        icon: Icons.bolt_rounded,
+        genre: activeGenre,
+        allowLongEpisodes: isPodcastMode,
+      );
+      final genreClassicsPreset = CuratedPlaylistPreset(
+        title: '$activeGenre Classics & Anthems',
+        curatorSubtitle: 'Greatest $activeGenre classics of all time',
+        badge: 'ALL-TIME CLASSICS',
+        searchQuery: 'best $activeGenre classics anthems official audio',
+        gradient: const [Color(0xFF2C2C2E), Color(0xFF000000)],
+        icon: Icons.album_rounded,
+        genre: activeGenre,
+        allowLongEpisodes: isPodcastMode,
+      );
+
       entries.addAll([
         _TopPickEntry(
           categoryBadge: 'RADIO MIX',
-          title: '$activeGenre Radio',
+          title: genreRadioPreset.title,
           description: 'Continuous $activeGenre station tailored to your taste.',
           gradient: const [Color(0xFF7A0C1E), Color(0xFF0A0A0C)],
           icon: Icons.sensors_rounded,
           coverUrl:
               'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80',
-          onTap: () => widget.onPlayPreset(
-            CuratedPlaylistPreset(
-              title: '$activeGenre Radio',
-              curatorSubtitle: 'With top $activeGenre artists & similar tracks',
-              badge: 'MADE FOR YOU',
-              searchQuery: '$activeGenre radio mix songs official audio',
-              gradient: const [MeloColors.cherry, Color(0xFF0A0A0C)],
-              icon: Icons.sensors_rounded,
-              isArtistRadio: true,
-              genre: activeGenre,
-              allowLongEpisodes: isPodcastMode,
-            ),
-          ),
+          preset: genreRadioPreset,
+          onTap: () => widget.onPlayPreset(genreRadioPreset),
         ),
         _TopPickEntry(
           categoryBadge: 'FRESH HEAT',
-          title: '$activeGenre Fresh & Trending',
+          title: genreFreshPreset.title,
           description: 'New $activeGenre releases & viral club cuts.',
           gradient: const [Color(0xFF1C1C1E), Color(0xFF000000)],
           icon: Icons.bolt_rounded,
           coverUrl:
               'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
-          onTap: () => widget.onPlayPreset(
-            CuratedPlaylistPreset(
-              title: '$activeGenre Fresh & Trending',
-              curatorSubtitle: 'Newest $activeGenre hits & street anthems',
-              badge: 'NEW RELEASES',
-              searchQuery: 'new $activeGenre songs 2025 2026 official audio',
-              gradient: const [Color(0xFF4A0915), Color(0xFF000000)],
-              icon: Icons.bolt_rounded,
-              genre: activeGenre,
-              allowLongEpisodes: isPodcastMode,
-            ),
-          ),
+          preset: genreFreshPreset,
+          onTap: () => widget.onPlayPreset(genreFreshPreset),
         ),
         _TopPickEntry(
           categoryBadge: 'CLASSICS',
-          title: '$activeGenre Classics & Anthems',
+          title: genreClassicsPreset.title,
           description: 'Timeless $activeGenre bangers & unforgettable anthems.',
           gradient: const [Color(0xFF2C2C2E), Color(0xFF000000)],
           icon: Icons.album_rounded,
           coverUrl:
               'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
-          onTap: () => widget.onPlayPreset(
-            CuratedPlaylistPreset(
-              title: '$activeGenre Classics & Anthems',
-              curatorSubtitle: 'Greatest $activeGenre classics of all time',
-              badge: 'ALL-TIME CLASSICS',
-              searchQuery: 'best $activeGenre classics anthems official audio',
-              gradient: const [Color(0xFF2C2C2E), Color(0xFF000000)],
-              icon: Icons.album_rounded,
-              genre: activeGenre,
-              allowLongEpisodes: isPodcastMode,
-            ),
-          ),
+          preset: genreClassicsPreset,
+          onTap: () => widget.onPlayPreset(genreClassicsPreset),
         ),
       ]);
       return entries;
@@ -614,6 +671,17 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
           icon: Icons.auto_awesome_rounded,
           coverUrl: topArtistCover,
+          preset: CuratedPlaylistPreset(
+            title: '$topArtist Radio',
+            curatorSubtitle: 'With similar artists & trending tracks',
+            badge: 'ARTIST RADIO',
+            searchQuery: '$topArtist songs',
+            gradient: const [MeloColors.cherry, MeloColors.cherryDeep, Color(0xFF0A0A0C)],
+            icon: Icons.sensors_rounded,
+            coverUrl: topArtistCover,
+            isArtistRadio: true,
+            artistName: topArtist,
+          ),
           onTap: () => widget.onOpenArtistRadio?.call(topArtist),
         ),
       );
@@ -622,6 +690,16 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     if (spotify.isLoggedIn && spotify.userPlaylists.isNotEmpty) {
       final sp =
           spotify.userPlaylists[_rotationSeed % spotify.userPlaylists.length];
+      final spPreset = CuratedPlaylistPreset(
+        title: sp.title,
+        curatorSubtitle: sp.subtitle,
+        badge: 'SPOTIFY PLAYLIST',
+        searchQuery: '${sp.title} official audio',
+        gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+        icon: Icons.graphic_eq_rounded,
+        coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
+        spotifyPlaylistId: sp.id,
+      );
       entries.add(
         _TopPickEntry(
           categoryBadge: 'YOUR SPOTIFY',
@@ -630,18 +708,8 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           gradient: const [Color(0xFF7A0C1E), Color(0xFF000000)],
           icon: Icons.graphic_eq_rounded,
           coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
-          onTap: () => widget.onPlayPreset(
-            CuratedPlaylistPreset(
-              title: sp.title,
-              curatorSubtitle: sp.subtitle,
-              badge: 'SPOTIFY PLAYLIST',
-              searchQuery: '${sp.title} official audio',
-              gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
-              icon: Icons.graphic_eq_rounded,
-              coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
-              spotifyPlaylistId: sp.id,
-            ),
-          ),
+          preset: spPreset,
+          onTap: () => widget.onPlayPreset(spPreset),
         ),
       );
     }
@@ -664,7 +732,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         <({CuratedPlaylistPreset preset, int score, int index})>[];
     for (var i = 0; i < kRecommendedPlaylists.length; i++) {
       final p = kRecommendedPlaylists[i];
-      var score = 0;
+      var score = _timeOfDayPresetBoost(p);
       final gLower = p.genre.toLowerCase();
       final subLower = '${p.title} ${p.curatorSubtitle}'.toLowerCase();
       for (final g in tasteGenres) {
@@ -695,6 +763,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           Color(0xFF0A0A0C),
         ],
         icon: Icons.graphic_eq_rounded,
+        preset: smartVibeStationPreset(SmartVibe.dailyFlow),
         onTap: () => widget.onPlayVibe(SmartVibe.dailyFlow),
       ),
     );
@@ -703,7 +772,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     final dynamicPool = [
       ...scoredPresets.skip(rotateOffset),
       ...scoredPresets.take(rotateOffset),
-    ].take(6);
+    ].take(8);
     for (final entry in dynamicPool) {
       final preset = entry.preset;
       entries.add(
@@ -714,11 +783,29 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           gradient: preset.gradient,
           icon: preset.icon,
           coverUrl: preset.coverUrl,
+          preset: preset,
           onTap: () => widget.onPlayPreset(preset),
         ),
       );
     }
     return entries;
+  }
+
+  void _schedulePreload(List<_TopPickEntry> cards, String activeGenre) {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    final signature =
+        '$activeGenre|$_rotationSeed|${cards.take(4).map((c) => c.title).join(',')}';
+    if (_preloadedSignature == signature) return;
+    _preloadedSignature = signature;
+    final presets = cards
+        .map((c) => c.preset)
+        .whereType<CuratedPlaylistPreset>()
+        .take(4)
+        .toList(growable: false);
+    if (presets.isEmpty) return;
+    unawaited(
+      CuratedPlaylistScreen.preloadPresets(presets, library: widget.library),
+    );
   }
 
   @override
@@ -732,6 +819,9 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           const AlwaysStoppedAnimation<int>(0),
       builder: (context, _, _) {
         final cards = _buildDynamicTopPicks();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _schedulePreload(cards, activeGenre);
+        });
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1217,136 +1307,414 @@ class RecentlyPlayedShelf extends StatelessWidget {
   }
 }
 
-class StationsForYouShelf extends StatelessWidget {
+class _StationSpec {
+  const _StationSpec({
+    required this.title,
+    required this.subtitle,
+    required this.gradient,
+    required this.icon,
+    required this.preset,
+    required this.onTap,
+    this.artworkTrack,
+    this.defaultArtworkUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Color> gradient;
+  final IconData icon;
+  final CuratedPlaylistPreset preset;
+  final VoidCallback onTap;
+  final ImportedTrack? artworkTrack;
+  final String? defaultArtworkUrl;
+}
+
+class StationsForYouShelf extends StatefulWidget {
   const StationsForYouShelf({
     required this.onPlayVibe,
+    this.onPlayPreset,
     this.library,
+    this.audioHandler,
+    this.refreshGeneration = 0,
     super.key,
   });
 
   final ValueChanged<SmartVibe> onPlayVibe;
+  final ValueChanged<CuratedPlaylistPreset>? onPlayPreset;
   final MusicLibrary? library;
+  final AudioHandler? audioHandler;
+  final int refreshGeneration;
+
+  @override
+  State<StationsForYouShelf> createState() => _StationsForYouShelfState();
+}
+
+class _StationsForYouShelfState extends State<StationsForYouShelf> {
+  int _stationSeed = 0;
+  String? _preloadedSignature;
+
+  @override
+  void initState() {
+    super.initState();
+    TopPicksShelf.selectedGenreNotifier.addListener(_onChanged);
+    SpotifyService.instance.feedRevision.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant StationsForYouShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshGeneration != widget.refreshGeneration) {
+      setState(() => _stationSeed++);
+    }
+  }
+
+  @override
+  void dispose() {
+    TopPicksShelf.selectedGenreNotifier.removeListener(_onChanged);
+    SpotifyService.instance.feedRevision.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _openPreset(CuratedPlaylistPreset preset) {
+    if (widget.onPlayPreset != null) {
+      widget.onPlayPreset!(preset);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
+        ),
+      ),
+    );
+  }
+
+  _StationSpec _timeOfDayStation(ImportedTrack? fallbackTrack) {
+    final hour = DateTime.now().hour;
+    final (title, subtitle, badge, query, cover, gradient, icon) =
+        (hour >= 4 && hour < 12)
+        ? (
+            'Morning Boost Radio',
+            'Morning flow · Upbeat hits & sunrise energy',
+            'MORNING RADIO',
+            'upbeat morning feel good afrobeats pop hits official audio',
+            'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+            const [Color(0xFFFA243C), Color(0xFF6B0B1A), Color(0xFF0A0A0C)],
+            Icons.wb_sunny_rounded,
+          )
+        : (hour >= 12 && hour < 17)
+        ? (
+            'Afternoon Pulse Radio',
+            'Midday rhythm · Trending global & local waves',
+            'MIDDAY RADIO',
+            'trending afternoon groove dancehall afrobeats official audio',
+            'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+            const [Color(0xFFFA243C), Color(0xFF4A0915), Color(0xFF080808)],
+            Icons.bolt_rounded,
+          )
+        : (hour >= 17 && hour < 22)
+        ? (
+            'Evening Unwind Radio',
+            'Golden hour · Smooth vibes & warm anthems',
+            'EVENING RADIO',
+            'evening unwind smooth afrobeats rnb hits official audio',
+            'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+            const [Color(0xFF7A0C1E), Color(0xFF140307), Color(0xFF000000)],
+            Icons.nights_stay_rounded,
+          )
+        : (
+            'After Hours Radio',
+            'Late night · Slow soul & ambient cuts',
+            'MIDNIGHT RADIO',
+            'late night slow jams chill rnb ambient official audio',
+            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+            const [Color(0xFF4A0915), Color(0xFF100306), Color(0xFF000000)],
+            Icons.nightlight_round,
+          );
+
+    final preset = CuratedPlaylistPreset(
+      title: title,
+      curatorSubtitle: subtitle,
+      badge: badge,
+      searchQuery: query,
+      gradient: gradient,
+      icon: icon,
+      coverUrl: cover,
+    );
+    return _StationSpec(
+      title: title,
+      subtitle: subtitle,
+      gradient: gradient,
+      icon: icon,
+      preset: preset,
+      artworkTrack: fallbackTrack,
+      defaultArtworkUrl: cover,
+      onTap: () => _openPreset(preset),
+    );
+  }
+
+  List<_StationSpec> _buildStations() {
+    final library = widget.library;
+    final tracks = library?.tracks ?? const <ImportedTrack>[];
+    final favorites = library?.favoriteTracks ?? const <ImportedTrack>[];
+    final pool = favorites.isNotEmpty ? [...favorites, ...tracks] : tracks;
+    ImportedTrack? trackAt(int slot) =>
+        pool.isEmpty ? null : pool[(slot + _stationSeed) % pool.length];
+
+    final stations = <_StationSpec>[
+      _timeOfDayStation(trackAt(0)),
+    ];
+
+    final activeGenre = TopPicksShelf.selectedGenreNotifier.value;
+    if (activeGenre != 'For You') {
+      final isPodcast = activeGenre.toLowerCase().contains('podcast');
+      final genrePreset = CuratedPlaylistPreset(
+        title: '$activeGenre Live Radio',
+        curatorSubtitle: 'Continuous $activeGenre station tailored to you',
+        badge: 'LIVE STATION',
+        searchQuery: '$activeGenre mix hits official audio',
+        gradient: const [MeloColors.cherry, Color(0xFF1A0408), Color(0xFF000000)],
+        icon: isPodcast ? Icons.podcasts_rounded : Icons.sensors_rounded,
+        isArtistRadio: !isPodcast,
+        genre: activeGenre,
+        allowLongEpisodes: isPodcast,
+      );
+      stations.add(
+        _StationSpec(
+          title: genrePreset.title,
+          subtitle: 'Radio Station · $activeGenre flow',
+          gradient: genrePreset.gradient,
+          icon: genrePreset.icon,
+          preset: genrePreset,
+          defaultArtworkUrl:
+              'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+          onTap: () => _openPreset(genrePreset),
+        ),
+      );
+    }
+
+    final spotify = SpotifyService.instance;
+    final dynamicArtists = <String>[
+      ...(library?.topAffinityArtists ?? const <String>[]),
+      ...spotify.topArtists,
+      ...tracks
+          .map((t) => t.artist.trim())
+          .where((a) => a.isNotEmpty && a.toLowerCase() != 'unknown artist'),
+    ];
+    final seenArtists = <String>{};
+    final uniqueArtists = <String>[
+      for (final artist in dynamicArtists)
+        if (seenArtists.add(artist.toLowerCase())) artist,
+    ];
+    if (uniqueArtists.isNotEmpty) {
+      final idx = _stationSeed % uniqueArtists.length;
+      final pickedArtist = uniqueArtists[idx];
+      final matchingTrack = tracks
+          .where((t) => t.artist.toLowerCase() == pickedArtist.toLowerCase())
+          .firstOrNull;
+      final artistArt =
+          matchingTrack?.artworkUri ??
+          SongMetadataEnricher.instance.cachedArtistImageUrl(pickedArtist);
+      final artistPreset = CuratedPlaylistPreset(
+        title: '$pickedArtist Radio',
+        curatorSubtitle: 'With similar artists & trending tracks',
+        badge: 'ARTIST STATION',
+        searchQuery: '$pickedArtist songs',
+        gradient: const [Color(0xFF8A0E22), Color(0xFF0A0A0C)],
+        icon: Icons.sensors_rounded,
+        coverUrl: artistArt,
+        isArtistRadio: true,
+        artistName: pickedArtist,
+      );
+      stations.add(
+        _StationSpec(
+          title: '$pickedArtist Station',
+          subtitle: 'Based on your $pickedArtist plays',
+          gradient: artistPreset.gradient,
+          icon: Icons.sensors_rounded,
+          preset: artistPreset,
+          artworkTrack: matchingTrack,
+          defaultArtworkUrl:
+              artistArt ??
+              'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+          onTap: () => _openPreset(artistPreset),
+        ),
+      );
+    }
+
+    final coreVibes = [
+      (
+        vibe: SmartVibe.dailyFlow,
+        subtitle: 'Radio Station · Personal flow',
+        track: trackAt(1),
+        cover:
+            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+      ),
+      (
+        vibe: SmartVibe.highEnergy,
+        subtitle: 'Radio Station · Exploration',
+        track: trackAt(2),
+        cover:
+            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+      ),
+      (
+        vibe: SmartVibe.deepFocus,
+        subtitle: 'Radio Station · Instrumental',
+        track: trackAt(3),
+        cover:
+            'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
+      ),
+      (
+        vibe: SmartVibe.lateNightChill,
+        subtitle: 'Radio Station · Midnight soul',
+        track: trackAt(4),
+        cover:
+            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+      ),
+    ];
+    final coreOffset = _stationSeed % coreVibes.length;
+    final rotatedCore = [
+      ...coreVibes.skip(coreOffset),
+      ...coreVibes.take(coreOffset),
+    ];
+    for (final item in rotatedCore) {
+      final preset = smartVibeStationPreset(item.vibe);
+      stations.add(
+        _StationSpec(
+          title: preset.title,
+          subtitle: item.subtitle,
+          gradient: preset.gradient,
+          icon: preset.icon,
+          preset: preset,
+          artworkTrack: item.track,
+          defaultArtworkUrl: item.cover,
+          onTap: () => widget.onPlayVibe(item.vibe),
+        ),
+      );
+    }
+
+    return stations;
+  }
+
+  void _schedulePreload(List<_StationSpec> stations) {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    final sig =
+        '$_stationSeed|${stations.take(4).map((s) => s.title).join(',')}';
+    if (_preloadedSignature == sig) return;
+    _preloadedSignature = sig;
+    unawaited(
+      CuratedPlaylistScreen.preloadPresets(
+        stations.take(4).map((s) => s.preset),
+        library: widget.library,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tracks = library?.tracks ?? const [];
-    final favorites = library?.favoriteTracks ?? const [];
+    return ValueListenableBuilder<int>(
+      valueListenable:
+          widget.library?.playbackHistoryRevision ??
+          const AlwaysStoppedAnimation<int>(0),
+      builder: (context, _, _) {
+        final stations = _buildStations();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _schedulePreload(stations);
+        });
 
-    final personalTrack = favorites.isNotEmpty
-        ? favorites.first
-        : (tracks.isNotEmpty ? tracks.first : null);
-    final discoveryTrack = tracks.length > 1 ? tracks[1] : null;
-    final focusTrack = tracks.length > 2 ? tracks[2] : null;
-    final chillTrack = tracks.length > 3 ? tracks[3] : null;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                'Stations for You',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Stations for You',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                       fontSize: 22,
                       letterSpacing: -0.5,
                     ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: MeloColors.cherry.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.sensors_rounded,
-                      size: 13, color: MeloColors.cherry),
-                  SizedBox(width: 4),
-                  Text(
-                    'LIVE RADIO',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      color: MeloColors.cherry,
-                      letterSpacing: 0.6,
-                    ),
                   ),
-                ],
+                ),
+                IconButton(
+                  tooltip: 'Refresh stations',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 19,
+                    color: Colors.white70,
+                  ),
+                  onPressed: () => setState(() => _stationSeed++),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: MeloColors.cherry.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.sensors_rounded,
+                        size: 13,
+                        color: MeloColors.cherry,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'LIVE RADIO',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: MeloColors.cherry,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 194,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: stations.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  final station = stations[index];
+                  return StationTile(
+                    title: station.title,
+                    subtitle: station.subtitle,
+                    artworkTrack: station.artworkTrack,
+                    defaultArtworkUrl: station.defaultArtworkUrl,
+                    gradient: station.gradient,
+                    icon: station.icon,
+                    onTap: station.onTap,
+                  );
+                },
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 194,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            children: [
-              StationTile(
-                title: "Personal Station",
-                subtitle: 'Radio Station · Personal flow',
-                artworkTrack: personalTrack,
-                defaultArtworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
-                gradient: const [
-                  Color(0xFFFA243C),
-                  Color(0xFF7A0C1E),
-                  Color(0xFF0A0A0C),
-                ],
-                icon: Icons.graphic_eq_rounded,
-                onTap: () => onPlayVibe(SmartVibe.dailyFlow),
-              ),
-              const SizedBox(width: 14),
-              StationTile(
-                title: 'Discovery Station',
-                subtitle: 'Radio Station · Exploration',
-                artworkTrack: discoveryTrack,
-                defaultArtworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
-                gradient: const [
-                  Color(0xFF3B0812),
-                  Color(0xFFFA243C),
-                  Color(0xFF080808),
-                ],
-                icon: Icons.radar_rounded,
-                onTap: () => onPlayVibe(SmartVibe.highEnergy),
-              ),
-              const SizedBox(width: 14),
-              StationTile(
-                title: 'Deep Focus & Study',
-                subtitle: 'Radio Station · Instrumental',
-                artworkTrack: focusTrack,
-                defaultArtworkUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
-                gradient: const [
-                  Color(0xFF1C1C1E),
-                  Color(0xFF3A0A14),
-                  Color(0xFF000000),
-                ],
-                icon: Icons.headphones_rounded,
-                onTap: () => onPlayVibe(SmartVibe.deepFocus),
-              ),
-              const SizedBox(width: 14),
-              StationTile(
-                title: 'Late Night Chill',
-                subtitle: 'Radio Station · Midnight soul',
-                artworkTrack: chillTrack,
-                defaultArtworkUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
-                gradient: const [
-                  Color(0xFF4A0915),
-                  Color(0xFF140307),
-                  Color(0xFF000000),
-                ],
-                icon: Icons.nightlight_round,
-                onTap: () => onPlayVibe(SmartVibe.lateNightChill),
-              ),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -1623,11 +1991,13 @@ class RecommendedPlaylistsSection extends StatefulWidget {
   const RecommendedPlaylistsSection({
     required this.audioHandler,
     required this.library,
+    this.refreshGeneration = 0,
     super.key,
   });
 
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
+  final int refreshGeneration;
 
   @override
   State<RecommendedPlaylistsSection> createState() =>
@@ -1637,6 +2007,8 @@ class RecommendedPlaylistsSection extends StatefulWidget {
 class _RecommendedPlaylistsSectionState
     extends State<RecommendedPlaylistsSection> {
   String _selectedGenre = 'All';
+  int _rotationSeed = 0;
+  String? _preloadedSignature;
 
   static const List<String> _genres = [
     'All',
@@ -1659,6 +2031,14 @@ class _RecommendedPlaylistsSectionState
   void initState() {
     super.initState();
     TopPicksShelf.selectedGenreNotifier.addListener(_onTopPickGenreChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant RecommendedPlaylistsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshGeneration != widget.refreshGeneration) {
+      setState(() => _rotationSeed++);
+    }
   }
 
   @override
@@ -1697,25 +2077,25 @@ class _RecommendedPlaylistsSectionState
     List<CuratedPlaylistPreset> playlists,
   ) {
     final library = widget.library;
-    if (library == null) return playlists;
-    final tasteArtists = library.topAffinityArtists
+    final tasteArtists = (library?.topAffinityArtists ?? const <String>[])
         .take(8)
         .map((a) => a.toLowerCase())
         .toList();
     final tasteGenres = <String>{
-      for (final item in library.recentSessionItems.take(20))
-        if ((item.genre ?? '').trim().isNotEmpty) item.genre!.toLowerCase(),
-      for (final track in library.favoriteTracks)
-        if ((track.genre ?? '').trim().isNotEmpty) track.genre!.toLowerCase(),
+      if (library != null) ...[
+        for (final item in library.recentSessionItems.take(20))
+          if ((item.genre ?? '').trim().isNotEmpty) item.genre!.toLowerCase(),
+        for (final track in library.favoriteTracks)
+          if ((track.genre ?? '').trim().isNotEmpty) track.genre!.toLowerCase(),
+      ],
     };
-    if (tasteArtists.isEmpty && tasteGenres.isEmpty) return playlists;
 
     final scored = <({CuratedPlaylistPreset preset, int score, int index})>[];
     for (var i = 0; i < playlists.length; i++) {
       final preset = playlists[i];
       final genreLower = preset.genre.toLowerCase();
       final subtitleLower = preset.curatorSubtitle.toLowerCase();
-      var score = 0;
+      var score = _timeOfDayPresetBoost(preset);
       for (final g in tasteGenres) {
         if (g.contains(genreLower) || genreLower.contains(g)) score += 3;
       }
@@ -1728,9 +2108,26 @@ class _RecommendedPlaylistsSectionState
     }
     scored.sort((a, b) {
       final byScore = b.score.compareTo(a.score);
-      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+      if (byScore != 0) return byScore;
+      return ((a.index + _rotationSeed * 2) % playlists.length).compareTo(
+        (b.index + _rotationSeed * 2) % playlists.length,
+      );
     });
     return scored.map((e) => e.preset).toList(growable: false);
+  }
+
+  void _schedulePreload(List<CuratedPlaylistPreset> presets) {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    final sig =
+        '$_selectedGenre|$_rotationSeed|${presets.take(4).map((p) => p.title).join(',')}';
+    if (_preloadedSignature == sig) return;
+    _preloadedSignature = sig;
+    unawaited(
+      CuratedPlaylistScreen.preloadPresets(
+        presets.take(4),
+        library: widget.library,
+      ),
+    );
   }
 
   @override
@@ -1779,6 +2176,9 @@ class _RecommendedPlaylistsSectionState
                   genre: _selectedGenre,
                 ),
               ];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _schedulePreload(filteredPlaylists);
+        });
 
         return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

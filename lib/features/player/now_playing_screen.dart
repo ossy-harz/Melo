@@ -230,7 +230,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   StreamSubscription<dynamic>? _transitionSubscription;
   MeloPalette _palette = MeloPalette.fallback;
   bool _showLyrics = false;
-  bool _showVideoCanvas = false;
 
   @override
   void initState() {
@@ -349,7 +348,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     if (intro != null) {
       parts.add('Quiet intro ${_formatTime(intro.inMilliseconds)}');
     }
-    if (parts.isEmpty) return 'No quiet intro/outro detected';
+    if (parts.isEmpty) return null;
     return parts.join(' · ');
   }
 
@@ -450,6 +449,17 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
               .customAction('autoMix.setCuePoints', {
                 'trackId': incoming.id,
                 'entryPositionMs': incomingCues.quietIntroEnd!.inMilliseconds,
+              })
+              .catchError((_) => null),
+        );
+      }
+      if (outgoingCues.quietOutroStart != null &&
+          outgoingCues.quietOutroStart! > Duration.zero) {
+        unawaited(
+          widget.audioHandler
+              .customAction('autoMix.setCuePoints', {
+                'trackId': item.id,
+                'exitPositionMs': outgoingCues.quietOutroStart!.inMilliseconds,
               })
               .catchError((_) => null),
         );
@@ -915,45 +925,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     );
   }
 
-  Future<void> _launchOfficialMusicVideo() async {
-    final item = widget.item;
-    var videoId =
-        item.extras?['matchedYoutubeId'] as String? ??
-        item.extras?['videoId'] as String?;
-    if ((videoId == null || videoId.isEmpty) && item.id.startsWith('youtube:')) {
-      videoId = item.id.substring(8);
-    }
-    if ((videoId == null || videoId.isEmpty) && !item.id.startsWith('spotify:')) {
-      final providerId = item.extras?['providerTrackId'] as String?;
-      if (providerId != null && providerId.length == 11) {
-        videoId = providerId;
-      }
-    }
-    if (videoId == null || videoId.isEmpty) {
-      _showMessage('Finding official music video for "${item.title}"...');
-      try {
-        final results = await YoutubeAudioService.instance.search(
-          '${item.title} ${item.artist ?? ""} official music video',
-        );
-        if (results.isNotEmpty) {
-          videoId = results.first.id;
-        }
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    if (videoId == null || videoId.isEmpty) {
-      _showMessage('No official music video found for "${item.title}".');
-      return;
-    }
-    try {
-      await _artworkChannel.invokeMethod('openUrl', {
-        'url': 'https://www.youtube.com/watch?v=$videoId',
-      });
-    } catch (e) {
-      if (mounted) _showMessage('Could not launch video player: $e');
-    }
-  }
-
   void _showMoreSheet() {
     final trackId = widget.item.id;
     final isFav = widget.musicLibrary?.isFavorite(trackId) ?? false;
@@ -1263,33 +1234,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                 ),
                               ),
                             ),
-                            IconButton(
-                              tooltip: _showVideoCanvas
-                                  ? 'Show album artwork'
-                                  : 'Video & motion canvas',
-                              style: IconButton.styleFrom(
-                                minimumSize: const Size(32, 28),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 28,
-                              ),
-                              padding: EdgeInsets.zero,
-                              icon: Icon(
-                                _showVideoCanvas
-                                    ? Icons.album_rounded
-                                    : Icons.ondemand_video_rounded,
-                                color: _showVideoCanvas
-                                    ? MeloColors.cherry
-                                    : Colors.white70,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(() {
-                                _showVideoCanvas = !_showVideoCanvas;
-                                if (_showVideoCanvas) _showLyrics = false;
-                              }),
-                            ),
+                            const SizedBox(width: 32),
                           ],
                         ),
                       ),
@@ -1313,19 +1258,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   onFindOnline: _findLyricsOnline,
                                   onImportFile: _findLyrics,
                                 )
-                              : _showVideoCanvas
-                              ? _NowPlayingVideoCanvas(
-                                  key: const ValueKey(
-                                    'now-playing-video-canvas',
-                                  ),
-                                  item: widget.item,
-                                  playing: playing,
-                                  palette: _palette,
-                                  onWatchVideo: () =>
-                                      unawaited(_launchOfficialMusicVideo()),
-                                  onBackToArtwork: () =>
-                                      setState(() => _showVideoCanvas = false),
-                                )
                               : LayoutBuilder(
                                   key: const ValueKey('now-playing-artwork'),
                                   builder: (context, constraints) {
@@ -1347,83 +1279,71 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                           audioHandler: widget.audioHandler,
                                           bpm: _trackBpm,
                                           live: true,
-                                          palette: _palette,
                                           child: AnimatedScale(
                                             scale: playing ? 1.0 : 0.92,
                                             duration: MeloMotion.slow,
                                             curve: MeloMotion.emphasized,
-                                            child: AnimatedContainer(
-                                              duration: MeloMotion.slow,
-                                              curve: MeloMotion.emphasized,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(22),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: _palette.accent
-                                                        .withValues(
-                                                          alpha: playing
-                                                              ? 0.46
-                                                              : 0.22,
-                                                        ),
-                                                    blurRadius: playing
-                                                        ? 58
-                                                        : 30,
-                                                    spreadRadius: playing
-                                                        ? 0
-                                                        : -4,
-                                                    offset: const Offset(0, 24),
-                                                  ),
-                                                  BoxShadow(
-                                                    color: _palette.glow
-                                                        .withValues(
-                                                          alpha: playing
-                                                              ? 0.26
-                                                              : 0.10,
-                                                        ),
-                                                    blurRadius: playing
-                                                        ? 64
-                                                        : 34,
-                                                    spreadRadius: -6,
-                                                    offset: const Offset(0, 12),
-                                                  ),
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withValues(
-                                                          alpha: playing
-                                                              ? 0.62
-                                                              : 0.44,
-                                                        ),
-                                                    blurRadius: playing
-                                                        ? 40
-                                                        : 24,
-                                                    offset: const Offset(0, 20),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Container(
+                                            child: RepaintBoundary(
+                                              child: AnimatedContainer(
+                                                duration: MeloMotion.slow,
+                                                curve: MeloMotion.emphasized,
                                                 decoration: BoxDecoration(
                                                   borderRadius:
                                                       BorderRadius.circular(22),
-                                                  border: Border.all(
-                                                    color: Colors.white
-                                                        .withValues(alpha: 0.14),
-                                                    width: 1.2,
-                                                  ),
-                                                ),
-                                                child: Hero(
-                                                  tag:
-                                                      'tone-art-${widget.item.id}',
-                                                  child: AlbumArtwork(
-                                                    size: artSize,
-                                                    title: widget.item.title,
-                                                    iconSize: 76,
-                                                    artworkUri:
-                                                        widget.item.artUri,
-                                                    sourceUri: Uri.tryParse(
-                                                      widget.item.id,
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: _palette.accent
+                                                          .withValues(
+                                                            alpha: playing
+                                                                ? 0.40
+                                                                : 0.20,
+                                                          ),
+                                                      blurRadius: playing
+                                                          ? 36
+                                                          : 24,
+                                                      spreadRadius: playing
+                                                          ? 0
+                                                          : -4,
+                                                      offset: const Offset(0, 18),
                                                     ),
-                                                    borderRadius: 22,
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withValues(
+                                                            alpha: playing
+                                                                ? 0.56
+                                                                : 0.40,
+                                                          ),
+                                                      blurRadius: playing
+                                                          ? 28
+                                                          : 18,
+                                                      offset: const Offset(0, 16),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(22),
+                                                    border: Border.all(
+                                                      color: Colors.white
+                                                          .withValues(alpha: 0.14),
+                                                      width: 1.2,
+                                                    ),
+                                                  ),
+                                                  child: Hero(
+                                                    tag:
+                                                        'tone-art-${widget.item.id}',
+                                                    child: AlbumArtwork(
+                                                      size: artSize,
+                                                      title: widget.item.title,
+                                                      iconSize: 76,
+                                                      artworkUri:
+                                                          widget.item.artUri,
+                                                      sourceUri: Uri.tryParse(
+                                                        widget.item.id,
+                                                      ),
+                                                      borderRadius: 22,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -1721,12 +1641,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                         size: 21,
                                       ),
                                       onPressed: () {
-                                        setState(() {
-                                          _showLyrics = !_showLyrics;
-                                          if (_showLyrics) {
-                                            _showVideoCanvas = false;
-                                          }
-                                        });
+                                        setState(() => _showLyrics = !_showLyrics);
                                       },
                                     ),
                                     Expanded(
@@ -1833,212 +1748,6 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
               ),
             ),
           ],
-        );
-      },
-    );
-  }
-}
-
-class _NowPlayingVideoCanvas extends StatefulWidget {
-  const _NowPlayingVideoCanvas({
-    required this.item,
-    required this.playing,
-    required this.palette,
-    required this.onWatchVideo,
-    required this.onBackToArtwork,
-    super.key,
-  });
-
-  final MediaItem item;
-  final bool playing;
-  final MeloPalette palette;
-  final VoidCallback onWatchVideo;
-  final VoidCallback onBackToArtwork;
-
-  @override
-  State<_NowPlayingVideoCanvas> createState() => _NowPlayingVideoCanvasState();
-}
-
-class _NowPlayingVideoCanvasState extends State<_NowPlayingVideoCanvas>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _motionController;
-
-  @override
-  void initState() {
-    super.initState();
-    _motionController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    );
-    if (widget.playing && !Platform.environment.containsKey('FLUTTER_TEST')) {
-      _motionController.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _NowPlayingVideoCanvas oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
-    if (widget.playing && !_motionController.isAnimating) {
-      _motionController.repeat(reverse: true);
-    } else if (!widget.playing && _motionController.isAnimating) {
-      _motionController.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _motionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = math
-            .min(constraints.maxWidth - 20, constraints.maxHeight * 0.94)
-            .clamp(0.0, 460.0);
-        return Center(
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: MeloColors.cherry.withValues(alpha: 0.45),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: MeloColors.cherry.withValues(alpha: 0.28),
-                  blurRadius: 36,
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(23),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AnimatedBuilder(
-                    animation: _motionController,
-                    builder: (context, child) {
-                      final t = _motionController.value;
-                      final scale = 1.06 + (t * 0.08);
-                      final dx = (t - 0.5) * 14;
-                      return Transform.translate(
-                        offset: Offset(dx, 0),
-                        child: Transform.scale(scale: scale, child: child),
-                      );
-                    },
-                    child: AlbumArtwork(
-                      size: size,
-                      title: widget.item.title,
-                      iconSize: 76,
-                      artworkUri: widget.item.artUri,
-                      sourceUri: Uri.tryParse(widget.item.id),
-                      borderRadius: 0,
-                    ),
-                  ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.42),
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.88),
-                        ],
-                        stops: const [0.0, 0.48, 1.0],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(
-                          color: MeloColors.cherry.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.motion_photos_on_rounded,
-                            size: 13,
-                            color: MeloColors.cherry,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            'MOTION CANVAS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 14,
-                    right: 14,
-                    bottom: 14,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: MeloColors.cherry,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 11,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: widget.onWatchVideo,
-                            icon: const Icon(Icons.ondemand_video_rounded, size: 18),
-                            label: const Text(
-                              'Watch Music Video',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          tooltip: 'Return to cover art',
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.14,
-                            ),
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: widget.onBackToArtwork,
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         );
       },
     );

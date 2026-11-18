@@ -120,8 +120,8 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.4.0';
-  int _currentBuildNumber = 14;
+  String _currentVersion = '1.4.1';
+  int _currentBuildNumber = 15;
 
   /// Opens an external web URL using the Android platform channel or intent.
   static Future<bool> openExternalUrl(String url) async {
@@ -246,7 +246,7 @@ class AppUpdateService extends ChangeNotifier {
             uri,
             headers: const {
               'Accept': 'application/vnd.github+json',
-              'User-Agent': 'Tone-Music-Player-Updater',
+              'User-Agent': 'Melo-Music-Player-Updater',
             },
           )
           .timeout(const Duration(seconds: 8));
@@ -283,10 +283,13 @@ class AppUpdateService extends ChangeNotifier {
 
         final tagName = (item['tag_name'] as String? ?? '').trim();
         if (tagName.isEmpty) continue;
-        final title = (item['name'] as String?)?.trim().isNotEmpty == true
+        final rawTitle = (item['name'] as String?)?.trim().isNotEmpty == true
             ? (item['name'] as String).trim()
             : tagName;
-        final body = (item['body'] as String? ?? '').trim();
+        final title = rawTitle.replaceAll(RegExp(r'\bTone\b'), 'Melo');
+        final body = (item['body'] as String? ?? '')
+            .trim()
+            .replaceAll(RegExp(r'\bTone\b'), 'Melo');
         final htmlUrl = (item['html_url'] as String? ??
                 'https://github.com/$_repository/releases')
             .trim();
@@ -348,12 +351,18 @@ class AppUpdateService extends ChangeNotifier {
         currentBuild: _currentBuildNumber,
         remoteTag: latest.tagName,
       );
+      final effectiveLatest = resolveEffectiveLatestRelease(
+        currentVersion: _currentVersion,
+        currentBuild: _currentBuildNumber,
+        repository: _repository,
+        remoteLatest: latest,
+      );
 
       final result = AppUpdateCheckResult(
         currentVersion: _currentVersion,
         currentBuildNumber: _currentBuildNumber,
         repository: _repository,
-        latestRelease: latest,
+        latestRelease: effectiveLatest,
         allReleases: releases,
         isUpdateAvailable: isNewer,
         checkedAt: DateTime.now(),
@@ -375,6 +384,58 @@ class AppUpdateService extends ChangeNotifier {
       _isChecking = false;
       notifyListeners();
     }
+  }
+
+  /// Ensures an installed build newer than GitHub's latest tag (e.g. local
+  /// `1.4.0` ahead of published `Tone 1.3.6`) never displays an older tag as latest.
+  @visibleForTesting
+  static GithubReleaseInfo resolveEffectiveLatestRelease({
+    required String currentVersion,
+    required int currentBuild,
+    required String repository,
+    required GithubReleaseInfo remoteLatest,
+  }) {
+    final normalizedTitle = remoteLatest.title.replaceAll(
+      RegExp(r'\bTone\b'),
+      'Melo',
+    );
+    final normalizedBody = remoteLatest.body.replaceAll(
+      RegExp(r'\bTone\b'),
+      'Melo',
+    );
+    final isNewer = isRemoteVersionNewer(
+      currentVersion: currentVersion,
+      currentBuild: currentBuild,
+      remoteTag: remoteLatest.tagName,
+    );
+    final installedIsAhead =
+        !isNewer &&
+        isRemoteVersionNewer(
+          currentVersion: remoteLatest.tagName,
+          currentBuild: 0,
+          remoteTag: currentVersion,
+        );
+    if (installedIsAhead) {
+      return GithubReleaseInfo(
+        tagName: 'v$currentVersion',
+        title: 'Melo v$currentVersion',
+        body:
+            'You are running Melo v$currentVersion (Build $currentBuild), which includes updates newer than the latest public release (${remoteLatest.tagName}).',
+        htmlUrl: 'https://github.com/$repository/releases',
+        publishedAt: remoteLatest.publishedAt,
+        isPrerelease: false,
+        assets: const [],
+      );
+    }
+    return GithubReleaseInfo(
+      tagName: remoteLatest.tagName,
+      title: normalizedTitle,
+      body: normalizedBody,
+      htmlUrl: remoteLatest.htmlUrl,
+      publishedAt: remoteLatest.publishedAt,
+      isPrerelease: remoteLatest.isPrerelease,
+      assets: remoteLatest.assets,
+    );
   }
 
   /// Compares semantic versions (e.g. `1.0.0+1` vs `v1.1.0` or `v1.0.0+2`).

@@ -100,46 +100,42 @@ class _BeatPulse extends StatelessWidget {
     required this.audioHandler,
     required this.bpm,
     required this.live,
-    required this.palette,
     required this.child,
   });
 
   final AudioHandler audioHandler;
   final double? bpm;
   final bool live;
-  final MeloPalette palette;
   final Widget child;
+
+  double _quantizedLevel(Duration position) {
+    if (!audioHandler.playbackState.value.playing) return 0.0;
+    final raw = _beatLevel(position, bpm);
+    return (raw * 20).round() / 20.0;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // The pulse is purely decorative, so stand down entirely when the platform
-    // asks for reduced motion.
-    if (MeloMotion.reduced(context)) return child;
-    return StreamBuilder<Duration>(
-      stream: playbackPositionStream(audioHandler),
+    // The pulse is purely decorative, so stand down entirely when not live or
+    // when the platform asks for reduced motion.
+    if (!live || MeloMotion.reduced(context)) return child;
+    final initialLevel = _quantizedLevel(
+      audioHandler.playbackState.value.updatePosition,
+    );
+    return StreamBuilder<double>(
+      initialData: initialLevel,
+      stream: playbackPositionStream(
+        audioHandler,
+      ).map(_quantizedLevel).distinct(),
       builder: (context, snapshot) {
-        final playing = audioHandler.playbackState.value.playing;
-        final level = (!playing || !live)
-            ? 0.0
-            : _beatLevel(snapshot.data ?? Duration.zero, bpm);
+        final level = audioHandler.playbackState.value.playing
+            ? (snapshot.data ?? 0.0)
+            : 0.0;
         return AnimatedScale(
-          scale: 1 + level * 0.03,
-          duration: const Duration(milliseconds: 180),
+          scale: 1 + level * 0.018,
+          duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: palette.accent.withValues(alpha: 0.2 * level),
-                  blurRadius: 72 * level,
-                  spreadRadius: 16 * level,
-                ),
-              ],
-            ),
-            child: child,
-          ),
+          child: child,
         );
       },
     );

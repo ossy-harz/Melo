@@ -73,7 +73,10 @@ class MeloGlass extends StatelessWidget {
         borderRadius: radius,
         border: Border.all(color: resolvedBorder),
       ),
-      child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
+      ),
     );
     final effectiveBlur = blur.clamp(0, 14).toDouble();
     Widget surface = ClipRRect(

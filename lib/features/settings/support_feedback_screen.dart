@@ -34,9 +34,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
   String _selectedCategory = _categories.first;
   bool _isSubmitting = false;
 
-  static const String _buyMeACoffeeUrl = 'https://buymeacoffee.com/ossyharz';
   static const String _githubRepoUrl = 'https://github.com/ossy-harz/Melo';
-  static const String _githubSponsorUrl = 'https://github.com/sponsors/ossy-harz';
 
   @override
   void initState() {
@@ -164,8 +162,8 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
           unselectedLabelColor: colors.onSurfaceVariant,
           tabs: const [
             Tab(
-              icon: Icon(Icons.coffee_rounded, size: 20),
-              text: 'Support Melo',
+              icon: Icon(Icons.favorite_outline_rounded, size: 20),
+              text: 'Community',
             ),
             Tab(
               icon: Icon(Icons.lightbulb_outline_rounded, size: 20),
@@ -244,115 +242,9 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
         ),
         const SizedBox(height: 24),
 
-        // Why Support Card
+        // Community & Open-Source Ways to Help
         Text(
-          'FUEL FUTURE DEVELOPMENT',
-          style: textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-            color: colors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: colors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFDD00).withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.local_cafe_rounded,
-                      color: Color(0xFFFFDD00),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Buy Me a Coffee',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          'Keep audio servers, lyrics sync, and daily updates thriving.',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Every donation directly supports maintenance, continuous integration tests, '
-                'high-resolution streaming servers, and new community-voted features.',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _openUrl(_buyMeACoffeeUrl),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFDD00),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.coffee_rounded, size: 20),
-                  label: const Text(
-                    'Support on Buy Me a Coffee',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openUrl(_githubSponsorUrl),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.favorite_border_rounded, size: 18),
-                  label: const Text('Sponsor on GitHub'),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Free Ways to Support
-        Text(
-          'FREE WAYS TO HELP MELO GROW',
+          'WAYS TO HELP MELO GROW',
           style: textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,

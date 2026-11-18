@@ -610,7 +610,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'No paywalls, ads, or locked codecs. If you enjoy Melo, you can fuel continuous development or suggest features you want to see next!',
+                  'No paywalls, ads, or locked codecs. Share your ideas or suggest features you want to see next in Melo!',
                   style: textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                     height: 1.4,
@@ -624,27 +624,27 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                     FilledButton.icon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const SupportFeedbackScreen(initialTab: 0),
+                          builder: (_) => const SupportFeedbackScreen(initialTab: 1),
                         ),
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFDD00),
-                        foregroundColor: Colors.black,
+                        backgroundColor: MeloColors.cherry,
+                        foregroundColor: Colors.white,
                       ),
-                      icon: const Icon(Icons.coffee_rounded, size: 16),
+                      icon: const Icon(Icons.lightbulb_outline_rounded, size: 16),
                       label: const Text(
-                        'Buy Me a Coffee',
+                        'Suggest a Feature',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const SupportFeedbackScreen(initialTab: 1),
+                          builder: (_) => const SupportFeedbackScreen(initialTab: 0),
                         ),
                       ),
-                      icon: const Icon(Icons.lightbulb_outline_rounded, size: 16),
-                      label: const Text('Suggest a Feature'),
+                      icon: const Icon(Icons.favorite_outline_rounded, size: 16),
+                      label: const Text('Community'),
                     ),
                   ],
                 ),
@@ -687,7 +687,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                             Text(
                               isUpdateAvailable
                                   ? 'Update Available · ${latest?.tagName}'
-                                  : 'Melo v${_updater.currentVersion} Installed',
+                                  : 'Melo v${_updater.currentVersion} (Latest Installed)',
                               style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -748,7 +748,9 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                             children: [
                               Expanded(
                                 child: Text(
-                                  '${latest.title} (${latest.tagName})',
+                                  isUpdateAvailable
+                                      ? '${latest.title} (${latest.tagName})'
+                                      : 'Melo v${_updater.currentVersion} (v${_updater.currentVersion})',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 14,
@@ -773,6 +775,42 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                               height: 1.4,
                             ),
                           ),
+                          if (!isUpdateAvailable && latest.preferredApkAsset == null) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: MeloColors.cherry.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: MeloColors.cherry.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: MeloColors.cherry,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'You are on the latest version (Melo v${_updater.currentVersion})',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           if (latest.preferredApkAsset != null) ...[
                             const SizedBox(height: 10),
                             FutureBuilder<File?>(
@@ -805,7 +843,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                                             const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
-                                                'You are on the latest version (${latest.tagName})',
+                                                'You are on the latest version (Melo v${_updater.currentVersion})',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 13,
@@ -903,8 +941,8 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                       'Automatically check for updates',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    subtitle: const Text(
-                      'Check github.com/ossy-harz/Tone when Melo starts',
+                    subtitle: Text(
+                      'Check github.com/${_updater.repository} when Melo starts',
                     ),
                     value: _updater.autoCheckOnStartup,
                     onChanged: (v) => _updater.setAutoCheckOnStartup(v),

@@ -37,64 +37,66 @@ class _ArtworkBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: MeloMotion.slow,
-      curve: MeloMotion.emphasized,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [palette.deep, MeloColors.playerBackdrop, MeloColors.amoled],
-          stops: const [0, 0.52, 1],
+    return RepaintBoundary(
+      child: AnimatedContainer(
+        duration: MeloMotion.slow,
+        curve: MeloMotion.emphasized,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [palette.deep, MeloColors.playerBackdrop, MeloColors.amoled],
+            stops: const [0, 0.52, 1],
+          ),
         ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          AnimatedContainer(
-            duration: MeloMotion.slow,
-            curve: MeloMotion.emphasized,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, -0.74),
-                radius: 1.08,
-                colors: [
-                  palette.accent.withValues(alpha: 0.48),
-                  palette.accent.withValues(alpha: 0),
-                ],
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AnimatedContainer(
+              duration: MeloMotion.slow,
+              curve: MeloMotion.emphasized,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.74),
+                  radius: 1.08,
+                  colors: [
+                    palette.accent.withValues(alpha: 0.48),
+                    palette.accent.withValues(alpha: 0),
+                  ],
+                ),
               ),
             ),
-          ),
-          AnimatedContainer(
-            duration: MeloMotion.slow,
-            curve: MeloMotion.emphasized,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0.85, 0.72),
-                radius: 1.02,
-                colors: [
-                  palette.glow.withValues(alpha: 0.36),
-                  palette.glow.withValues(alpha: 0),
-                ],
+            AnimatedContainer(
+              duration: MeloMotion.slow,
+              curve: MeloMotion.emphasized,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.85, 0.72),
+                  radius: 1.02,
+                  colors: [
+                    palette.glow.withValues(alpha: 0.36),
+                    palette.glow.withValues(alpha: 0),
+                  ],
+                ),
               ),
             ),
-          ),
-          AnimatedContainer(
-            duration: MeloMotion.slow,
-            curve: MeloMotion.emphasized,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-0.85, 1.05),
-                radius: 0.95,
-                colors: [
-                  palette.muted.withValues(alpha: 0.52),
-                  palette.muted.withValues(alpha: 0),
-                ],
+            AnimatedContainer(
+              duration: MeloMotion.slow,
+              curve: MeloMotion.emphasized,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-0.85, 1.05),
+                  radius: 0.95,
+                  colors: [
+                    palette.muted.withValues(alpha: 0.52),
+                    palette.muted.withValues(alpha: 0),
+                  ],
+                ),
               ),
             ),
-          ),
-          const MeloGrain(),
-        ],
+            const MeloGrain(),
+          ],
+        ),
       ),
     );
   }
@@ -143,9 +145,30 @@ class AlbumArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = MeloPalette.fromSeed(title.hashCode);
     final radius = BorderRadius.circular(borderRadius ?? size * 0.09);
-    final artwork = artworkUri != null || sourceUri != null
+    final cacheKey = artworkUri ?? sourceUri;
+    final cachedBytes = cacheKey != null
+        ? _resolvedArtworkBytes[cacheKey]
+        : null;
+    final artwork = (cachedBytes == null && cacheKey != null)
         ? _loadArtwork(artworkUri, sourceUri)
         : null;
+
+    Widget buildDecodedImage(Uint8List bytes) {
+      final decodeSize =
+          (size * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(64, 1024);
+      return Image.memory(
+        bytes,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        cacheWidth: decodeSize,
+        cacheHeight: decodeSize,
+        errorBuilder: (_, _, _) => _fallback(palette),
+      );
+    }
+
     return Semantics(
       label: 'Artwork for $title',
       image: true,
@@ -181,24 +204,17 @@ class AlbumArtwork extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: artwork == null
+        child: cachedBytes != null && cachedBytes.isNotEmpty
+            ? buildDecodedImage(cachedBytes)
+            : artwork == null
             ? _fallback(palette)
             : FutureBuilder<Uint8List?>(
+                initialData: cachedBytes,
                 future: artwork,
                 builder: (context, snapshot) {
                   final bytes = snapshot.data;
                   if (bytes == null || bytes.isEmpty) return _fallback(palette);
-                  final decodeSize =
-                      (size * MediaQuery.devicePixelRatioOf(context))
-                          .ceil()
-                          .clamp(64, 1024);
-                  return Image.memory(
-                    bytes,
-                    fit: BoxFit.cover,
-                    cacheWidth: decodeSize,
-                    cacheHeight: decodeSize,
-                    errorBuilder: (_, _, _) => _fallback(palette),
-                  );
+                  return buildDecodedImage(bytes);
                 },
               ),
       ),
@@ -264,6 +280,16 @@ String _monogram(String value) {
   return String.fromCharCode(trimmed.runes.first).toUpperCase();
 }
 
+void _rememberArtworkBytes(Uri cacheKey, Uint8List bytes) {
+  if (_artworkCache.length > 96) {
+    _artworkCache.remove(_artworkCache.keys.first);
+  }
+  if (_resolvedArtworkBytes.length > 96) {
+    _resolvedArtworkBytes.remove(_resolvedArtworkBytes.keys.first);
+  }
+  _resolvedArtworkBytes[cacheKey] = bytes;
+}
+
 Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
   final cacheKey = artworkUri ?? sourceUri!;
   return _artworkCache.putIfAbsent(cacheKey, () async {
@@ -286,9 +312,7 @@ Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
             if (await file.exists()) {
               final bytes = await file.readAsBytes();
               if (bytes.isNotEmpty) {
-                if (_artworkCache.length > 96) {
-                  _artworkCache.remove(_artworkCache.keys.first);
-                }
+                _rememberArtworkBytes(cacheKey, bytes);
                 return bytes;
               }
             }
@@ -304,9 +328,7 @@ Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
               .get(artworkUri)
               .timeout(const Duration(seconds: 8));
           if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-            if (_artworkCache.length > 96) {
-              _artworkCache.remove(_artworkCache.keys.first);
-            }
+            _rememberArtworkBytes(cacheKey, res.bodyBytes);
             return res.bodyBytes;
           }
         } catch (_) {}
@@ -328,14 +350,14 @@ Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
           : await fetch();
       if (bytes == null || bytes.isEmpty) {
         _artworkCache.remove(cacheKey);
+        _resolvedArtworkBytes.remove(cacheKey);
         return null;
       }
-      if (_artworkCache.length > 96) {
-        _artworkCache.remove(_artworkCache.keys.first);
-      }
+      _rememberArtworkBytes(cacheKey, bytes);
       return bytes;
     } on Object {
       _artworkCache.remove(cacheKey);
+      _resolvedArtworkBytes.remove(cacheKey);
       return null;
     }
   });
