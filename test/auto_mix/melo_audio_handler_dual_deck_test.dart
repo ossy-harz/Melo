@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/auto_mix/audio_engine.dart';
+import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 
 void main() {
@@ -589,11 +591,200 @@ void main() {
     expect(handler.playbackState.value.shuffleMode, AudioServiceShuffleMode.none);
     expect(reportedErrors, isNotEmpty);
   });
+
+  test(
+    'skipToNext with preloaded Deck B updates mediaItem and never reverts on duration mismatch',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final engine = _FakeAudioEngine()
+        ..trackDurations[Uri.file('/music/first.mp3')] = const Duration(minutes: 3)
+        ..trackDurations[Uri.file('/music/second.mp3')] =
+            const Duration(minutes: 4, seconds: 15)
+        ..trackDurations[Uri.file('/music/third.mp3')] = const Duration(minutes: 2);
+      final handler = MeloAudioHandler(audioEngine: engine);
+      addTearDown(handler.dispose);
+
+      await handler.replaceQueue([
+        const MediaItem(id: '/music/first.mp3', title: 'First'),
+        const MediaItem(id: '/music/second.mp3', title: 'Second'),
+        const MediaItem(id: '/music/third.mp3', title: 'Third'),
+      ], playWhenReady: true);
+      await handler.customAction('autoMix.preloadNextTrack');
+      expect(engine.stateFor(AudioDeck.b).loaded, isTrue);
+
+      await handler.skipToNext();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(handler.mediaItem.value?.id, '/music/second.mp3');
+      expect(
+        handler.mediaItem.value?.duration,
+        const Duration(minutes: 4, seconds: 15),
+      );
+      expect(handler.playbackState.value.queueIndex, 1);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+      // Deck B preload (if started for upcoming track) must target Third, never Second.
+      if (engine.stateFor(AudioDeck.b).loaded) {
+        expect(
+          engine.lastLoadedSource[AudioDeck.b]?.uri,
+          Uri.file('/music/third.mp3'),
+        );
+      }
+    },
+  );
+
+  test(
+    'rapid double skipToNext advances two tracks without replaying the first next track',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(audioEngine: engine);
+      addTearDown(handler.dispose);
+
+      await handler.replaceQueue([
+        const MediaItem(id: '/music/first.mp3', title: 'First'),
+        const MediaItem(id: '/music/second.mp3', title: 'Second'),
+        const MediaItem(id: '/music/third.mp3', title: 'Third'),
+        const MediaItem(id: '/music/fourth.mp3', title: 'Fourth'),
+      ], playWhenReady: true);
+      await handler.customAction('autoMix.preloadNextTrack');
+
+      final firstSkip = handler.skipToNext();
+      final secondSkip = handler.skipToNext();
+      await Future.wait([firstSkip, secondSkip]);
+
+      expect(handler.mediaItem.value?.id, '/music/third.mp3');
+      expect(handler.playbackState.value.queueIndex, 2);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+    },
+  );
+
+  test(
+    'respects user volume and prevents overlap gain spikes across skipToNext and AutoMix',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(
+        audioEngine: engine,
+        transitionGainStep: const Duration(seconds: 2),
+        transitionDelay: (_) async {},
+      );
+      addTearDown(handler.dispose);
+
+      await handler.replaceQueue([
+        const MediaItem(id: '/music/first.mp3', title: 'First'),
+        const MediaItem(id: '/music/second.mp3', title: 'Second'),
+        const MediaItem(id: '/music/third.mp3', title: 'Third'),
+      ], playWhenReady: true);
+
+      await handler.customAction('setVolume', {'volume': 0.5});
+      expect(engine.stateFor(AudioDeck.a).gain, closeTo(0.5, 1e-9));
+
+      await handler.customAction('autoMix.preloadNextTrack');
+      engine.overlapGainSums.clear();
+      await handler.skipToNext();
+
+      expect(handler.mediaItem.value?.id, '/music/second.mp3');
+      expect(engine.stateFor(AudioDeck.a).gain, closeTo(0.5, 1e-9));
+      expect(
+        engine.overlapGainSums.every((sum) => sum <= 0.5 + 1e-9),
+        isTrue,
+      );
+
+      engine.overlapGainSums.clear();
+      final result = await handler.customAction('autoMix.transitionToNextTrack')
+          as Map<String, Object?>;
+      expect(result['completed'], isTrue);
+      expect(handler.mediaItem.value?.id, '/music/third.mp3');
+      expect(engine.stateFor(AudioDeck.a).gain, closeTo(0.5, 1e-9));
+      expect(
+        engine.overlapGainSums.every((sum) => sum <= 0.5 + 1e-9),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'Media3 notification controls expose custom Like and Repeat actions and sync art URI',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final musicDir = await Directory.systemTemp.createTemp('melo-notif-');
+      addTearDown(() async {
+        if (await musicDir.exists()) await musicDir.delete(recursive: true);
+      });
+      final library = MusicLibrary.forTesting(
+        musicDirectory: musicDir,
+        preferences: preferences,
+        pickAudio: () async => const [],
+      );
+      await library.load();
+
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(audioEngine: engine);
+      addTearDown(handler.dispose);
+      handler.attachMusicLibrary(library);
+
+      await handler.replaceQueue([
+        const MediaItem(
+          id: 'youtube:abc123',
+          title: 'Streaming Jam',
+          artist: 'Melo Artist',
+          extras: {
+            'streamUrl': 'https://example.com/stream.m4a',
+            'source': 'youtube',
+            'providerTrackId': 'abc123',
+          },
+        ),
+      ], playWhenReady: true);
+
+      var controls = handler.playbackState.value.controls;
+      expect(controls.length, 5);
+      expect(controls.first.customAction?.name, 'notification.toggleLike');
+      expect(controls.first.androidIcon, 'drawable/ic_notif_heart_outline');
+      expect(controls.last.customAction?.name, 'notification.cycleRepeat');
+      expect(controls.last.androidIcon, 'drawable/ic_notif_repeat_off');
+      expect(handler.playbackState.value.androidCompactActionIndices, [1, 2, 3]);
+
+      final liked = await handler.customAction('notification.toggleLike');
+      expect(liked, isTrue);
+      expect(library.favoriteTracks.map((t) => t.id), contains('youtube:abc123'));
+      controls = handler.playbackState.value.controls;
+      expect(controls.first.androidIcon, 'drawable/ic_notif_heart_filled');
+
+      expect(await handler.customAction('notification.cycleRepeat'), 'all');
+      expect(
+        handler.playbackState.value.controls.last.androidIcon,
+        'drawable/ic_notif_repeat_all',
+      );
+      expect(await handler.customAction('notification.cycleRepeat'), 'one');
+      expect(
+        handler.playbackState.value.controls.last.androidIcon,
+        'drawable/ic_notif_repeat_one',
+      );
+      expect(await handler.customAction('notification.cycleRepeat'), 'none');
+      expect(
+        handler.playbackState.value.controls.last.androidIcon,
+        'drawable/ic_notif_repeat_off',
+      );
+
+      await handler.customAction('player.updateMediaItemArtUri', {
+        'id': 'youtube:abc123',
+        'artUri': 'https://example.com/cover.jpg',
+      });
+      expect(
+        handler.mediaItem.value?.artUri.toString(),
+        'https://example.com/cover.jpg',
+      );
+    },
+  );
 }
 
 class _FakeAudioEngine implements AudioEngine {
   final _states = StreamController<AudioDeckState>.broadcast();
   final _errors = StreamController<AudioEngineError>.broadcast();
+  final Map<Uri, Duration> trackDurations = {};
+  final Map<AudioDeck, AudioDeckSource> lastLoadedSource = {};
+  final List<double> overlapGainSums = [];
   final _deckStates = {
     for (final deck in AudioDeck.values)
       deck: AudioDeckState(
@@ -633,12 +824,13 @@ class _FakeAudioEngine implements AudioEngine {
       failNextDeckBLoad = false;
       throw StateError('diagnostic source failure');
     }
+    lastLoadedSource[deck] = source;
     _update(
       deck,
       processingState: AudioDeckProcessingState.ready,
       playing: false,
       position: Duration.zero,
-      duration: const Duration(minutes: 3),
+      duration: trackDurations[source.uri] ?? const Duration(minutes: 3),
       loaded: true,
     );
   }
@@ -664,6 +856,7 @@ class _FakeAudioEngine implements AudioEngine {
       processingState: AudioDeckProcessingState.ready,
       playing: true,
     );
+    _recordActiveGainSum();
   }
 
   @override
@@ -688,6 +881,19 @@ class _FakeAudioEngine implements AudioEngine {
   Future<void> setDeckGain(AudioDeck deck, double gain) async {
     _checkReady();
     _update(deck, gain: gain);
+    _recordActiveGainSum();
+  }
+
+  void _recordActiveGainSum() {
+    final a = _deckStates[AudioDeck.a]!;
+    final b = _deckStates[AudioDeck.b]!;
+    if (a.playing && b.playing) {
+      overlapGainSums.add(a.gain + b.gain);
+    } else if (a.playing) {
+      overlapGainSums.add(a.gain);
+    } else if (b.playing) {
+      overlapGainSums.add(b.gain);
+    }
   }
 
   @override

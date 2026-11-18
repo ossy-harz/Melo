@@ -83,6 +83,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   String? _transitionCancellationReason;
   int? _preloadedQueueIndex;
   int? _loadingQueueIndex;
+  int _preloadGeneration = 0;
+  bool _isLoadingTrack = false;
+  int _activeLoadId = 0;
+  bool _desiredPlaying = false;
   Future<void>? _activeTransitionOperation;
   TransitionDiagnostic? _activeDiagnostic;
   bool _audioSessionActive = false;
@@ -97,10 +101,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   AudioProcessingState? _lastPublishedProcessingState;
   bool? _lastPublishedPlaying;
   int? _lastPublishedIndex;
+  bool? _lastPublishedLiked;
+  AudioServiceRepeatMode? _lastPublishedRepeatMode;
 
   bool _autoplayContinuous = true;
   bool _isExtendingAutoplay = false;
   double _userVolume = 1.0;
+
+  double get _effectiveTargetGain =>
+      (_userVolume * _audioProfile.outputHeadroom).clamp(0.0, 1.0);
   final List<MediaItem> _sessionHistory = [];
   final Map<String, Duration> _incomingTrackCues = {};
   final Map<String, Duration> _outgoingTrackCues = {};
@@ -130,7 +139,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void attachMusicLibrary(MusicLibrary library) {
+    if (identical(_musicLibrary, library)) return;
+    _musicLibrary?.removeListener(_onLibraryChanged);
     _musicLibrary = library;
+    library.addListener(_onLibraryChanged);
+    _publishState();
+  }
+
+  void _onLibraryChanged() {
+    _publishState();
   }
 
   Future<void> _initialize() async {
@@ -273,8 +290,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (name == 'setVolume') {
       final vol = (extras?['volume'] as num?)?.toDouble() ?? 1.0;
       _userVolume = vol.clamp(0.0, 1.0);
-      final effectiveGain = _userVolume * _audioProfile.outputHeadroom;
-      if (_audioEngine.stateFor(AudioDeck.a).playing) {
+      final effectiveGain = _effectiveTargetGain;
+      if (_audioEngine.stateFor(AudioDeck.a).loaded &&
+          !_autoMixController.isTransitioning) {
         await _audioEngine.setDeckGain(AudioDeck.a, effectiveGain);
       }
       return _userVolume;
@@ -311,14 +329,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       if (_items.isNotEmpty) {
         await _audioEngine.setDeckGain(
           AudioDeck.a,
-          _audioProfile.outputHeadroom,
+          _effectiveTargetGain,
         );
       }
-      if (_audioEngine.stateFor(AudioDeck.b).loaded &&
-          !_audioEngine.stateFor(AudioDeck.b).playing) {
+      if (_audioEngine.stateFor(AudioDeck.b).loaded) {
         await _audioEngine.setDeckGain(
           AudioDeck.b,
-          _audioProfile.outputHeadroom,
+          _audioEngine.stateFor(AudioDeck.b).playing
+              ? _effectiveTargetGain
+              : 0.0,
         );
       }
       _publishState();
@@ -536,10 +555,50 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       await setAutoplayContinuous(!_autoplayContinuous);
       return <String, Object?>{'enabled': _autoplayContinuous};
     }
+    if (name == 'notification.toggleLike') {
+      await _settingsReady;
+      final current =
+          mediaItem.value ??
+          (_items.isNotEmpty && _currentIndex < _items.length
+              ? _items[_currentIndex]
+              : null);
+      final library = _musicLibrary;
+      if (current == null || library == null) return false;
+      final isFavorite = await library.toggleFavoriteMediaItem(current);
+      _publishState();
+      return isFavorite;
+    }
+    if (name == 'notification.cycleRepeat') {
+      await _settingsReady;
+      final next = switch (_repeatMode) {
+        AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
+        AudioServiceRepeatMode.all ||
+        AudioServiceRepeatMode.group => AudioServiceRepeatMode.one,
+        AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
+      };
+      await setRepeatMode(next);
+      return next.name;
+    }
+    if (name == 'player.updateMediaItemArtUri') {
+      final id = extras?['id'] as String?;
+      final artUriStr = extras?['artUri'] as String?;
+      final artUri = artUriStr != null ? Uri.tryParse(artUriStr) : null;
+      if (id != null && artUri != null) {
+        final idx = _items.indexWhere((i) => i.id == id);
+        if (idx >= 0 && _items[idx].artUri == null) {
+          _updateQueueItem(_items[idx].copyWith(artUri: artUri));
+        } else if (mediaItem.value?.id == id &&
+            mediaItem.value?.artUri == null) {
+          mediaItem.add(mediaItem.value!.copyWith(artUri: artUri));
+        }
+      }
+      return null;
+    }
     return super.customAction(name, extras);
   }
 
   Future<void> _preloadNextTrack({bool fromTransition = false}) async {
+    if (_isLoadingTrack && !fromTransition) return;
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) {
       throw StateError('There is no upcoming track to preload.');
@@ -548,10 +607,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final incomingState = _audioEngine.stateFor(AudioDeck.b);
     if (_preloadedQueueIndex == nextIndex && incomingState.loaded) return;
 
+    final generation = ++_preloadGeneration;
     _loadingQueueIndex = nextIndex;
     try {
       await _performPreloadNextTrack(
         nextIndex,
+        generation: generation,
         fromTransition: fromTransition,
       );
     } on PlayerInterruptedException {
@@ -565,14 +626,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _performPreloadNextTrack(
     int nextIndex, {
+    required int generation,
     required bool fromTransition,
   }) async {
     await _settingsReady;
     if (!fromTransition) await _cancelAndWaitForTransition();
-    if (nextIndex != _nextQueueIndex()) {
-      throw StateError(
-        'The queue changed while the next track was preloading.',
-      );
+    if ((!fromTransition && _isLoadingTrack) ||
+        generation != _preloadGeneration ||
+        nextIndex != _nextQueueIndex()) {
+      return;
     }
     final incomingState = _audioEngine.stateFor(AudioDeck.b);
     if (_preloadedQueueIndex == nextIndex &&
@@ -589,14 +651,30 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         await _unloadDeckBBeforeQueueChange();
       }
     }
+    if ((!fromTransition && _isLoadingTrack) ||
+        generation != _preloadGeneration ||
+        nextIndex != _nextQueueIndex()) {
+      return;
+    }
     final nextSource = _needsAsyncResolution(_items[nextIndex])
         ? await _resolveSourceFor(_items[nextIndex])
         : _sourceFor(_items[nextIndex]);
+    if ((!fromTransition && _isLoadingTrack) ||
+        generation != _preloadGeneration ||
+        nextIndex != _nextQueueIndex()) {
+      return;
+    }
     await _autoMixController.preloadIncoming(nextSource);
+    if ((!fromTransition && _isLoadingTrack) ||
+        generation != _preloadGeneration ||
+        nextIndex != _nextQueueIndex()) {
+      return;
+    }
     _preloadedQueueIndex = nextIndex;
   }
 
   void _scheduleNextTrackPreload() {
+    if (_isLoadingTrack) return;
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null && _autoplayContinuous && _items.isNotEmpty) {
       unawaited(_ensureUpcomingAutoplayTracks().then((extended) {
@@ -675,10 +753,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _runAutomaticTransition() async {
     try {
-      final result = await _transitionToNextTrack(reportErrors: false);
-      if (result['completed'] != true) {
-        _automaticTransitionAttempt = null;
-      }
+      await _transitionToNextTrack(reportErrors: false);
     } on Object catch (error, stackTrace) {
       _reportPlaybackError(
         error,
@@ -851,13 +926,14 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         ..finish('transitionCancelled');
       return const {'completed': false};
     }
+    final currentOutgoingState = _audioEngine.stateFor(AudioDeck.a);
     final incomingState = _audioEngine.stateFor(AudioDeck.b);
     final outgoingItem = _items[_currentIndex];
     final incomingItem = _items[nextIndex];
     final plan = _autoMixController.planTransition(
       outgoing: TrackAnalysis(
         trackId: outgoingItem.id,
-        duration: _analysisDuration(outgoingItem, outgoingState.duration),
+        duration: _analysisDuration(outgoingItem, currentOutgoingState.duration),
       ),
       incoming: TrackAnalysis(
         trackId: incomingItem.id,
@@ -865,9 +941,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       ),
       transitionDuration: diagnosticDuration,
     );
-    final remaining = outgoingState.duration == null
+    final remaining = currentOutgoingState.duration == null
         ? null
-        : outgoingState.duration! - outgoingState.position;
+        : currentOutgoingState.duration! - currentOutgoingState.position;
     if (remaining != null && remaining <= Duration.zero) {
       throw StateError('The outgoing track has no remaining transition time.');
     }
@@ -883,9 +959,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         remaining != null && remaining < plan.transitionDuration
         ? remaining
         : plan.transitionDuration;
+    final effectiveStyle =
+        diagnosticDuration == null ? TransitionStyle.quickBlend : plan.style;
     final effectivePlan =
         (remaining != null && remaining < plan.transitionDuration) ||
-            incomingEntry != plan.incomingEntryPosition
+            incomingEntry != plan.incomingEntryPosition ||
+            effectiveStyle != plan.style
         ? TransitionPlan(
             outgoingTrackId: plan.outgoingTrackId,
             incomingTrackId: plan.incomingTrackId,
@@ -893,10 +972,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
             transitionDuration: effectiveDuration,
             outgoingTransitionPosition:
                 remaining != null && remaining < plan.transitionDuration
-                ? outgoingState.position
+                ? currentOutgoingState.position
                 : plan.outgoingTransitionPosition,
             incomingEntryPosition: incomingEntry,
-            style: plan.style,
+            style: effectiveStyle,
             tempoCompatibility: plan.tempoCompatibility,
             bpmDifferencePercent: plan.bpmDifferencePercent,
             confidenceScore: plan.confidenceScore,
@@ -921,7 +1000,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
     final completed = await _autoMixController.transitionIncoming(
       plan: effectivePlan,
-      targetGain: _audioProfile.outputHeadroom,
+      targetGain: _effectiveTargetGain,
       onStarted: () {
         onTransitionStarted(effectivePlan.transitionDuration);
         startDiagnosticMeasurement();
@@ -938,17 +1017,26 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     diagnostic?.finish('gainRampCompleted');
 
-    _currentIndex = nextIndex;
-    _orderPosition = _playOrder.indexOf(nextIndex);
-    mediaItem.add(incomingItem);
-    _recordSessionItem(incomingItem);
-    _preloadedQueueIndex = null;
-    await _autoMixController.promoteIncomingDeck();
-    diagnostic
-      ?..incomingPromoted = true
-      ..recordEvent('incomingDeckPromoted');
-    await _autoMixController.unloadIncomingDeck();
+    _isLoadingTrack = true;
+    try {
+      _currentIndex = nextIndex;
+      _orderPosition = _playOrder.indexOf(nextIndex);
+      if (_orderPosition < 0) {
+        _rebuildPlayOrder(nextIndex);
+      }
+      _preloadedQueueIndex = null;
+      await _autoMixController.promoteIncomingDeck();
+      diagnostic
+        ?..incomingPromoted = true
+        ..recordEvent('incomingDeckPromoted');
+      await _autoMixController.unloadIncomingDeck();
+    } finally {
+      _isLoadingTrack = false;
+    }
     _publishState();
+    mediaItem.add(incomingItem);
+    _publishDuration(_audioEngine.stateFor(AudioDeck.a).duration);
+    _recordSessionItem(incomingItem);
     diagnostic?.finish('transitionCompleted');
     return {
       'completed': true,
@@ -975,6 +1063,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _cancelAndWaitForTransition({
     String reason = 'playbackOperation',
+    bool restoreDecks = true,
   }) async {
     final operation = _activeTransitionOperation;
     if (operation == null) return;
@@ -983,7 +1072,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _activeDiagnostic
       ?..cancellationReason = reason
       ..recordEvent('cancellationRequested', details: {'reason': reason});
-    await _autoMixController.cancelTransition();
+    await _autoMixController.cancelTransition(restoreDecks: restoreDecks);
     await operation;
   }
 
@@ -1016,6 +1105,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
               }
               return;
             }
+            if (_isLoadingTrack) return;
             _positions.add(state.position);
             _publishDuration(state.duration);
             _publishState(throttled: true);
@@ -1085,6 +1175,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> play() async {
     _interruptionActive = false;
     _resumeAfterInterruption = false;
+    _desiredPlaying = true;
     await _startPlayback();
   }
 
@@ -1130,6 +1221,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> pause() async {
     _resumeAfterInterruption = false;
+    _desiredPlaying = false;
     await _pausePlayback(retainAudioFocus: _interruptionActive);
   }
 
@@ -1154,6 +1246,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> stop() async {
     _interruptionActive = false;
     _resumeAfterInterruption = false;
+    _desiredPlaying = false;
     await pause();
     await Future.wait([
       _audioEngine.stopDeck(AudioDeck.a),
@@ -1174,7 +1267,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> skipToNext() async {
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) return;
-    await _loadNextPlayable(firstIndex: nextIndex, playWhenReady: _isPlaying);
+    final shouldPlay = _isAnyDeckPlaying || _desiredPlaying;
+    await _loadNextPlayable(firstIndex: nextIndex, playWhenReady: shouldPlay);
   }
 
   @override
@@ -1185,9 +1279,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       return;
     }
     if (_orderPosition > 0) {
+      final shouldPlay = _isAnyDeckPlaying || _desiredPlaying;
       await _loadIndex(
         _playOrder[_orderPosition - 1],
-        playWhenReady: _isPlaying,
+        playWhenReady: shouldPlay,
       );
     } else {
       await seek(Duration.zero);
@@ -1197,7 +1292,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= _items.length) return;
-    await _loadIndex(index, playWhenReady: _isPlaying);
+    final shouldPlay = _isAnyDeckPlaying || _desiredPlaying;
+    await _loadIndex(index, playWhenReady: shouldPlay);
   }
 
   @override
@@ -1331,40 +1427,68 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     required bool playWhenReady,
   }) async {
     await _settingsReady;
-    await _cancelAndWaitForTransition();
-    if (items.isEmpty) {
+    final loadId = ++_activeLoadId;
+    ++_preloadGeneration;
+    _loadingQueueIndex = null;
+    _isLoadingTrack = true;
+    _desiredPlaying = items.isNotEmpty && playWhenReady;
+    try {
+      await _cancelAndWaitForTransition(restoreDecks: false);
+      if (loadId != _activeLoadId) return;
+      if (items.isEmpty) {
+        await _audioEngine.stopDeck(AudioDeck.a);
+        await _unloadDeckBBeforeQueueChange();
+        if (loadId != _activeLoadId) return;
+        await _deactivateAudioSession();
+        _items = const [];
+        _playOrder = const [];
+        _currentIndex = 0;
+        _orderPosition = 0;
+        queue.add(_items);
+        mediaItem.add(null);
+        _publishState();
+        return;
+      }
+      if (initialIndex < 0 || initialIndex >= items.length) {
+        throw RangeError.index(initialIndex, items, 'initialIndex');
+      }
+      if (_audioEngine.stateFor(AudioDeck.a).playing) {
+        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+      }
+      if (_audioEngine.stateFor(AudioDeck.b).playing) {
+        await _audioEngine.setDeckGain(AudioDeck.b, 0.0);
+      }
       await _audioEngine.stopDeck(AudioDeck.a);
       await _unloadDeckBBeforeQueueChange();
-      await _deactivateAudioSession();
-      _items = const [];
-      _playOrder = const [];
-      _currentIndex = 0;
-      _orderPosition = 0;
+      if (loadId != _activeLoadId) return;
+      if (!playWhenReady) await _deactivateAudioSession();
+      _items = List.unmodifiable(items);
+      _currentIndex = initialIndex;
+      _automaticTransitionAttempt = null;
+      _rebuildPlayOrder(initialIndex);
       queue.add(_items);
-      mediaItem.add(null);
+      mediaItem.add(_items[initialIndex]);
+      _positions.add(Duration.zero);
+      final loadedSource = await _loadDeckAWithFallback(
+        initialIndex,
+        isCancelled: () => loadId != _activeLoadId,
+      );
+      if (loadedSource == null || loadId != _activeLoadId) return;
+      _isLoadingTrack = false;
+      final activeItem = loadedSource.tag is MediaItem
+          ? loadedSource.tag as MediaItem
+          : _items[initialIndex];
+      mediaItem.add(activeItem);
+      _publishDuration(_audioEngine.stateFor(AudioDeck.a).duration);
+      _recordSessionItem(activeItem);
       _publishState();
-      return;
+      if (playWhenReady) await play();
+      _prefetchUpcomingStream();
+    } finally {
+      if (loadId == _activeLoadId) {
+        _isLoadingTrack = false;
+      }
     }
-    if (initialIndex < 0 || initialIndex >= items.length) {
-      throw RangeError.index(initialIndex, items, 'initialIndex');
-    }
-    await _audioEngine.stopDeck(AudioDeck.a);
-    await _unloadDeckBBeforeQueueChange();
-    if (!playWhenReady) await _deactivateAudioSession();
-    _items = List.unmodifiable(items);
-    _currentIndex = initialIndex;
-    _automaticTransitionAttempt = null;
-    _rebuildPlayOrder(initialIndex);
-    queue.add(_items);
-    mediaItem.add(_items[initialIndex]);
-    final loadedSource = await _loadDeckAWithFallback(initialIndex);
-    final activeItem =
-        loadedSource.tag is MediaItem ? loadedSource.tag as MediaItem : _items[initialIndex];
-    mediaItem.add(activeItem);
-    _recordSessionItem(activeItem);
-    _publishState();
-    if (playWhenReady) await play();
-    _prefetchUpcomingStream();
   }
 
   Future<void> _unloadDeckBBeforeQueueChange() async {
@@ -1465,10 +1589,11 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (localTrack != null && File(localTrack.path).existsSync()) {
       debugPrint('Found local matching track in device library for "${item.title}": ${localTrack.path}');
       final localItem = item.copyWith(
-        id: localTrack.path,
+        id: item.id,
         extras: {
           ...?item.extras,
           'streamUrl': null,
+          'localPath': localTrack.path,
           'source': 'device',
           'isLocal': true,
         },
@@ -1558,109 +1683,182 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _loadIndex(int index, {required bool playWhenReady}) async {
-    // Cancel any active transition first so it does not restore gains afterwards
-    await _cancelAndWaitForTransition();
+    final loadId = ++_activeLoadId;
+    ++_preloadGeneration;
+    _loadingQueueIndex = null;
+    _isLoadingTrack = true;
+    _desiredPlaying = playWhenReady;
 
-    // Immediately update media item so UI displays next track details/artwork without delay
-    final targetItem = _items[index];
-    mediaItem.add(targetItem);
-
-    final incomingState = _audioEngine.stateFor(AudioDeck.b);
-    final canPromotePreloadedDeck =
+    // Snapshot Deck B state before cancelling any active transition so we know
+    // whether Deck B was already loaded with [index] (or mid-crossfade to it).
+    final incomingBeforeCancel = _audioEngine.stateFor(AudioDeck.b);
+    final hadPreloadedDeck =
         _preloadedQueueIndex == index &&
-        incomingState.loaded &&
-        incomingState.processingState != AudioDeckProcessingState.error;
-    if (canPromotePreloadedDeck) {
-      final entryCue = _incomingTrackCues[targetItem.id];
-      if (entryCue != null &&
-          entryCue > Duration.zero &&
-          (incomingState.duration == null ||
-              entryCue < incomingState.duration!)) {
-        try {
-          await _audioEngine.seekDeck(AudioDeck.b, entryCue);
-        } catch (_) {}
-      }
+        incomingBeforeCancel.loaded &&
+        incomingBeforeCancel.processingState != AudioDeckProcessingState.error;
+    final incomingAlreadyPlaying = hadPreloadedDeck && incomingBeforeCancel.playing;
 
-      final targetGain = _userVolume * _audioProfile.outputHeadroom;
-      final outgoingPlaying = _audioEngine.stateFor(AudioDeck.a).playing;
-      if (playWhenReady && outgoingPlaying) {
-        await _activateAudioSession();
-        await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
-        await _audioEngine.playDeck(AudioDeck.b);
-        if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-          for (final factor in const [0.65, 0.3, 0.08]) {
-            await Future<void>.delayed(const Duration(milliseconds: 35));
-            await _audioEngine.setDeckGain(AudioDeck.a, targetGain * factor);
-          }
-        }
-        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
-        await _audioEngine.stopDeck(AudioDeck.a);
-      } else {
-        if (outgoingPlaying) {
-          await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
-        }
-        await _audioEngine.stopDeck(AudioDeck.a);
-        await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
-      }
-
-      await _autoMixController.promoteIncomingDeck();
-      _preloadedQueueIndex = null;
-      await _audioEngine.stopDeck(AudioDeck.b);
-      await _autoMixController.unloadIncomingDeck();
-
-      _currentIndex = index;
-      _orderPosition = _playOrder.indexOf(index);
-      if (_orderPosition < 0) {
-        _rebuildPlayOrder(index);
-      }
-      _recordSessionItem(targetItem);
-      _automaticTransitionAttempt = null;
-      _publishState();
-      if (playWhenReady && !_audioEngine.stateFor(AudioDeck.a).playing) {
-        await play();
-      }
-      _prefetchUpcomingStream();
-      return;
-    }
-
-    // Silence both decks immediately to eliminate popping and volume surge on track change
-    if (_audioEngine.stateFor(AudioDeck.a).playing) {
-      await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
-    }
-    if (_audioEngine.stateFor(AudioDeck.b).playing) {
-      await _audioEngine.setDeckGain(AudioDeck.b, 0.0);
-    }
-    await _audioEngine.stopDeck(AudioDeck.a);
-    await _unloadDeckBBeforeQueueChange();
-    final source = await _loadDeckAWithFallback(index);
+    // Immediately advance queue indices and emit the new mediaItem so the UI
+    // updates instantaneously and rapid Next presses never re-select this track.
     _currentIndex = index;
     _orderPosition = _playOrder.indexOf(index);
     if (_orderPosition < 0) {
       _rebuildPlayOrder(index);
     }
-    final activeItem =
-        source.tag is MediaItem ? source.tag as MediaItem : _items[index];
-    mediaItem.add(activeItem);
-    _recordSessionItem(activeItem);
-    _automaticTransitionAttempt = null;
+    final targetItem = _items[index];
+    mediaItem.add(targetItem);
+    _positions.add(Duration.zero);
     _publishState();
-    if (playWhenReady) await play();
-    _prefetchUpcomingStream();
+
+    try {
+      // Cancel any active transition without restoring outgoing Deck A gain so
+      // cancelling an AutoMix crossfade never spikes the previous song back to 1.0.
+      await _cancelAndWaitForTransition(restoreDecks: false);
+      if (loadId != _activeLoadId) return;
+
+      final incomingState = _audioEngine.stateFor(AudioDeck.b);
+      final canPromotePreloadedDeck =
+          hadPreloadedDeck &&
+          incomingState.loaded &&
+          incomingState.processingState != AudioDeckProcessingState.error;
+      if (canPromotePreloadedDeck) {
+        if (!incomingAlreadyPlaying) {
+          final entryCue = _incomingTrackCues[targetItem.id];
+          if (entryCue != null &&
+              entryCue > Duration.zero &&
+              (incomingState.duration == null ||
+                  entryCue < incomingState.duration!)) {
+            try {
+              await _audioEngine.seekDeck(AudioDeck.b, entryCue);
+            } catch (_) {}
+          }
+        }
+        if (loadId != _activeLoadId) return;
+
+        final targetGain = _effectiveTargetGain;
+        final outgoingState = _audioEngine.stateFor(AudioDeck.a);
+        final outgoingPlaying = outgoingState.playing;
+        if (playWhenReady && outgoingPlaying) {
+          await _activateAudioSession();
+          if (loadId != _activeLoadId) return;
+          if (!incomingAlreadyPlaying) {
+            final initialOut = outgoingState.gain < targetGain * 0.65
+                ? outgoingState.gain
+                : targetGain * 0.65;
+            await Future.wait([
+              _audioEngine.setDeckGain(AudioDeck.a, initialOut),
+              _audioEngine.setDeckGain(AudioDeck.b, targetGain * 0.35),
+            ]);
+            await _audioEngine.playDeck(AudioDeck.b);
+          }
+          if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+            for (final (outFactor, inFactor) in const [
+              (0.30, 0.70),
+              (0.08, 0.92),
+            ]) {
+              await Future<void>.delayed(const Duration(milliseconds: 25));
+              if (loadId != _activeLoadId) return;
+              final curA = _audioEngine.stateFor(AudioDeck.a).gain;
+              final nextA =
+                  curA < targetGain * outFactor ? curA : targetGain * outFactor;
+              final curB = _audioEngine.stateFor(AudioDeck.b).gain;
+              final nextB = curB > targetGain * inFactor && curB <= targetGain
+                  ? curB
+                  : targetGain * inFactor;
+              await Future.wait([
+                _audioEngine.setDeckGain(AudioDeck.a, nextA),
+                _audioEngine.setDeckGain(AudioDeck.b, nextB),
+              ]);
+            }
+          }
+          if (loadId != _activeLoadId) return;
+          await Future.wait([
+            _audioEngine.setDeckGain(AudioDeck.a, 0.0),
+            _audioEngine.setDeckGain(AudioDeck.b, targetGain),
+          ]);
+          await _audioEngine.stopDeck(AudioDeck.a);
+        } else {
+          if (outgoingPlaying) {
+            await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+          }
+          await _audioEngine.stopDeck(AudioDeck.a);
+          await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
+        }
+        if (loadId != _activeLoadId) return;
+
+        await _autoMixController.promoteIncomingDeck();
+        _preloadedQueueIndex = null;
+        await _audioEngine.stopDeck(AudioDeck.b);
+        await _autoMixController.unloadIncomingDeck();
+        if (loadId != _activeLoadId) return;
+
+        _isLoadingTrack = false;
+        final activeItem = _items[index];
+        mediaItem.add(activeItem);
+        _publishDuration(_audioEngine.stateFor(AudioDeck.a).duration);
+        _recordSessionItem(activeItem);
+        _automaticTransitionAttempt = null;
+        _publishState();
+        if (playWhenReady && !_audioEngine.stateFor(AudioDeck.a).playing) {
+          await play();
+        }
+        _prefetchUpcomingStream();
+        return;
+      }
+
+      // Silence both decks immediately to eliminate popping and volume surge on track change.
+      if (_audioEngine.stateFor(AudioDeck.a).playing) {
+        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+      }
+      if (_audioEngine.stateFor(AudioDeck.b).playing) {
+        await _audioEngine.setDeckGain(AudioDeck.b, 0.0);
+      }
+      await _audioEngine.stopDeck(AudioDeck.a);
+      await _unloadDeckBBeforeQueueChange();
+      if (loadId != _activeLoadId) return;
+
+      final source = await _loadDeckAWithFallback(
+        index,
+        isCancelled: () => loadId != _activeLoadId,
+      );
+      if (source == null || loadId != _activeLoadId) return;
+
+      _isLoadingTrack = false;
+      final activeItem =
+          source.tag is MediaItem ? source.tag as MediaItem : _items[index];
+      mediaItem.add(activeItem);
+      _publishDuration(_audioEngine.stateFor(AudioDeck.a).duration);
+      _recordSessionItem(activeItem);
+      _automaticTransitionAttempt = null;
+      _publishState();
+      if (playWhenReady) await play();
+      _prefetchUpcomingStream();
+    } finally {
+      if (loadId == _activeLoadId) {
+        _isLoadingTrack = false;
+      }
+    }
   }
 
   /// Resolves and loads [_items[index]] onto Deck A, falling back to refreshing
   /// an expired cached stream URL or a secondary proxy stream on HTTP failure.
-  Future<AudioDeckSource> _loadDeckAWithFallback(int index) async {
+  Future<AudioDeckSource?> _loadDeckAWithFallback(
+    int index, {
+    bool Function()? isCancelled,
+  }) async {
     final targetItem = _items[index];
     AudioDeckSource? source;
     try {
       source = _needsAsyncResolution(targetItem)
           ? await _resolveSourceFor(targetItem)
           : _sourceFor(targetItem);
+      if (isCancelled?.call() == true) return null;
       await _audioEngine.loadDeck(AudioDeck.a, source);
-      await _audioEngine.setDeckGain(AudioDeck.a, _audioProfile.outputHeadroom);
+      if (isCancelled?.call() == true) return null;
+      await _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain);
       return source;
     } catch (error, stackTrace) {
+      if (isCancelled?.call() == true) return null;
       if (source != null &&
           (source.uri.scheme == 'http' || source.uri.scheme == 'https')) {
         final hadCachedUrl = targetItem.extras?['streamUrl'] != null;
@@ -1674,14 +1872,18 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
             );
             if (_needsAsyncResolution(clearedItem)) {
               final refreshed = await _resolveSourceFor(clearedItem);
+              if (isCancelled?.call() == true) return null;
               await _audioEngine.loadDeck(AudioDeck.a, refreshed);
+              if (isCancelled?.call() == true) return null;
               await _audioEngine.setDeckGain(
                 AudioDeck.a,
-                _audioProfile.outputHeadroom,
+                _effectiveTargetGain,
               );
               return refreshed;
             }
-          } catch (_) {}
+          } catch (_) {
+            if (isCancelled?.call() == true) return null;
+          }
         }
         debugPrint('Source load error ($error). Attempting secondary fallback proxy stream...');
         try {
@@ -1691,6 +1893,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           if (rawId != null) {
             final fallback = await YoutubeAudioService.instance
                 .getFallbackStream(rawId);
+            if (isCancelled?.call() == true) return null;
             if (fallback != null) {
               final fallbackSource = AudioDeckSource(
                 uri: Uri.parse(fallback.url),
@@ -1704,17 +1907,20 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
                 headers: fallback.headers,
               );
               await _audioEngine.loadDeck(AudioDeck.a, fallbackSource);
+              if (isCancelled?.call() == true) return null;
               await _audioEngine.setDeckGain(
                 AudioDeck.a,
-                _audioProfile.outputHeadroom,
+                _effectiveTargetGain,
               );
               return fallbackSource;
             }
           }
         } catch (fallbackError) {
+          if (isCancelled?.call() == true) return null;
           debugPrint('Secondary fallback also failed: $fallbackError');
         }
       }
+      if (isCancelled?.call() == true) return null;
       playbackState.add(
         playbackState.value.copyWith(
           processingState: AudioProcessingState.error,
@@ -2057,10 +2263,14 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }) async {
     var candidate = firstIndex;
     for (var attempt = 0; attempt < _items.length; attempt++) {
+      final attemptLoadId = _activeLoadId + 1;
       try {
         await _loadIndex(candidate, playWhenReady: playWhenReady);
         return true;
       } on Object catch (error, stackTrace) {
+        if (_activeLoadId > attemptLoadId) {
+          return true;
+        }
         _reportPlaybackError(
           error,
           stackTrace,
@@ -2113,11 +2323,23 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         deckState.playing || _audioEngine.stateFor(AudioDeck.b).playing;
     final queueIndex = _items.isEmpty ? null : _currentIndex;
 
+    final currentItem =
+        mediaItem.value ??
+        (_items.isNotEmpty && _currentIndex < _items.length
+            ? _items[_currentIndex]
+            : null);
+    final isLiked =
+        currentItem != null &&
+        (_musicLibrary?.isFavoriteMediaItem(currentItem) ?? false);
+
     if (throttled) {
       final now = DateTime.now();
-      final hasStateChange = processingState != _lastPublishedProcessingState ||
+      final hasStateChange =
+          processingState != _lastPublishedProcessingState ||
           isPlaying != _lastPublishedPlaying ||
-          queueIndex != _lastPublishedIndex;
+          queueIndex != _lastPublishedIndex ||
+          isLiked != _lastPublishedLiked ||
+          _repeatMode != _lastPublishedRepeatMode;
       final timeSinceLast = _lastPlatformStatePublishTime == null
           ? const Duration(seconds: 10)
           : now.difference(_lastPlatformStatePublishTime!);
@@ -2134,20 +2356,49 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _lastPublishedProcessingState = processingState;
     _lastPublishedPlaying = isPlaying;
     _lastPublishedIndex = queueIndex;
+    _lastPublishedLiked = isLiked;
+    _lastPublishedRepeatMode = _repeatMode;
+
+    final likeControl = MediaControl.custom(
+      androidIcon: isLiked
+          ? 'drawable/ic_notif_heart_filled'
+          : 'drawable/ic_notif_heart_outline',
+      label: isLiked ? 'Unlike' : 'Like',
+      name: 'notification.toggleLike',
+    );
+    final repeatControl = MediaControl.custom(
+      androidIcon: switch (_repeatMode) {
+        AudioServiceRepeatMode.one => 'drawable/ic_notif_repeat_one',
+        AudioServiceRepeatMode.all ||
+        AudioServiceRepeatMode.group => 'drawable/ic_notif_repeat_all',
+        AudioServiceRepeatMode.none => 'drawable/ic_notif_repeat_off',
+      },
+      label: switch (_repeatMode) {
+        AudioServiceRepeatMode.one => 'Repeat one',
+        AudioServiceRepeatMode.all ||
+        AudioServiceRepeatMode.group => 'Repeat all',
+        AudioServiceRepeatMode.none => 'Repeat off',
+      },
+      name: 'notification.cycleRepeat',
+    );
 
     playbackState.add(
       PlaybackState(
         controls: [
+          likeControl,
           MediaControl.skipToPrevious,
           _isAnyDeckPlaying ? MediaControl.pause : MediaControl.play,
           MediaControl.skipToNext,
+          repeatControl,
         ],
         systemActions: const {
           MediaAction.seek,
           MediaAction.seekForward,
           MediaAction.seekBackward,
+          MediaAction.setRepeatMode,
+          MediaAction.setShuffleMode,
         },
-        androidCompactActionIndices: const [0, 1, 2],
+        androidCompactActionIndices: const [1, 2, 3],
         processingState: processingState,
         playing: isPlaying,
         updatePosition: deckState.position,
@@ -2188,6 +2439,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> dispose() async {
+    _musicLibrary?.removeListener(_onLibraryChanged);
     for (final subscription in _audioSessionSubscriptions) {
       await subscription.cancel();
     }
@@ -2276,7 +2528,11 @@ class _PlayerFilter {
 
   void applyProfile(AudioProfile profile) {
     _profile = profile;
-    if (_parameters != null) unawaited(_shape());
+    if (_parameters != null) {
+      unawaited(_shape());
+    } else if (_equalizer != null) {
+      unawaited(_prime());
+    }
   }
 
   Future<void> _shape() async {

@@ -112,10 +112,12 @@ class _NowPlayingFavoriteButton extends StatefulWidget {
   const _NowPlayingFavoriteButton({
     required this.isFavorite,
     required this.onTap,
+    this.onLongPress,
   });
 
   final bool isFavorite;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   State<_NowPlayingFavoriteButton> createState() =>
@@ -158,32 +160,44 @@ class _NowPlayingFavoriteButtonState extends State<_NowPlayingFavoriteButton>
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: IconButton(
-        tooltip: widget.isFavorite
+      child: Tooltip(
+        message: widget.isFavorite
             ? 'Remove from favorites'
             : 'Add to favorites',
-        onPressed: () {
-          widget.onTap();
-          if (!widget.isFavorite) {
-            _controller.forward(from: 0);
-          }
-        },
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.isFavorite
-                ? MeloColors.cherry.withValues(alpha: 0.22)
-                : Colors.white.withValues(alpha: 0.06),
-          ),
-          child: Icon(
-            widget.isFavorite
-                ? Icons.star_rounded
-                : Icons.star_border_rounded,
-            color: widget.isFavorite ? MeloColors.cherry : MeloColors.playerMuted,
-            size: 20,
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              widget.onTap();
+              if (!widget.isFavorite) {
+                _controller.forward(from: 0);
+              }
+            },
+            onLongPress: widget.onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.isFavorite
+                      ? MeloColors.cherry.withValues(alpha: 0.24)
+                      : Colors.white.withValues(alpha: 0.06),
+                ),
+                child: Icon(
+                  widget.isFavorite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: widget.isFavorite
+                      ? MeloColors.cherry
+                      : MeloColors.playerMuted,
+                  size: 20,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -230,6 +244,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   StreamSubscription<dynamic>? _transitionSubscription;
   MeloPalette _palette = MeloPalette.fallback;
   bool _showLyrics = false;
+  bool _immersiveMode = false;
   Uri? _resolvedFallbackArtUri;
   String? _resolvedFallbackForId;
 
@@ -268,25 +283,48 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   void didUpdateWidget(covariant _NowPlayingContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item.id != widget.item.id) {
+      _dragPosition = null;
       _lyrics = null;
       _isLoadingLyrics = true;
+      _isTransitioning = false;
+      _transitionProgress = 0;
+      _transitionDuration = null;
+      _outgoingCues = null;
+      _incomingCues = null;
+      _nextTrackTitle = null;
       _resolvedFallbackArtUri = null;
       _resolvedFallbackForId = null;
       unawaited(_restoreLyrics(widget.item));
       unawaited(_resolvePalette(widget.item));
       unawaited(_refreshTransitionCues());
       _preloadQueueArtworks();
+    } else if (oldWidget.item.artUri != widget.item.artUri) {
+      unawaited(_resolvePalette(widget.item));
     }
   }
 
   @override
   void dispose() {
+    if (_immersiveMode) {
+      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    }
     _analysisRequest++;
     LyricsRepository.revision.removeListener(_onLyricsRepositoryUpdated);
     unawaited(_queueSubscription?.cancel());
     unawaited(_playbackSubscription?.cancel());
     unawaited(_transitionSubscription?.cancel());
     super.dispose();
+  }
+
+  void _toggleImmersiveMode() {
+    HapticFeedback.selectionClick();
+    final next = !_immersiveMode;
+    setState(() => _immersiveMode = next);
+    unawaited(
+      SystemChrome.setEnabledSystemUIMode(
+        next ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+      ),
+    );
   }
 
   void _onLyricsRepositoryUpdated() {
@@ -521,6 +559,14 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         final uri = Uri.tryParse(url);
         if (uri == null) return;
         unawaited(preloadArtworkUri(uri));
+        unawaited(
+          widget.audioHandler
+              .customAction('player.updateMediaItemArtUri', {
+                'id': target.id,
+                'artUri': uri.toString(),
+              })
+              .catchError((_) => null),
+        );
         if (mounted &&
             target.id == widget.item.id &&
             widget.item.artUri == null) {
@@ -572,6 +618,10 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
       }
     } on LyricsServiceUnavailableException {
       // Online lookup is optional; the player simply keeps local lyrics.
+    } on HttpException {
+      // Online lyrics provider may have no match or be offline; keep player quiet.
+    } on SocketException {
+      // Offline network during optional lyrics fetch.
     } on Object catch (error, stackTrace) {
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -745,18 +795,39 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     }
   }
 
-  Future<void> _toggleFavorite(String trackId) async {
+  Future<void> _toggleFavorite(MediaItem item) async {
     final library = widget.musicLibrary;
     if (library == null) {
       _showMessage('Favorites are unavailable in this preview.');
       return;
     }
     try {
-      final isFavorite = await library.toggleFavorite(trackId);
+      final isFavorite = await library.toggleFavoriteMediaItem(item);
       if (!mounted) return;
-      _showMessage(
-        isFavorite ? 'Added to favorites.' : 'Removed from favorites.',
-      );
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              isFavorite
+                  ? 'Saved "${item.title}" to Liked Songs'
+                  : 'Removed "${item.title}" from Liked Songs',
+            ),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Playlists',
+              textColor: MeloColors.cherrySoft,
+              onPressed: () {
+                if (!mounted) return;
+                showManagePlaylistsSheet(
+                  context,
+                  item: item,
+                  musicLibrary: library,
+                );
+              },
+            ),
+          ),
+        );
     } on Object catch (error) {
       if (!mounted) return;
       _showMessage('Could not update favorite: $error');
@@ -979,8 +1050,8 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   }
 
   void _showMoreSheet() {
-    final trackId = widget.item.id;
-    final isFav = widget.musicLibrary?.isFavorite(trackId) ?? false;
+    final isFav =
+        widget.musicLibrary?.isFavoriteMediaItem(widget.item) ?? false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -990,7 +1061,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         audioHandler: widget.audioHandler,
         musicLibrary: widget.musicLibrary,
         isFavorite: isFav,
-        onToggleFavorite: () => _toggleFavorite(trackId),
+        onToggleFavorite: () => _toggleFavorite(widget.item),
         onOpenSongInfo: _openTrackDetails,
         onStartRadio: () async {
           await _playArtistRadio();
@@ -1190,106 +1261,213 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         final state = stateSnapshot.data;
         final playing = state?.playing == true;
         final duration = widget.item.duration ?? Duration.zero;
-        final trackId =
-            widget.item.extras?['libraryId'] as String? ?? widget.item.id;
         return Stack(
           fit: StackFit.expand,
           children: [
             _ArtworkBackdrop(palette: _palette),
             const _PlayerScrim(),
             SafeArea(
+              top: !_immersiveMode,
+              bottom: !_immersiveMode,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 780),
                   child: Column(
                     children: [
-                      // Top header bar: Minimize | Tappable Playlist Title | Video/Canvas
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              tooltip: 'Minimize player',
-                              style: IconButton.styleFrom(
-                                minimumSize: const Size(32, 28),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 28,
-                              ),
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: Colors.white70,
-                                size: 22,
-                              ),
-                              onPressed: () => Navigator.of(context).maybePop(),
-                            ),
-                            Expanded(
-                              child: Semantics(
-                                button: true,
-                                label: 'Open playlist',
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: _openActivePlaylistView,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
+                      // Top header bar: Minimize | Tappable Playlist Title | Sleep Timer & Immersive
+                      AnimatedSize(
+                        duration: MeloMotion.fast,
+                        curve: MeloMotion.emphasized,
+                        child: _immersiveMode
+                            ? const SizedBox(width: double.infinity, height: 18)
+                            : Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Minimize player',
+                                      style: IconButton.styleFrom(
+                                        minimumSize: const Size(32, 28),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 32,
+                                        minHeight: 28,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      icon: const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Colors.white70,
+                                        size: 22,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).maybePop(),
                                     ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 4,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.35,
+                                    Expanded(
+                                      child: Semantics(
+                                        button: true,
+                                        label: 'Open playlist',
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          onTap: _openActivePlaylistView,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              99,
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  width: 36,
+                                                  height: 4,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.35,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          99,
+                                                        ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 5),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        _sourceStationTitle,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        style: TextStyle(
+                                                          color: Colors.white
+                                                              .withValues(
+                                                                alpha: 0.78,
+                                                              ),
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 2),
+                                                    const Icon(
+                                                      Icons
+                                                          .chevron_right_rounded,
+                                                      size: 15,
+                                                      color: MeloColors.cherry,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 5),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                _sourceStationTitle,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.78),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 2),
-                                            const Icon(
-                                              Icons.chevron_right_rounded,
-                                              size: 15,
-                                              color: MeloColors.cherry,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                    ListenableBuilder(
+                                      listenable: SleepTimerService.instance,
+                                      builder: (context, _) {
+                                        final timer =
+                                            SleepTimerService.instance;
+                                        final timerLabel =
+                                            timer.compactRemainingLabel;
+                                        return IconButton(
+                                          tooltip: timer.isActive
+                                              ? 'Sleep timer ($timerLabel left)'
+                                              : 'Sleep timer',
+                                          style: IconButton.styleFrom(
+                                            minimumSize: const Size(30, 28),
+                                            tapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 30,
+                                            minHeight: 28,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          onPressed: () =>
+                                              SleepTimerService
+                                                  .showSleepTimerDialog(
+                                            context,
+                                            widget.audioHandler,
+                                          ),
+                                          icon: timer.isActive &&
+                                                  timerLabel.isNotEmpty
+                                              ? Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 3,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: MeloColors.cherry
+                                                        .withValues(
+                                                          alpha: 0.24,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: MeloColors.cherry
+                                                          .withValues(
+                                                            alpha: 0.6,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    timerLabel,
+                                                    style: const TextStyle(
+                                                      color:
+                                                          MeloColors.cherrySoft,
+                                                      fontSize: 10.5,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  Icons.bedtime_outlined,
+                                                  color: Colors.white70,
+                                                  size: 19,
+                                                ),
+                                        );
+                                      },
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Immersive mode',
+                                      style: IconButton.styleFrom(
+                                        minimumSize: const Size(30, 28),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 30,
+                                        minHeight: 28,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      icon: const Icon(
+                                        Icons.fullscreen_rounded,
+                                        color: Colors.white70,
+                                        size: 21,
+                                      ),
+                                      onPressed: _toggleImmersiveMode,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 32),
-                          ],
-                        ),
                       ),
                       Expanded(
                         child: AnimatedSwitcher(
@@ -1466,86 +1644,98 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                               fontWeight: FontWeight.w600,
                                             ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      _AudioQualityBadges(item: widget.item),
-                                    ],
+                                        if (!_immersiveMode) ...[
+                                          const SizedBox(height: 8),
+                                          _AudioQualityBadges(item: widget.item),
+                                        ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            AnimatedBuilder(
-                              animation:
-                                  widget.musicLibrary ??
-                                  _NoopListenable.instance,
-                              builder: (context, _) {
-                                final favorite =
-                                    widget.musicLibrary?.isFavorite(trackId) ??
-                                    false;
-                                final onDevice = _isCurrentTrackAlreadyOnDevice;
-                                return Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (_isStreamTrack &&
-                                        widget.musicLibrary != null)
-                                      _isSavingToDevice
-                                          ? const Padding(
-                                              padding: EdgeInsets.all(10),
-                                              child: SizedBox(
-                                                width: 22,
-                                                height: 22,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2.2,
-                                                      color: MeloColors.cherry,
-                                                    ),
+                              AnimatedBuilder(
+                                animation:
+                                    widget.musicLibrary ??
+                                    _NoopListenable.instance,
+                                builder: (context, _) {
+                                  final favorite =
+                                      widget.musicLibrary?.isFavoriteMediaItem(
+                                        widget.item,
+                                      ) ??
+                                      false;
+                                  final onDevice =
+                                      _isCurrentTrackAlreadyOnDevice;
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_isStreamTrack &&
+                                          widget.musicLibrary != null)
+                                        _isSavingToDevice
+                                            ? const Padding(
+                                                padding: EdgeInsets.all(10),
+                                                child: SizedBox(
+                                                  width: 22,
+                                                  height: 22,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2.2,
+                                                    color: MeloColors.cherry,
+                                                  ),
+                                                ),
+                                              )
+                                            : IconButton(
+                                                tooltip: onDevice
+                                                    ? 'Saved on device'
+                                                    : 'Download to device',
+                                                onPressed: onDevice
+                                                    ? null
+                                                    : _saveCurrentStreamToDevice,
+                                                icon: Icon(
+                                                  onDevice
+                                                      ? Icons
+                                                            .download_done_rounded
+                                                      : Icons
+                                                            .download_for_offline_outlined,
+                                                  color: onDevice
+                                                      ? MeloColors.cherry
+                                                      : MeloColors.playerMuted,
+                                                  size: 24,
+                                                ),
                                               ),
-                                            )
-                                          : IconButton(
-                                              tooltip: onDevice
-                                                  ? 'Saved on device'
-                                                  : 'Download to device',
-                                              onPressed: onDevice
-                                                  ? null
-                                                  : _saveCurrentStreamToDevice,
-                                              icon: Icon(
-                                                onDevice
-                                                    ? Icons
-                                                          .download_done_rounded
-                                                    : Icons
-                                                          .download_for_offline_outlined,
-                                                color: onDevice
-                                                    ? MeloColors.cherry
-                                                    : MeloColors.playerMuted,
-                                                size: 24,
-                                              ),
-                                            ),
-                                    _NowPlayingFavoriteButton(
-                                      isFavorite: favorite,
-                                      onTap: () => _toggleFavorite(trackId),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                            IconButton(
-                              tooltip: 'More options',
-                              onPressed: _showMoreSheet,
-                              icon: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                ),
-                                child: const Icon(
-                                  Icons.more_horiz_rounded,
-                                  color: Colors.white,
-                                  size: 20,
+                                      _NowPlayingFavoriteButton(
+                                        isFavorite: favorite,
+                                        onTap: () =>
+                                            _toggleFavorite(widget.item),
+                                        onLongPress: () =>
+                                            showManagePlaylistsSheet(
+                                          context,
+                                          item: widget.item,
+                                          musicLibrary: widget.musicLibrary,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                tooltip: 'More options',
+                                onPressed: _showMoreSheet,
+                                icon: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                  child: const Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
                         child: MeloGlass(
@@ -1677,122 +1867,169 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                       AudioServiceRepeatMode.none,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                ),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      tooltip: _showLyrics
-                                          ? 'Show artwork'
-                                          : 'Show live lyrics',
-                                      icon: Icon(
-                                        _showLyrics
-                                            ? Icons.chat_bubble_rounded
-                                            : Icons.chat_bubble_outline_rounded,
-                                        color: _showLyrics
-                                            ? MeloColors.cherry
-                                            : Colors.white70,
-                                        size: 21,
-                                      ),
-                                      onPressed: () {
-                                        setState(() => _showLyrics = !_showLyrics);
-                                      },
-                                    ),
-                                    Expanded(
-                                      child: Center(
-                                        child: FutureBuilder<String>(
-                                          future:
-                                              PlayerDeviceHelper.getDeviceName(),
-                                          builder: (context, snapshot) {
-                                            final deviceName =
-                                                snapshot.data ??
-                                                "Osman's Phone";
-                                            return InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                              onTap: () => PlayerDeviceHelper
-                                                  .showAudioOutputSheet(
-                                                context,
-                                              ),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 10,
-                                                  vertical: 6,
+                              AnimatedSize(
+                                duration: MeloMotion.fast,
+                                curve: MeloMotion.emphasized,
+                                child: _immersiveMode
+                                    ? const SizedBox(
+                                        width: double.infinity,
+                                        height: 0,
+                                      )
+                                    : Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(height: 8),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                IconButton(
+                                                  tooltip: _showLyrics
+                                                      ? 'Show artwork'
+                                                      : 'Show live lyrics',
+                                                  icon: Icon(
+                                                    _showLyrics
+                                                        ? Icons
+                                                              .chat_bubble_rounded
+                                                        : Icons
+                                                              .chat_bubble_outline_rounded,
+                                                    color: _showLyrics
+                                                        ? MeloColors.cherry
+                                                        : Colors.white70,
+                                                    size: 21,
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(
+                                                      () => _showLyrics =
+                                                          !_showLyrics,
+                                                    );
+                                                  },
                                                 ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(14),
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.06),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Icon(
-                                                      Icons
-                                                          .speaker_group_rounded,
-                                                      size: 13,
-                                                      color: MeloColors.cherry,
-                                                    ),
-                                                    const SizedBox(width: 5),
-                                                    Flexible(
-                                                      child: Text(
-                                                        deviceName,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          color: Colors.white
-                                                              .withValues(
-                                                                alpha: 0.72,
+                                                Expanded(
+                                                  child: Center(
+                                                    child: FutureBuilder<String>(
+                                                      future: PlayerDeviceHelper
+                                                          .getDeviceName(),
+                                                      builder:
+                                                          (context, snapshot) {
+                                                        final deviceName =
+                                                            snapshot.data ??
+                                                            "Osman's Phone";
+                                                        return InkWell(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                            14,
+                                                          ),
+                                                          onTap: () =>
+                                                              PlayerDeviceHelper
+                                                                  .showAudioOutputSheet(
+                                                            context,
+                                                          ),
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                              horizontal: 10,
+                                                              vertical: 6,
+                                                            ),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                14,
                                                               ),
-                                                          fontSize: 11.5,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
+                                                              color: Colors.white
+                                                                  .withValues(
+                                                                alpha: 0.06,
+                                                              ),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              children: [
+                                                                const Icon(
+                                                                  Icons
+                                                                      .speaker_group_rounded,
+                                                                  size: 13,
+                                                                  color:
+                                                                      MeloColors
+                                                                          .cherry,
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 5,
+                                                                ),
+                                                                Flexible(
+                                                                  child: Text(
+                                                                    deviceName,
+                                                                    maxLines: 1,
+                                                                    overflow:
+                                                                        TextOverflow
+                                                                            .ellipsis,
+                                                                    style: TextStyle(
+                                                                      color: Colors
+                                                                          .white
+                                                                          .withValues(
+                                                                        alpha:
+                                                                            0.72,
+                                                                      ),
+                                                                      fontSize:
+                                                                          11.5,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w600,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
                                                     ),
-                                                  ],
+                                                  ),
                                                 ),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                                                if (widget.audioHandler.queue
+                                                            .value.length >
+                                                        1 ||
+                                                    _isTransitioning) ...[
+                                                  _MixNextControl(
+                                                    transitioning:
+                                                        _isTransitioning,
+                                                    enabled:
+                                                        _isTransitioning ||
+                                                        playing,
+                                                    accent: _palette.accent,
+                                                    progress:
+                                                        _transitionProgress,
+                                                    transitionDuration:
+                                                        _transitionDuration,
+                                                    analysisHint:
+                                                        _transitionCueLabel,
+                                                    nextTrackTitle:
+                                                        _nextTrackTitle,
+                                                    onPressed: () => unawaited(
+                                                      _toggleTransition(),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                ],
+                                                IconButton(
+                                                  tooltip: 'Up next',
+                                                  icon: const Icon(
+                                                    Icons
+                                                        .format_list_bulleted_rounded,
+                                                    color: Colors.white70,
+                                                    size: 22,
+                                                  ),
+                                                  onPressed: _openQueue,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    if (widget.audioHandler.queue.value.length >
-                                            1 ||
-                                        _isTransitioning) ...[
-                                      _MixNextControl(
-                                        transitioning: _isTransitioning,
-                                        enabled: _isTransitioning || playing,
-                                        accent: _palette.accent,
-                                        progress: _transitionProgress,
-                                        transitionDuration:
-                                            _transitionDuration,
-                                        analysisHint: _transitionCueLabel,
-                                        nextTrackTitle: _nextTrackTitle,
-                                        onPressed: () =>
-                                            unawaited(_toggleTransition()),
-                                      ),
-                                      const SizedBox(width: 4),
-                                    ],
-                                    IconButton(
-                                      tooltip: 'Up next',
-                                      icon: const Icon(
-                                        Icons.format_list_bulleted_rounded,
-                                        color: Colors.white70,
-                                        size: 22,
-                                      ),
-                                      onPressed: _openQueue,
-                                    ),
-                                  ],
-                                ),
                               ),
                             ],
                           ),
@@ -1804,6 +2041,41 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                 ),
               ),
             ),
+            if (_immersiveMode)
+              Positioned(
+                top: 12,
+                right: 14,
+                child: SafeArea(
+                  child: Tooltip(
+                    message: 'Exit immersive mode',
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(99),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: _toggleImmersiveMode,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.16),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.fullscreen_exit_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },

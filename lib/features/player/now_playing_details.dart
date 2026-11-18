@@ -435,7 +435,7 @@ class TrackDetailsSheet extends StatelessWidget {
                             return _TrackDetailRow(
                               label: 'Embedded tags',
                               value: snapshot.error is MissingPluginException
-                                  ? 'Tag reader unavailable. Restart Tone after installing the latest Android build.'
+                                  ? 'Tag reader unavailable. Restart Melo after installing the latest Android build.'
                                   : 'Could not read: ${snapshot.error}',
                             );
                           }

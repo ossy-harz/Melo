@@ -276,16 +276,17 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   int _operationGeneration = 0;
   Future<void> _sequentialQueue = Future<void>.value();
 
-  Future<T> _coordinate<T>(Future<T> Function(int generation) action) {
+  Future<void> _coordinate(Future<void> Function(int generation) action) {
     final generation = ++_operationGeneration;
-    final completer = Completer<T>();
+    final completer = Completer<void>();
     _sequentialQueue = _sequentialQueue.then((_) async {
       if (generation != _operationGeneration) {
+        if (!completer.isCompleted) completer.complete();
         return;
       }
       try {
-        final result = await action(generation);
-        if (!completer.isCompleted) completer.complete(result);
+        await action(generation);
+        if (!completer.isCompleted) completer.complete();
       } catch (e, st) {
         if (!completer.isCompleted) completer.completeError(e, st);
       }
@@ -327,7 +328,7 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     try {
       await _player.setSpeed(1.0);
       await _player.setPitch(1.0);
-      await _player.setSkipSilenceEnabled(true);
+      await _player.setSkipSilenceEnabled(false);
     } catch (_) {}
   }
 
@@ -343,9 +344,7 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
     try {
       await _player.setSpeed(1.0);
       await _player.setPitch(1.0);
-      try {
-        await _player.setSkipSilenceEnabled(true);
-      } catch (_) {}
+      await _player.setVolume(_gain);
       await _player.setAudioSource(
         AudioSource.uri(
           source.uri,

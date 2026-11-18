@@ -743,7 +743,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       builder: (context) => AlertDialog(
         title: Text('Delete "${playlist.name}"?'),
         content: const Text(
-          'This will remove the playlist from Tone. The actual song files on your device will remain untouched.',
+          'This will remove the playlist from Melo. The actual song files on your device will remain untouched.',
         ),
         actions: [
           TextButton(

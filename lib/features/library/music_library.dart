@@ -232,6 +232,39 @@ class MusicLibrary extends ChangeNotifier {
       .length;
 
   bool isFavorite(String trackId) => _favoriteTrackIds.contains(trackId);
+
+  bool isFavoriteMediaItem(MediaItem item) {
+    if (_favoriteTrackIds.contains(item.id)) return true;
+    final libId = item.extras?['libraryId'] as String?;
+    if (libId != null && _favoriteTrackIds.contains(libId)) return true;
+    final providerId = _providerTrackIdForMediaItem(item);
+    final localMatch = findMatchingLocalTrack(
+      providerTrackId: providerId,
+      title: item.title,
+      artist: item.artist,
+      path: item.extras?['localPath'] as String? ?? item.id,
+    );
+    if (localMatch != null && _favoriteTrackIds.contains(localMatch.id)) {
+      return true;
+    }
+    if (providerId != null && providerId.isNotEmpty) {
+      for (final track in _tracks) {
+        if (track.providerTrackId == providerId &&
+            _favoriteTrackIds.contains(track.id)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  String? _providerTrackIdForMediaItem(MediaItem item) {
+    final extraId = item.extras?['providerTrackId'] as String?;
+    if (extraId != null && extraId.isNotEmpty) return extraId;
+    if (item.id.startsWith('spotify:')) return item.id.substring(8);
+    if (item.id.startsWith('youtube:')) return item.id.substring(8);
+    return null;
+  }
   bool isExcludedFromMixes(String trackId) =>
       _mixExcludedTrackIds.contains(trackId);
 
@@ -803,6 +836,63 @@ class MusicLibrary extends ChangeNotifier {
     _favoriteTrackIds = updated;
     notifyListeners();
     return isFavorite;
+  }
+
+  Future<String> ensureMediaItemRegistered(MediaItem item) async {
+    final existingId = item.extras?['libraryId'] as String?;
+    if (existingId != null && _trackIndexById.containsKey(existingId)) {
+      return existingId;
+    }
+    if (_trackIndexById.containsKey(item.id)) return item.id;
+    final providerId = _providerTrackIdForMediaItem(item);
+    final localMatch = findMatchingLocalTrack(
+      providerTrackId: providerId,
+      title: item.title,
+      artist: item.artist,
+      path: item.extras?['localPath'] as String? ?? item.id,
+    );
+    if (localMatch != null) return localMatch.id;
+    for (final track in _tracks) {
+      if (track.path == item.id ||
+          (providerId != null &&
+              providerId.isNotEmpty &&
+              track.providerTrackId == providerId)) {
+        return track.id;
+      }
+    }
+
+    final isSpotify =
+        item.id.startsWith('spotify:') ||
+        item.extras?['downloadProvider'] == 'Spotify' ||
+        item.extras?['source'] == 'spotify';
+    final isDevice =
+        item.id.startsWith('/') ||
+        item.id.startsWith('file:') ||
+        item.id.startsWith('content:');
+    final remoteTrack = ImportedTrack(
+      id: item.id,
+      path: item.id,
+      title: item.title,
+      artist: item.artist ?? 'Unknown artist',
+      album: item.album ?? 'Streaming',
+      durationMs: item.duration?.inMilliseconds,
+      artworkUri: item.artUri?.toString(),
+      sourceProvider: isDevice
+          ? null
+          : isSpotify
+          ? 'Spotify'
+          : 'youtube',
+      providerTrackId: providerId,
+      isAvailable: true,
+      isDeviceMedia: isDevice,
+    );
+    final registered = await registerOrFindRemoteTracks([remoteTrack]);
+    return registered.isNotEmpty ? registered.first.id : item.id;
+  }
+
+  Future<bool> toggleFavoriteMediaItem(MediaItem item) async {
+    final trackId = await ensureMediaItemRegistered(item);
+    return toggleFavorite(trackId);
   }
 
   Future<MusicPlaylist> createPlaylist(String name) async {
@@ -1472,7 +1562,7 @@ class MusicLibrary extends ChangeNotifier {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: supportedExtensions,
-      dialogTitle: 'Choose music to add to Tone',
+      dialogTitle: 'Choose music to add to Melo',
     );
     return files
         .map(

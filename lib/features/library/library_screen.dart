@@ -502,7 +502,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     try {
       await library.removeMusicFolder(folder);
       if (!mounted) return;
-      _showMessage('Removed ${folder.name} from Tone.');
+      _showMessage('Removed ${folder.name} from Melo.');
     } on Object catch (error) {
       if (!mounted) return;
       _showMessage('Could not remove ${folder.name}: $error');
@@ -783,7 +783,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete playlist?'),
         content: Text(
-          'Delete "${playlist.name}"? Your songs will stay in Tone.',
+          'Delete "${playlist.name}"? Your songs will stay in Melo.',
         ),
         actions: [
           TextButton(

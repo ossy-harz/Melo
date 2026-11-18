@@ -12,6 +12,7 @@ import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/shell/app_shell.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
@@ -2169,7 +2170,7 @@ void main() {
 
     expect(find.textContaining('Buy Me a Coffee'), findsNothing);
     expect(find.byIcon(Icons.coffee_rounded), findsNothing);
-    expect(find.textContaining('Melo v1.4.2'), findsWidgets);
+    expect(find.textContaining('Melo v1.4.3'), findsWidgets);
     expect(find.textContaining('github.com/ossy-harz/Tone'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -2237,6 +2238,133 @@ void main() {
     expect(find.text('No quiet intro/outro detected'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Heart likes streaming track, opens modern playlist popup, and supports immersive & sleep timer modes',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      const channel = MethodChannel('app.melo.melo_player/library');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async => null);
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      addTearDown(SleepTimerService.instance.cancel);
+
+      tester.view.physicalSize = const Size(432, 960);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final preferences = await SharedPreferences.getInstance();
+      final musicDirectory = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('melo-ui-'),
+      );
+      if (musicDirectory == null) {
+        fail('Could not create UI test music directory.');
+      }
+      addTearDown(() async {
+        if (await musicDirectory.exists()) {
+          await musicDirectory.delete(recursive: true);
+        }
+      });
+      final library = MusicLibrary.forTesting(
+        musicDirectory: musicDirectory,
+        preferences: preferences,
+        pickAudio: () async => const [],
+      );
+      await tester.runAsync(library.load);
+      addTearDown(library.close);
+
+      const streamingItem = MediaItem(
+        id: 'youtube:yt-heart-1',
+        title: 'Midnight Mirage',
+        artist: 'Melo Synth',
+        duration: Duration(minutes: 3, seconds: 20),
+        extras: {'source': 'youtube', 'providerTrackId': 'yt-heart-1'},
+      );
+      final handler = _PreviewAudioHandler()
+        ..queue.add(const [streamingItem])
+        ..mediaItem.add(streamingItem)
+        ..playbackState.add(
+          PlaybackState(
+            processingState: AudioProcessingState.ready,
+            playing: false,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NowPlayingScreen(
+            audioHandler: handler,
+            musicLibrary: library,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.byTooltip('Add to favorites'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(library.isFavoriteMediaItem(streamingItem), isTrue);
+      expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+      expect(find.text('Playlists'), findsOneWidget);
+
+      await tester.tap(find.text('Playlists'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.text('Liked Songs'), findsOneWidget);
+      expect(find.text('New Playlist'), findsOneWidget);
+      await tester.tap(find.text('New Playlist'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.enterText(find.byType(TextField), 'Night Drive');
+      await tester.tap(find.text('Create'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(library.playlists.map((p) => p.name), contains('Night Drive'));
+      await tester.tap(find.text('Done'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+
+      await tester.tap(find.byTooltip('Immersive mode'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.byTooltip('Exit immersive mode'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Exit immersive mode'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.byTooltip('Immersive mode'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Sleep timer'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('Custom duration'), findsOneWidget);
+      expect(find.text('15 Minutes'), findsOneWidget);
+
+      await tester.tap(find.text('15 Minutes'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(SleepTimerService.instance.isActive, isTrue);
+
+      SleepTimerService.instance.cancel();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {

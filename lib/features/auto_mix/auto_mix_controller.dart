@@ -42,6 +42,7 @@ class AutoMixController {
   AutoMixSettings _settings;
   Future<bool>? _activeTransition;
   Completer<void>? _cancelSignal;
+  bool _restoreDecksOnCancel = true;
 
   AutoMixSettings get settings => _settings;
   bool get isTransitioning => _activeTransition != null;
@@ -107,6 +108,7 @@ class AutoMixController {
 
     final cancelSignal = Completer<void>();
     _cancelSignal = cancelSignal;
+    _restoreDecksOnCancel = true;
     final operation = _runGainTransition(
       plan: plan,
       outgoingGain: outgoing.gain,
@@ -129,10 +131,11 @@ class AutoMixController {
     }
   }
 
-  Future<void> cancelTransition() async {
+  Future<void> cancelTransition({bool restoreDecks = true}) async {
     final active = _activeTransition;
     final signal = _cancelSignal;
     if (active == null || signal == null) return;
+    _restoreDecksOnCancel = restoreDecks;
     if (!signal.isCompleted) signal.complete();
     await active;
   }
@@ -174,12 +177,14 @@ class AutoMixController {
       await _audioEngine.pauseDeck(AudioDeck.a);
       return true;
     } on _TransitionCancelled {
-      await _restoreDecks(
-        outgoingGain: outgoingGain,
-        incomingGain: incomingGain,
-        incomingWasPlaying: incomingWasPlaying,
-        incomingPosition: incomingPosition,
-      );
+      if (_restoreDecksOnCancel) {
+        await _restoreDecks(
+          outgoingGain: outgoingGain,
+          incomingGain: incomingGain,
+          incomingWasPlaying: incomingWasPlaying,
+          incomingPosition: incomingPosition,
+        );
+      }
       return false;
     } on Object catch (error, stackTrace) {
       try {

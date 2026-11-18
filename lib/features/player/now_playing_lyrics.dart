@@ -93,34 +93,40 @@ class _ThreeLineLyricsPeek extends StatelessWidget {
   final AudioHandler audioHandler;
   final VoidCallback onExpand;
 
-  int _resolvedActiveLine(Duration position) {
+  ({int line, int word}) _resolvedState(Duration position) {
     final resolved = lyrics.isSynchronized
         ? lyrics.activeLineAt(position)
         : -1;
-    return resolved < 0 ? 0 : resolved;
+    final activeLine = resolved < 0 ? 0 : resolved;
+    final activeWord =
+        (resolved >= 0 &&
+            activeLine < lyrics.lines.length &&
+            lyrics.lines[activeLine].words.isNotEmpty)
+        ? lyrics.activeWordAt(activeLine, position)
+        : -1;
+    return (line: activeLine, word: activeWord);
   }
 
   @override
   Widget build(BuildContext context) {
-    final initialLine = _resolvedActiveLine(
-      currentPlaybackPosition(audioHandler),
-    );
-    return StreamBuilder<int>(
-      initialData: initialLine,
+    final initialState = _resolvedState(currentPlaybackPosition(audioHandler));
+    return StreamBuilder<({int line, int word})>(
+      initialData: initialState,
       stream: playbackPositionStream(
         audioHandler,
-      ).map(_resolvedActiveLine).distinct(),
+      ).map(_resolvedState).distinct(),
       builder: (context, snapshot) {
-        final active = snapshot.data ?? initialLine;
+        final state = snapshot.data ?? initialState;
+        final active = state.line;
+        final activeWord = state.word;
 
         final prevLine = (active > 0 && active - 1 < lyrics.lines.length)
             ? lyrics.lines[active - 1].text
             : null;
-        final currLine = (active >= 0 && active < lyrics.lines.length)
-            ? lyrics.lines[active].text
-            : (lyrics.lines.isNotEmpty
-                  ? lyrics.lines.first.text
-                  : 'Tap to read lyrics');
+        final currObj = (active >= 0 && active < lyrics.lines.length)
+            ? lyrics.lines[active]
+            : (lyrics.lines.isNotEmpty ? lyrics.lines.first : null);
+        final currLine = currObj?.text ?? 'Tap to read lyrics';
         final nextLine = (active + 1 < lyrics.lines.length)
             ? lyrics.lines[active + 1].text
             : null;
@@ -149,17 +155,51 @@ class _ThreeLineLyricsPeek extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        currLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
+                      child: (currObj != null && currObj.words.isNotEmpty)
+                          ? Text.rich(
+                              TextSpan(
+                                children: [
+                                  for (
+                                    var wi = 0;
+                                    wi < currObj.words.length;
+                                    wi++
+                                  )
+                                    TextSpan(
+                                      text:
+                                          '${currObj.words[wi].text}${wi + 1 == currObj.words.length ? '' : ' '}',
+                                      style: TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: wi <= activeWord
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: activeWord < 0
+                                            ? Colors.white
+                                            : wi == activeWord
+                                            ? MeloColors.cherrySoft
+                                            : wi < activeWord
+                                            ? Colors.white
+                                            : Colors.white.withValues(
+                                                alpha: 0.48,
+                                              ),
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : Text(
+                              currLine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 4),
                     Icon(
@@ -527,7 +567,7 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
             const SizedBox(height: 6),
             Text(
               'Standard .lrc files follow each line. Enhanced .lrc files can '
-              'time every word, or let Tone search for lyrics.',
+              'time every word, or let Melo search for lyrics.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: MeloColors.playerText.withValues(alpha: 0.6),
