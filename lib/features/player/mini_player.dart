@@ -42,6 +42,7 @@ part 'now_playing_screen.dart';
 part 'now_playing_more_sheet.dart';
 
 const _artworkChannel = MethodChannel('app.melo.melo_player/library');
+final http.Client _artworkHttpClient = http.Client();
 final Map<Uri, Future<Uint8List?>> _artworkCache = {};
 final Map<Uri, Uint8List?> _resolvedArtworkBytes = {};
 final Map<Uri, Future<MeloPalette?>> _paletteCache = {};

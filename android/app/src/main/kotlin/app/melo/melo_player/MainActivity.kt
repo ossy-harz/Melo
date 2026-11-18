@@ -22,6 +22,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
+import android.util.LruCache
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -46,6 +47,9 @@ class MainActivity : AudioServiceActivity() {
     private val waveformExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val waveformCache = LinkedHashMap<String, List<Double>>(32, 0.75f, true)
+    private val artworkByteCache = object : LruCache<String, ByteArray>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: ByteArray): Int = value.size
+    }
     private var pendingFolderResult: MethodChannel.Result? = null
     private var pendingDeleteResult: MethodChannel.Result? = null
     private var pendingDeleteUri: Uri? = null
@@ -2025,12 +2029,21 @@ class MainActivity : AudioServiceActivity() {
             )
             return
         }
+        val cacheKey = "${uriValue.orEmpty()}|${sourceUriValue.orEmpty()}"
+        val memCached = synchronized(artworkByteCache) { artworkByteCache.get(cacheKey) }
+        if (memCached != null && memCached.isNotEmpty()) {
+            result.success(memCached)
+            return
+        }
         artworkExecutor.execute {
             try {
                 val artworkBytes = uri?.let(::readArtworkUriBytes)
                     ?: sourceUri?.let(::readArtworkUriBytes)
                 val bytes = artworkBytes
                     ?: throw IllegalStateException("No embedded album artwork was found.")
+                if (bytes.isNotEmpty()) {
+                    synchronized(artworkByteCache) { artworkByteCache.put(cacheKey, bytes) }
+                }
                 mainHandler.post { result.success(bytes) }
             } catch (error: SecurityException) {
                 mainHandler.post {
@@ -2067,19 +2080,20 @@ class MainActivity : AudioServiceActivity() {
             try {
                 contentResolver.openInputStream(artworkUri)?.use { return it.readBytes() }
             } catch (_: Exception) {}
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    val bitmap = contentResolver.loadThumbnail(
-                        artworkUri,
-                        android.util.Size(512, 512),
-                        null,
-                    )
-                    val out = java.io.ByteArrayOutputStream()
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
-                    val data = out.toByteArray()
-                    if (data.isNotEmpty()) return data
-                } catch (_: Exception) {}
-            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && artworkUri.scheme == "content") {
+            try {
+                val bitmap = contentResolver.loadThumbnail(
+                    artworkUri,
+                    android.util.Size(512, 512),
+                    null,
+                )
+                val out = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, out)
+                val data = out.toByteArray()
+                if (data.isNotEmpty()) return data
+            } catch (_: Exception) {}
         }
 
         return try {

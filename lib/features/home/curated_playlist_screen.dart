@@ -748,6 +748,11 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
     if (valid.isNotEmpty) {
       _cache[key] = valid;
+      preloadArtworkUrls([
+        _coverCache[key],
+        preset.coverUrl,
+        ...valid.take(8).map((t) => t.thumbnailUrl),
+      ]);
     }
     return valid;
   }
@@ -926,36 +931,57 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   Future<void> _enrichTrackArtworks(List<YoutubeTrack> tracks) async {
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;
     final sharedPlaylistArt = widget.preset.coverUrl ?? _resolvedArtistCoverUrl;
-    var fetchedCount = 0;
+    preloadArtworkUrls([
+      sharedPlaylistArt,
+      ...tracks.take(10).map((t) => t.thumbnailUrl),
+    ]);
 
+    final cachedUpdates = <String, String>{};
+    final toFetch = <YoutubeTrack>[];
     for (final t in tracks) {
-      if (!mounted) return;
       final cached = SongMetadataEnricher.instance.cachedTrackArtworkUrl(
         t.title,
         t.author,
       );
       if (cached != null && cached.isNotEmpty) {
-        if (_enrichedTrackArtworks[t.id] != cached && mounted) {
-          setState(() => _enrichedTrackArtworks[t.id] = cached);
+        if (_enrichedTrackArtworks[t.id] != cached) {
+          cachedUpdates[t.id] = cached;
         }
         continue;
       }
-
       final needsOwnArt =
           t.thumbnailUrl == null ||
           t.thumbnailUrl!.isEmpty ||
           t.thumbnailUrl == sharedPlaylistArt;
-      if (!needsOwnArt) continue;
-      if (fetchedCount >= 15) continue;
-      fetchedCount++;
+      if (needsOwnArt && toFetch.length < 15) {
+        toFetch.add(t);
+      }
+    }
 
-      final url = await SongMetadataEnricher.instance.fetchTrackArtworkUrl(
-        t.title,
-        t.author,
+    if (cachedUpdates.isNotEmpty && mounted) {
+      setState(() => _enrichedTrackArtworks.addAll(cachedUpdates));
+      preloadArtworkUrls(cachedUpdates.values);
+    }
+
+    for (var i = 0; i < toFetch.length; i += 5) {
+      if (!mounted) return;
+      final chunk = toFetch.skip(i).take(5);
+      final batchUpdates = <String, String>{};
+      await Future.wait(
+        chunk.map((t) async {
+          final url = await SongMetadataEnricher.instance.fetchTrackArtworkUrl(
+            t.title,
+            t.author,
+          );
+          if (url != null && url.isNotEmpty) {
+            batchUpdates[t.id] = url;
+          }
+        }),
       );
       if (!mounted) return;
-      if (url != null && url.isNotEmpty && _enrichedTrackArtworks[t.id] != url) {
-        setState(() => _enrichedTrackArtworks[t.id] = url);
+      if (batchUpdates.isNotEmpty) {
+        preloadArtworkUrls(batchUpdates.values);
+        setState(() => _enrichedTrackArtworks.addAll(batchUpdates));
       }
     }
   }
@@ -1486,10 +1512,12 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
           ),
           child: ClipOval(
             child: url != null && url.isNotEmpty
-                ? Image.network(
-                    url,
+                ? CachedNetworkArtwork(
+                    url: url,
+                    width: size,
+                    height: size,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _fallbackGradientArtwork(
+                    errorWidget: _fallbackGradientArtwork(
                       primaryGradient,
                       iconSize: size * 0.38,
                     ),
@@ -1546,11 +1574,15 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: heroCoverUrl != null && heroCoverUrl.isNotEmpty
-            ? Image.network(
-                heroCoverUrl,
+            ? CachedNetworkArtwork(
+                url: heroCoverUrl,
+                width: 196,
+                height: 196,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) =>
-                    _fallbackGradientArtwork(primaryGradient, iconSize: 76),
+                errorWidget: _fallbackGradientArtwork(
+                  primaryGradient,
+                  iconSize: 76,
+                ),
               )
             : _fallbackGradientArtwork(primaryGradient, iconSize: 76),
       ),
@@ -1600,22 +1632,28 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
           fit: StackFit.expand,
           children: [
             if (artUrl != null && artUrl.isNotEmpty)
-              Image.network(
-                artUrl,
+              CachedNetworkArtwork(
+                url: artUrl,
+                width: 48,
+                height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => !isSpotify
-                    ? Image.network(
-                        'https://i.ytimg.com/vi/${track.id}/hqdefault.jpg',
+                errorWidget: !isSpotify
+                    ? CachedNetworkArtwork(
+                        url: 'https://i.ytimg.com/vi/${track.id}/hqdefault.jpg',
+                        width: 48,
+                        height: 48,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => fallbackBox(),
+                        errorWidget: fallbackBox(),
                       )
                     : fallbackBox(),
               )
             else if (!isSpotify)
-              Image.network(
-                'https://i.ytimg.com/vi/${track.id}/hqdefault.jpg',
+              CachedNetworkArtwork(
+                url: 'https://i.ytimg.com/vi/${track.id}/hqdefault.jpg',
+                width: 48,
+                height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => fallbackBox(),
+                errorWidget: fallbackBox(),
               )
             else
               fallbackBox(),
@@ -1860,10 +1898,12 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                         clipBehavior: Clip.antiAlias,
                         child:
                             miniPreviewArt != null && miniPreviewArt.isNotEmpty
-                            ? Image.network(
-                                miniPreviewArt,
+                            ? CachedNetworkArtwork(
+                                url: miniPreviewArt,
+                                width: 34,
+                                height: 44,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Icon(
+                                errorWidget: Icon(
                                   widget.preset.icon,
                                   color: Colors.white70,
                                   size: 16,

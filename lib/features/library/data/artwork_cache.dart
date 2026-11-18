@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -38,7 +39,13 @@ class ArtworkCache {
           if (await file.exists()) {
             final bytes = await file.readAsBytes();
             if (bytes.isNotEmpty) {
-              await file.setLastModified(DateTime.now());
+              if (Platform.environment.containsKey('FLUTTER_TEST')) {
+                await file.setLastModified(DateTime.now());
+              } else {
+                unawaited(
+                  file.setLastModified(DateTime.now()).catchError((_) => file),
+                );
+              }
               return Uint8List.fromList(bytes);
             }
             await file.delete();
@@ -67,7 +74,11 @@ class ArtworkCache {
           } finally {
             if (await temporary.exists()) await temporary.delete();
           }
-          await _prune();
+          if (Platform.environment.containsKey('FLUTTER_TEST')) {
+            await _prune();
+          } else {
+            unawaited(_prune().catchError((_) {}));
+          }
         } on FileSystemException catch (error, stackTrace) {
           FlutterError.reportError(
             FlutterErrorDetails(

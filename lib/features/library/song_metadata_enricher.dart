@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -40,6 +41,7 @@ class SongMetadataEnricher {
   SongMetadataEnricher._();
   static final SongMetadataEnricher instance = SongMetadataEnricher._();
 
+  final http.Client _httpClient = http.Client();
   final Map<String, String?> _artistImageCache = {};
   final Map<String, Future<String?>> _inFlightArtistImages = {};
   final Map<String, List<String>> _relatedArtistsCache = {};
@@ -53,8 +55,8 @@ class SongMetadataEnricher {
   String? cachedTrackArtworkUrl(String title, String artist) =>
       _trackArtworkCache[canonicalSongKey(title, artist)];
 
-  /// Fetches high-res studio cover artwork for an individual song via iTunes
-  /// and Deezer catalog matching, caching hits and misses in memory.
+  /// Races iTunes and Deezer catalog searches so cover artwork resolves as
+  /// soon as the faster catalog responds, caching hits and misses in memory.
   Future<String?> fetchTrackArtworkUrl(String title, String artist) async {
     final cleanedTitle = cleanTitle(title, rawArtist: artist);
     final cleanedArtist = cleanArtist(artist, rawTitle: title);
@@ -71,21 +73,35 @@ class SongMetadataEnricher {
       final term = cleanedArtist.isNotEmpty
           ? '$cleanedTitle $cleanedArtist'
           : cleanedTitle;
-      try {
-        final results = await Future.wait([
-          _queryItunesCatalog(term, cleanedTitle, cleanedArtist),
-          _queryDeezerCatalog(term, cleanedTitle, cleanedArtist),
-        ]);
-        final art =
-            (results[0]?['artworkUrl'] as String?) ??
-            (results[1]?['artworkUrl'] as String?);
-        final resolved = (art != null && art.isNotEmpty) ? art : null;
-        _trackArtworkCache[key] = resolved;
-        return resolved;
-      } catch (_) {
-        _trackArtworkCache[key] = null;
-        return null;
+      final completer = Completer<String?>();
+      var pending = 2;
+
+      void onCatalogResult(Map<String, Object?>? data) {
+        final art = (data?['artworkUrl'] as String?)?.trim();
+        if (art != null && art.isNotEmpty && !completer.isCompleted) {
+          completer.complete(art);
+          return;
+        }
+        pending--;
+        if (pending <= 0 && !completer.isCompleted) {
+          completer.complete(null);
+        }
       }
+
+      unawaited(
+        _queryItunesCatalog(term, cleanedTitle, cleanedArtist)
+            .then(onCatalogResult)
+            .catchError((_) => onCatalogResult(null)),
+      );
+      unawaited(
+        _queryDeezerCatalog(term, cleanedTitle, cleanedArtist)
+            .then(onCatalogResult)
+            .catchError((_) => onCatalogResult(null)),
+      );
+
+      final resolved = await completer.future;
+      _trackArtworkCache[key] = resolved;
+      return resolved;
     }();
 
     _inFlightTrackArtworks[key] = future;
@@ -153,7 +169,7 @@ class SongMetadataEnricher {
         'q': artistName,
         'limit': '3',
       });
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await _httpClient.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode != 200) return null;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final results =
@@ -202,7 +218,7 @@ class SongMetadataEnricher {
       final uri = Uri.https('api.deezer.com', '/artist/$artistId/related', {
         'limit': '$limit',
       });
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await _httpClient.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode != 200) return const [];
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final results =
@@ -525,7 +541,7 @@ class SongMetadataEnricher {
         'entity': 'song',
         'limit': '5',
       });
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await _httpClient.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode != 200) return null;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final results = (data['results'] as List?)?.cast<Map<String, dynamic>>();
@@ -544,7 +560,7 @@ class SongMetadataEnricher {
       }
 
       final rawArt = chosen['artworkUrl100'] as String?;
-      final hiResArt = rawArt?.replaceAll('100x100bb', '1000x1000bb');
+      final hiResArt = rawArt?.replaceAll('100x100bb', '600x600bb');
       final releaseDate = chosen['releaseDate'] as String?;
       final year = releaseDate != null && releaseDate.length >= 4
           ? int.tryParse(releaseDate.substring(0, 4))
@@ -575,7 +591,7 @@ class SongMetadataEnricher {
         'q': searchTerm,
         'limit': '5',
       });
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await _httpClient.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode != 200) return null;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final results = (data['data'] as List?)?.cast<Map<String, dynamic>>();
@@ -595,8 +611,8 @@ class SongMetadataEnricher {
       }
 
       final albumMap = chosen['album'] as Map<String, dynamic>?;
-      final cover = (albumMap?['cover_xl'] ??
-          albumMap?['cover_big'] ??
+      final cover = (albumMap?['cover_big'] ??
+          albumMap?['cover_xl'] ??
           albumMap?['cover_medium']) as String?;
       final durationSec = (chosen['duration'] as num?)?.toInt();
 

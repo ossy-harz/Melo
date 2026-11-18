@@ -230,6 +230,8 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   StreamSubscription<dynamic>? _transitionSubscription;
   MeloPalette _palette = MeloPalette.fallback;
   bool _showLyrics = false;
+  Uri? _resolvedFallbackArtUri;
+  String? _resolvedFallbackForId;
 
   @override
   void initState() {
@@ -244,6 +246,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
       if (signature == _queueSignature) return;
       _queueSignature = signature;
       unawaited(_refreshTransitionCues());
+      _preloadQueueArtworks();
     });
     _playbackSubscription = widget.audioHandler.playbackState.listen((state) {
       final signature = _signatureForPlayback(state);
@@ -258,6 +261,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     unawaited(_restoreLyrics(widget.item));
     unawaited(_resolvePalette(widget.item));
     unawaited(_refreshTransitionCues());
+    _preloadQueueArtworks();
   }
 
   @override
@@ -266,9 +270,12 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     if (oldWidget.item.id != widget.item.id) {
       _lyrics = null;
       _isLoadingLyrics = true;
+      _resolvedFallbackArtUri = null;
+      _resolvedFallbackForId = null;
       unawaited(_restoreLyrics(widget.item));
       unawaited(_resolvePalette(widget.item));
       unawaited(_refreshTransitionCues());
+      _preloadQueueArtworks();
     }
   }
 
@@ -478,6 +485,52 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         _hasAnalysisTarget = true;
         _isAnalyzingTransition = false;
       });
+    }
+  }
+
+  void _preloadQueueArtworks() {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    final activeItem = widget.item;
+    final items = widget.audioHandler.queue.value;
+    final activeIdx = items.indexWhere((m) => m.id == activeItem.id);
+
+    final targets = <MediaItem>[
+      activeItem,
+      if (activeIdx >= 0)
+        ...items.skip(activeIdx + 1).take(3)
+      else
+        ...items.where((m) => m.id != activeItem.id).take(3),
+    ];
+
+    for (final target in targets) {
+      if (target.artUri != null) {
+        unawaited(preloadArtworkUri(target.artUri, Uri.tryParse(target.id)));
+        continue;
+      }
+      final sourceUri = Uri.tryParse(target.id);
+      if (sourceUri != null &&
+          (sourceUri.scheme == 'content' || sourceUri.scheme == 'file')) {
+        unawaited(preloadArtworkUri(null, sourceUri));
+      }
+      unawaited(() async {
+        final url = await SongMetadataEnricher.instance.fetchTrackArtworkUrl(
+          target.title,
+          target.artist ?? '',
+        );
+        if (url == null || url.isEmpty) return;
+        final uri = Uri.tryParse(url);
+        if (uri == null) return;
+        unawaited(preloadArtworkUri(uri));
+        if (mounted &&
+            target.id == widget.item.id &&
+            widget.item.artUri == null) {
+          setState(() {
+            _resolvedFallbackArtUri = uri;
+            _resolvedFallbackForId = target.id;
+          });
+          unawaited(_resolvePalette(widget.item.copyWith(artUri: uri)));
+        }
+      }());
     }
   }
 
@@ -1338,7 +1391,11 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                       title: widget.item.title,
                                                       iconSize: 76,
                                                       artworkUri:
-                                                          widget.item.artUri,
+                                                          widget.item.artUri ??
+                                                          (_resolvedFallbackForId ==
+                                                                  widget.item.id
+                                                              ? _resolvedFallbackArtUri
+                                                              : null),
                                                       sourceUri: Uri.tryParse(
                                                         widget.item.id,
                                                       ),

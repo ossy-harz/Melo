@@ -1090,10 +1090,12 @@ class TopPickCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (coverUrl != null)
-                  Image.network(
-                    coverUrl!,
+                  CachedNetworkArtwork(
+                    url: coverUrl!,
+                    width: 250,
+                    height: 195,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    errorWidget: const SizedBox.shrink(),
                   ),
                 DecoratedBox(
                   decoration: BoxDecoration(
@@ -1787,10 +1789,12 @@ class StationTile extends StatelessWidget {
                         )
                       else if (defaultArtworkUrl != null)
                         Positioned.fill(
-                          child: Image.network(
-                            defaultArtworkUrl!,
+                          child: CachedNetworkArtwork(
+                            url: defaultArtworkUrl!,
+                            width: 136,
+                            height: 136,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => CustomPaint(
+                            errorWidget: CustomPaint(
                               painter: FoldedPrismPainter(
                                 color: Colors.white.withValues(alpha: 0.14),
                               ),
@@ -2287,10 +2291,12 @@ class _RecommendedPlaylistsSectionState
                               children: [
                                 if (preset.coverUrl != null &&
                                     preset.coverUrl!.isNotEmpty)
-                                  Image.network(
-                                    preset.coverUrl!,
+                                  CachedNetworkArtwork(
+                                    url: preset.coverUrl!,
+                                    width: 156,
+                                    height: 156,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
+                                    errorWidget: Container(
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           begin: Alignment.topLeft,
@@ -2959,10 +2965,12 @@ class _PopularSongsShelfState extends State<PopularSongsShelf> {
                               fit: StackFit.expand,
                               children: [
                                 if (track.thumbnailUrl != null)
-                                  Image.network(
-                                    track.thumbnailUrl!,
+                                  CachedNetworkArtwork(
+                                    url: track.thumbnailUrl!,
+                                    width: 140,
+                                    height: 140,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
+                                    errorWidget: Container(
                                       color: colors.surfaceContainerHighest,
                                       child: const Icon(Icons.music_note_rounded, size: 36, color: Colors.white54),
                                     ),
@@ -3030,10 +3038,12 @@ class _ArtistAvatarImage extends StatelessWidget {
     final trimmed = avatarUrl.trim();
     if (trimmed.isNotEmpty) {
       if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-        return Image.network(
-          trimmed,
+        return CachedNetworkArtwork(
+          url: trimmed,
+          width: 104,
+          height: 104,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _fallback(),
+          errorWidget: _fallback(),
         );
       }
       final filePath = trimmed.startsWith('file://')
@@ -3662,10 +3672,12 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                                 fit: StackFit.expand,
                                 children: [
                                   if (playlist.artworkUrl.isNotEmpty)
-                                    Image.network(
-                                      playlist.artworkUrl,
+                                    CachedNetworkArtwork(
+                                      url: playlist.artworkUrl,
+                                      width: 158,
+                                      height: 112,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
+                                      errorWidget: Container(
                                         decoration: const BoxDecoration(
                                           gradient: LinearGradient(
                                             begin: Alignment.topLeft,
@@ -3848,10 +3860,12 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: track.artworkUrl != null
-                                ? Image.network(
-                                    track.artworkUrl!,
+                                ? CachedNetworkArtwork(
+                                    url: track.artworkUrl!,
+                                    width: 38,
+                                    height: 38,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(
+                                    errorWidget: const Icon(
                                       Icons.music_note_rounded,
                                       size: 18,
                                       color: MeloColors.cherry,

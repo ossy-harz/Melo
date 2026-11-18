@@ -281,13 +281,127 @@ String _monogram(String value) {
 }
 
 void _rememberArtworkBytes(Uri cacheKey, Uint8List bytes) {
-  if (_artworkCache.length > 96) {
+  if (_artworkCache.length > 256) {
     _artworkCache.remove(_artworkCache.keys.first);
   }
-  if (_resolvedArtworkBytes.length > 96) {
+  if (_resolvedArtworkBytes.length > 256) {
     _resolvedArtworkBytes.remove(_resolvedArtworkBytes.keys.first);
   }
   _resolvedArtworkBytes[cacheKey] = bytes;
+}
+
+Uri? _effectiveArtworkUri(Uri? artworkUri, Uri? sourceUri) {
+  if (artworkUri != null && artworkUri.toString().trim().isNotEmpty) {
+    return artworkUri;
+  }
+  if (sourceUri == null) return null;
+  if (sourceUri.scheme == 'youtube') {
+    final id = sourceUri.host.isNotEmpty ? sourceUri.host : sourceUri.path;
+    if (id.isNotEmpty) {
+      return Uri.parse('https://i.ytimg.com/vi/$id/hqdefault.jpg');
+    }
+  }
+  if (sourceUri.scheme == 'http' || sourceUri.scheme == 'https') {
+    return sourceUri;
+  }
+  return null;
+}
+
+Future<Uint8List?> preloadArtworkUri(Uri? artworkUri, [Uri? sourceUri]) {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+    return Future<Uint8List?>.value();
+  }
+  final key = artworkUri ?? sourceUri;
+  if (key == null) return Future<Uint8List?>.value();
+  final cached = _resolvedArtworkBytes[key];
+  if (cached != null && cached.isNotEmpty) {
+    return Future<Uint8List?>.value(cached);
+  }
+  return _loadArtwork(artworkUri, sourceUri);
+}
+
+void preloadArtworkUrls(Iterable<String?> urls, {int maxCount = 12}) {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+  var count = 0;
+  for (final raw in urls) {
+    final trimmed = raw?.trim();
+    if (trimmed == null || trimmed.isEmpty) continue;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) continue;
+    if (_resolvedArtworkBytes.containsKey(uri)) continue;
+    unawaited(preloadArtworkUri(uri));
+    count++;
+    if (count >= maxCount) break;
+  }
+}
+
+/// Renders a network cover using Melo's shared RAM byte cache, persistent
+/// keep-alive HTTP client, and Android [ArtworkCache] disk storage.
+class CachedNetworkArtwork extends StatelessWidget {
+  const CachedNetworkArtwork({
+    required this.url,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+    this.cacheDimension,
+    this.placeholder,
+    this.errorWidget,
+    super.key,
+  });
+
+  final String url;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final double? cacheDimension;
+  final Widget? placeholder;
+  final Widget? errorWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) {
+      return errorWidget ?? placeholder ?? const SizedBox.shrink();
+    }
+    final cachedBytes = _resolvedArtworkBytes[uri];
+    final targetDim = cacheDimension ?? width ?? height;
+    final decodeSize = targetDim != null
+        ? (targetDim * MediaQuery.devicePixelRatioOf(context))
+              .ceil()
+              .clamp(64, 1024)
+        : 512;
+
+    Widget buildImage(Uint8List bytes) => Image.memory(
+      bytes,
+      width: width,
+      height: height,
+      fit: fit,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+      cacheWidth: decodeSize,
+      cacheHeight: decodeSize,
+      errorBuilder: (_, _, _) =>
+          errorWidget ?? placeholder ?? const SizedBox.shrink(),
+    );
+
+    if (cachedBytes != null && cachedBytes.isNotEmpty) {
+      return buildImage(cachedBytes);
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: _loadArtwork(uri, null),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes != null && bytes.isNotEmpty) {
+          return buildImage(bytes);
+        }
+        if (snapshot.connectionState == ConnectionState.done) {
+          return errorWidget ?? placeholder ?? const SizedBox.shrink();
+        }
+        return placeholder ?? errorWidget ?? const SizedBox.shrink();
+      },
+    );
+  }
 }
 
 Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
@@ -320,18 +434,63 @@ Future<Uint8List?> _loadArtwork(Uri? artworkUri, Uri? sourceUri) {
         }
       }
 
-      // 2. Remote HTTP/HTTPS artwork
-      if (artworkUri != null &&
-          (artworkUri.scheme == 'http' || artworkUri.scheme == 'https')) {
-        try {
-          final res = await http
-              .get(artworkUri)
-              .timeout(const Duration(seconds: 8));
-          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-            _rememberArtworkBytes(cacheKey, res.bodyBytes);
-            return res.bodyBytes;
+      // 2. Remote HTTP/HTTPS artwork (disk-cached on Android + keep-alive client)
+      final effectiveArtUri = _effectiveArtworkUri(artworkUri, sourceUri);
+      if (effectiveArtUri != null &&
+          (effectiveArtUri.scheme == 'http' ||
+              effectiveArtUri.scheme == 'https')) {
+        Future<Uint8List?> fetchRemote() async {
+          Future<Uint8List?> getBytes(Uri target) async {
+            try {
+              final res = await _artworkHttpClient
+                  .get(target)
+                  .timeout(const Duration(seconds: 4));
+              if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+                return res.bodyBytes;
+              }
+            } catch (_) {}
+            return null;
           }
-        } catch (_) {}
+
+          var remoteBytes = await getBytes(effectiveArtUri);
+          if ((remoteBytes == null || remoteBytes.isEmpty) &&
+              effectiveArtUri.host.contains('ytimg.com') &&
+              effectiveArtUri.path.endsWith('/maxresdefault.jpg')) {
+            final fallbackUri = effectiveArtUri.replace(
+              path: effectiveArtUri.path.replaceFirst(
+                '/maxresdefault.jpg',
+                '/hqdefault.jpg',
+              ),
+            );
+            remoteBytes = await getBytes(fallbackUri);
+          }
+          return remoteBytes;
+        }
+
+        final remoteBytes = !kIsWeb && Platform.isAndroid
+            ? await (await ArtworkCache.shared).getOrFetch(
+                effectiveArtUri.toString(),
+                fetchRemote,
+              )
+            : await fetchRemote();
+        if (remoteBytes != null && remoteBytes.isNotEmpty) {
+          _rememberArtworkBytes(cacheKey, remoteBytes);
+          return remoteBytes;
+        }
+      }
+
+      // Skip native MediaMetadataRetriever for remote-only URI schemes
+      final canQueryNative = [artworkUri, sourceUri].any((u) {
+        if (u == null) return false;
+        return u.scheme != 'http' &&
+            u.scheme != 'https' &&
+            u.scheme != 'youtube' &&
+            u.scheme != 'spotify';
+      });
+      if (!canQueryNative) {
+        _artworkCache.remove(cacheKey);
+        _resolvedArtworkBytes.remove(cacheKey);
+        return null;
       }
 
       // 3. Platform channel (MediaStore albumart, content://, or embedded audio tags)

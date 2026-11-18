@@ -92,7 +92,7 @@ class AudioAddonManager {
       icon: Icons.playlist_add_rounded,
       isEnabled: true,
       priority: 2,
-      version: '1.4.1',
+      version: '1.4.2',
     ),
     const AudioSourceAddon(
       id: 'bit_perfect_dac',
