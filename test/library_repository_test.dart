@@ -309,6 +309,43 @@ void main() {
       );
     },
   );
+
+  test(
+    'preserves all playlist tracks including streaming tracks and persists coverStyle & customArtworkUri',
+    () async {
+      await repository.initialize();
+      final local = _track('track-local', title: 'Local Song');
+      await repository.saveTracks([local]);
+
+      // Playlist contains 1 local track and 2 streaming tracks that are not yet in database
+      final playlist = MusicPlaylist(
+        id: 'playlist-mixed',
+        name: 'My Mix',
+        trackIds: [local.id, 'youtube:stream_1', 'spotify:stream_2'],
+        createdAt: DateTime.utc(2025, 2, 1),
+        coverStyle: 'cherrySunset',
+        customArtworkUri: 'https://example.com/art.jpg',
+      );
+
+      await repository.savePlaylists([playlist]);
+
+      final snapshot = await repository.load();
+      expect(snapshot.playlists, hasLength(1));
+      final loaded = snapshot.playlists.single;
+      expect(loaded.id, 'playlist-mixed');
+      expect(loaded.name, 'My Mix');
+      // All 3 tracks preserved, none dropped!
+      expect(loaded.trackIds, [local.id, 'youtube:stream_1', 'spotify:stream_2']);
+      expect(loaded.coverStyle, 'cherrySunset');
+      expect(loaded.customArtworkUri, 'https://example.com/art.jpg');
+
+      // SharedPreferences backup was also mirrored
+      final storedPref = preferences.getString('tone_library_playlists_v1');
+      expect(storedPref, isNotNull);
+      final decoded = MusicPlaylist.decodeList(storedPref!);
+      expect(decoded.single.trackIds, [local.id, 'youtube:stream_1', 'spotify:stream_2']);
+    },
+  );
 }
 
 ImportedTrack _track(

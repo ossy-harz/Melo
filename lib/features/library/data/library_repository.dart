@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/data/melo_database.dart';
 import 'package:melo_player/features/library/imported_track.dart';
@@ -141,9 +142,18 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
   final SharedPreferences _legacyPreferences;
 
   Future<void> initialize() async {
-    final result = await database.customSelect('PRAGMA quick_check').get();
-    if (result.length != 1 || result.single.data.values.single != 'ok') {
-      throw const LibraryDatabaseCorruptionException();
+    try {
+      final result = await database.customSelect('PRAGMA quick_check').get();
+      final hasError = result.any((row) {
+        final val = row.data.values.firstOrNull?.toString().toLowerCase();
+        return val != null && val != 'ok';
+      });
+      if (hasError) {
+        throw const LibraryDatabaseCorruptionException();
+      }
+    } catch (e) {
+      if (e is LibraryDatabaseCorruptionException) rethrow;
+      debugPrint('quick_check warning: $e');
     }
     await _migrateLegacyPreferences();
   }
@@ -175,20 +185,43 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
       trackIdsByPlaylist.putIfAbsent(row.playlistId, () => []).add(row.trackId);
     }
 
+    final metaRow = await (database.select(database.userPreferences)
+          ..where((row) => row.key.equals('library.playlists_meta')))
+        .getSingleOrNull();
+    final metaJson =
+        metaRow?.valueJson ?? _legacyPreferences.getString(_playlistsKey);
+    final metaById = <String, MusicPlaylist>{};
+    if (metaJson != null) {
+      try {
+        for (final p in MusicPlaylist.decodeList(metaJson)) {
+          metaById[p.id] = p;
+        }
+      } catch (_) {}
+    }
+
+    final loadedPlaylists = playlistRows.isNotEmpty
+        ? playlistRows
+            .map(
+              (row) {
+                final meta = metaById[row.id];
+                return MusicPlaylist(
+                  id: row.id,
+                  name: row.name,
+                  trackIds: List.unmodifiable(
+                    trackIdsByPlaylist[row.id] ?? meta?.trackIds ?? const [],
+                  ),
+                  createdAt: row.createdAt,
+                  coverStyle: meta?.coverStyle,
+                  customArtworkUri: meta?.customArtworkUri,
+                );
+              },
+            )
+            .toList(growable: false)
+        : metaById.values.toList(growable: false);
+
     return LibrarySnapshot(
       tracks: trackRows.map(_toImportedTrack).toList(growable: false),
-      playlists: playlistRows
-          .map(
-            (row) => MusicPlaylist(
-              id: row.id,
-              name: row.name,
-              trackIds: List.unmodifiable(
-                trackIdsByPlaylist[row.id] ?? const [],
-              ),
-              createdAt: row.createdAt,
-            ),
-          )
-          .toList(growable: false),
+      playlists: loadedPlaylists,
       folders: folderRows
           .map((row) => MusicFolder(uri: row.uri, name: row.name))
           .toList(growable: false),
@@ -475,10 +508,77 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
   @override
   Future<void> savePlaylists(List<MusicPlaylist> playlists) =>
       database.transaction(() async {
+        // Also mirror to legacy preferences and userPreferences so playlists survive any database loss
+        try {
+          await _legacyPreferences.setString(
+            _playlistsKey,
+            jsonEncode(playlists.map((playlist) => playlist.toJson()).toList()),
+          );
+        } catch (_) {}
+
+        try {
+          await into(database.userPreferences).insertOnConflictUpdate(
+            UserPreferencesCompanion.insert(
+              key: 'library.playlists_meta',
+              valueJson: jsonEncode(
+                playlists.map((playlist) => playlist.toJson()).toList(),
+              ),
+              updatedAt: DateTime.now(),
+            ),
+          );
+        } catch (_) {}
+
         final validTrackRows = await database
             .select(database.libraryTracks)
             .get();
         final validTrackIds = validTrackRows.map((row) => row.id).toSet();
+
+        // Ensure all playlist track IDs exist in database.libraryTracks so they are never dropped!
+        final missingIds = <String>{};
+        for (final playlist in playlists) {
+          for (final trackId in playlist.trackIds) {
+            if (!validTrackIds.contains(trackId)) {
+              missingIds.add(trackId);
+            }
+          }
+        }
+
+        if (missingIds.isNotEmpty) {
+          final defaultArtistId = _artistId('Unknown artist');
+          final defaultAlbumId = _albumId(defaultArtistId, 'Saved Playlist Tracks');
+          await into(database.artists).insertOnConflictUpdate(
+            ArtistsCompanion.insert(
+              id: defaultArtistId,
+              name: 'Unknown artist',
+              normalizedName: _normalize('Unknown artist'),
+            ),
+          );
+          await into(database.albums).insertOnConflictUpdate(
+            AlbumsCompanion.insert(
+              id: defaultAlbumId,
+              title: 'Saved Playlist Tracks',
+              artistId: defaultArtistId,
+            ),
+          );
+          var nextPos = validTrackRows.length;
+          for (final missingId in missingIds) {
+            await into(database.libraryTracks).insertOnConflictUpdate(
+              LibraryTracksCompanion.insert(
+                id: missingId,
+                path: missingId,
+                title: missingId,
+                artist: 'Unknown artist',
+                album: 'Saved Playlist Tracks',
+                artistId: defaultArtistId,
+                albumId: defaultAlbumId,
+                isAvailable: const Value(true),
+                position: nextPos++,
+              ),
+            );
+            validTrackIds.add(missingId);
+          }
+        }
+
         await database.delete(database.playlistTracks).go();
         await database.delete(database.playlists).go();
         final playlistRows = <PlaylistsCompanion>[];

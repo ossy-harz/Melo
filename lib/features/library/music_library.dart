@@ -540,6 +540,23 @@ class MusicLibrary extends ChangeNotifier {
       _queuedTrackOrder = snapshot.queueTrackIds;
       _currentTrackId = snapshot.currentTrackId;
       decoded = snapshot.tracks;
+
+      // Resilient fallback: If repository returned 0 playlists, check SharedPreferences backup
+      // (e.g. after app update, database recreation, or corrupt-database recovery)
+      if (_playlists.isEmpty) {
+        final storedPlaylists = _preferences.getString(_playlistsKey);
+        if (storedPlaylists != null && storedPlaylists.isNotEmpty) {
+          try {
+            final recovered = MusicPlaylist.decodeList(storedPlaylists);
+            if (recovered.isNotEmpty) {
+              _playlists = recovered;
+              unawaited(repository.savePlaylists(recovered));
+            }
+          } catch (e) {
+            debugPrint('Could not restore playlists from preferences backup: $e');
+          }
+        }
+      }
     } else {
       _favoriteTrackIds =
           (_preferences.getStringList(_favoritesKey) ?? const []).toSet();
@@ -1083,20 +1100,19 @@ class MusicLibrary extends ChangeNotifier {
     if (tracks.isEmpty) {
       throw StateError('Add songs to this playlist before playing it.');
     }
-    if (tracks.any((track) => !track.isAvailable)) {
+    final availableTracks = tracks.where((track) => track.isAvailable).toList(growable: false);
+    if (availableTracks.isEmpty) {
       throw StateError(
-        'This playlist contains unavailable songs. Rescan your library and review the missing tracks.',
+        'This playlist has no playable songs available right now.',
       );
     }
     final requestedIndex = startTrackId == null
         ? 0
-        : tracks.indexWhere((track) => track.id == startTrackId);
-    if (requestedIndex < 0) {
-      throw StateError('The selected song is no longer in this playlist.');
-    }
+        : availableTracks.indexWhere((track) => track.id == startTrackId);
+    final targetIndex = requestedIndex >= 0 ? requestedIndex : 0;
     final orderedTracks = [
-      ...tracks.skip(requestedIndex),
-      ...tracks.take(requestedIndex),
+      ...availableTracks.skip(targetIndex),
+      ...availableTracks.take(targetIndex),
     ];
     await handler.updateQueue(
       orderedTracks.map((track) => track.toMediaItem()).toList(growable: false),
@@ -2054,14 +2070,16 @@ class MusicLibrary extends ChangeNotifier {
     await _preferences.setString(_tracksKey, jsonEncode(json));
   }
 
-  Future<void> _savePlaylists(List<MusicPlaylist> playlists) {
-    if (_repository case final repository?) {
-      return repository.savePlaylists(playlists);
-    }
-    return _preferences.setString(
+  Future<void> _savePlaylists(List<MusicPlaylist> playlists) async {
+    // Mirror to SharedPreferences so playlists survive database updates, migrations,
+    // corruptions, and APK updates.
+    await _preferences.setString(
       _playlistsKey,
       jsonEncode(playlists.map((playlist) => playlist.toJson()).toList()),
     );
+    if (_repository case final repository?) {
+      await repository.savePlaylists(playlists);
+    }
   }
 
   Future<void> _saveFolders(List<MusicFolder> folders) {

@@ -557,6 +557,24 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
   YoutubeTrack _fromSpotifyTrack(SpotifyTrack t) => _fromSpotifyTrackStatic(t);
 
+  static YoutubeTrack _importedTrackToYoutubeTrack(ImportedTrack track) {
+    var rawId = track.providerTrackId ?? track.id;
+    if (rawId.startsWith('youtube:')) rawId = rawId.substring(8);
+    if (rawId.startsWith('spotify:')) rawId = rawId.substring(8);
+    final isSpotify = (track.sourceProvider?.toLowerCase() == 'spotify') ||
+        track.path.startsWith('spotify:');
+    final id = isSpotify ? 'spotify:$rawId' : 'youtube:$rawId';
+
+    return YoutubeTrack(
+      id: id,
+      title: track.title,
+      author: track.artist,
+      duration: Duration(milliseconds: track.durationMs ?? 0),
+      album: track.album,
+      thumbnailUrl: track.artworkUri,
+    );
+  }
+
   ImportedTrack _trackToImportedTrack(YoutubeTrack t) {
     final enrichedArt = _enrichedTrackArtworks[t.id] ?? t.thumbnailUrl;
     final rawId = _rawTrackId(t.id);
@@ -872,6 +890,33 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
               },
             );
 
+      if (valid.isEmpty) {
+        final savedPlaylist = widget.library?.playlists
+            .where(
+              (p) =>
+                  p.name.trim().toLowerCase() ==
+                  widget.preset.title.trim().toLowerCase(),
+            )
+            .firstOrNull;
+        if (savedPlaylist != null && widget.library != null) {
+          final savedTracks =
+              widget.library!.tracksForPlaylist(savedPlaylist.id);
+          if (savedTracks.isNotEmpty) {
+            final mapped =
+                savedTracks.map(_importedTrackToYoutubeTrack).toList(growable: false);
+            if (mounted) {
+              setState(() {
+                _tracks = mapped;
+                _loading = false;
+                _errorMessage = null;
+              });
+            }
+            _cache[_cacheKey] = mapped;
+            return;
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _tracks = valid;
@@ -887,6 +932,31 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
         unawaited(_enrichTrackArtworks(valid));
       }
     } catch (e) {
+      final savedPlaylist = widget.library?.playlists
+          .where(
+            (p) =>
+                p.name.trim().toLowerCase() ==
+                widget.preset.title.trim().toLowerCase(),
+          )
+          .firstOrNull;
+      if (savedPlaylist != null && widget.library != null) {
+        final savedTracks =
+            widget.library!.tracksForPlaylist(savedPlaylist.id);
+        if (savedTracks.isNotEmpty) {
+          final mapped =
+              savedTracks.map(_importedTrackToYoutubeTrack).toList(growable: false);
+          if (mounted) {
+            setState(() {
+              _tracks = mapped;
+              _loading = false;
+              _errorMessage = null;
+            });
+          }
+          _cache[_cacheKey] = mapped;
+          return;
+        }
+      }
+
       if (mounted) {
         setState(() {
           _loading = false;

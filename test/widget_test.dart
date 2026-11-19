@@ -14,6 +14,7 @@ import 'package:melo_player/features/player/audio_profile_service.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/shell/app_shell.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
@@ -2172,7 +2173,7 @@ void main() {
 
     expect(find.textContaining('Buy Me a Coffee'), findsNothing);
     expect(find.byIcon(Icons.coffee_rounded), findsNothing);
-    expect(find.textContaining('Melo v1.4.6'), findsWidgets);
+    expect(find.textContaining('Melo v1.4.7'), findsWidgets);
     expect(find.textContaining('github.com/ossy-harz/Tone'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -2488,6 +2489,78 @@ void main() {
     expect(tester.widget<Slider>(find.byType(Slider)).value, 4.0);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Curated playlist offline loads all tracks from saved library playlist',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final directory = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('tone-curated-offline-'),
+      );
+      if (directory == null) fail('Could not create test directory.');
+      addTearDown(() async {
+        if (await directory.exists()) {
+          await directory.delete(recursive: true);
+        }
+      });
+
+      final library = MusicLibrary.forTesting(
+        musicDirectory: directory,
+        preferences: preferences,
+        pickAudio: () async => const [],
+      );
+      await library.load();
+      addTearDown(library.close);
+
+      // Save a playlist with 2 tracks into library
+      final playlist = await library.createPlaylist('Offline Vibes');
+      final tracks = await library.registerOrFindRemoteTracks([
+        ImportedTrack(
+          id: 'youtube:off_1',
+          path: 'youtube:off_1',
+          title: 'Song One',
+          artist: 'Artist A',
+          album: 'Offline Vibes',
+        ),
+        ImportedTrack(
+          id: 'youtube:off_2',
+          path: 'youtube:off_2',
+          title: 'Song Two',
+          artist: 'Artist B',
+          album: 'Offline Vibes',
+        ),
+      ]);
+      await library.addTracksToPlaylist(playlist.id, tracks.map((t) => t.id));
+
+      final handler = _PreviewAudioHandler();
+
+      const preset = CuratedPlaylistPreset(
+        title: 'Offline Vibes',
+        curatorSubtitle: 'Saved offline playlist',
+        badge: 'OFFLINE',
+        searchQuery: 'offline vibes',
+        gradient: [Color(0xFFFA243C), Color(0xFF000000)],
+        icon: Icons.music_note_rounded,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CuratedPlaylistScreen(
+            preset: preset,
+            audioHandler: handler,
+            library: library,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      // CuratedPlaylistScreen successfully loads tracks from saved playlist
+      expect(find.text('Song One'), findsOneWidget);
+      expect(find.text('Song Two'), findsOneWidget);
+    },
+  );
 }
 
 class _PreviewAudioHandler extends BaseAudioHandler with QueueHandler {
