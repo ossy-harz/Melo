@@ -65,7 +65,7 @@ class MeloServices {
     if (!prefs.containsKey('tone_online_lyrics_enabled')) {
       await LyricsRepository.setOnlineLookupEnabled(true);
     }
-    unawaited(handler.attachAudioSession(session));
+    await handler.attachAudioSession(session);
     handler.attachMusicLibrary(library);
     final audioProfileService = AudioServiceAudioProfileService(handler);
     // Restore the saved queue before attaching persistence listeners so the

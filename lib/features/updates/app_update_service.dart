@@ -120,7 +120,7 @@ class AppUpdateService extends ChangeNotifier {
   static const String _skippedTagPrefKey = 'tone_github_skipped_tag';
   static const MethodChannel _channel = MethodChannel('app.melo.melo_player/library');
 
-  String _currentVersion = '1.4.5';
+  String _currentVersion = '1.4.6';
   int _currentBuildNumber = 18;
 
   /// Opens an external web URL using the Android platform channel or intent.

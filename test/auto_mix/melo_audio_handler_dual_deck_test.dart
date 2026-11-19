@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -777,6 +778,145 @@ void main() {
       );
     },
   );
+
+  test(
+    'permanent audio focus loss pauses playback and releases audio focus',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final session = _FakeAudioSession();
+      addTearDown(session.dispose);
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(
+        audioEngine: engine,
+        audioSession: session,
+      );
+      addTearDown(handler.dispose);
+
+      final tracks = [
+        const MediaItem(id: '/music/track1.mp3', title: 'Track 1'),
+      ];
+      await handler.replaceQueue(tracks, playWhenReady: true);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+      expect(session.active, isTrue);
+
+      session.triggerInterruption(
+        AudioInterruptionEvent(true, AudioInterruptionType.unknown),
+      );
+      await pumpEventQueue();
+
+      expect(engine.stateFor(AudioDeck.a).playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+      expect(handler.isInterruptionActive, isFalse);
+      expect(handler.willResumeAfterInterruption, isFalse);
+      expect(session.active, isFalse);
+    },
+  );
+
+  test(
+    'transient audio focus loss pauses and auto-resumes when interruption ends',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final session = _FakeAudioSession();
+      addTearDown(session.dispose);
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(
+        audioEngine: engine,
+        audioSession: session,
+      );
+      addTearDown(handler.dispose);
+
+      final tracks = [
+        const MediaItem(id: '/music/track1.mp3', title: 'Track 1'),
+      ];
+      await handler.replaceQueue(tracks, playWhenReady: true);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+
+      session.triggerInterruption(
+        AudioInterruptionEvent(true, AudioInterruptionType.pause),
+      );
+      await pumpEventQueue();
+
+      expect(engine.stateFor(AudioDeck.a).playing, isFalse);
+      expect(handler.isInterruptionActive, isTrue);
+      expect(handler.willResumeAfterInterruption, isTrue);
+
+      session.triggerInterruption(
+        AudioInterruptionEvent(false, AudioInterruptionType.pause),
+      );
+      await pumpEventQueue();
+
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(handler.isInterruptionActive, isFalse);
+      expect(handler.willResumeAfterInterruption, isFalse);
+    },
+  );
+
+  test(
+    'manual pause during transient interruption prevents auto-resuming',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final session = _FakeAudioSession();
+      addTearDown(session.dispose);
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(
+        audioEngine: engine,
+        audioSession: session,
+      );
+      addTearDown(handler.dispose);
+
+      final tracks = [
+        const MediaItem(id: '/music/track1.mp3', title: 'Track 1'),
+      ];
+      await handler.replaceQueue(tracks, playWhenReady: true);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+
+      session.triggerInterruption(
+        AudioInterruptionEvent(true, AudioInterruptionType.pause),
+      );
+      await pumpEventQueue();
+      expect(handler.isInterruptionActive, isTrue);
+
+      await handler.pause();
+      expect(handler.isInterruptionActive, isFalse);
+      expect(handler.willResumeAfterInterruption, isFalse);
+
+      session.triggerInterruption(
+        AudioInterruptionEvent(false, AudioInterruptionType.pause),
+      );
+      await pumpEventQueue();
+
+      expect(engine.stateFor(AudioDeck.a).playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
+
+  test(
+    'becoming noisy event immediately pauses playback',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final session = _FakeAudioSession();
+      addTearDown(session.dispose);
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(
+        audioEngine: engine,
+        audioSession: session,
+      );
+      addTearDown(handler.dispose);
+
+      final tracks = [
+        const MediaItem(id: '/music/track1.mp3', title: 'Track 1'),
+      ];
+      await handler.replaceQueue(tracks, playWhenReady: true);
+      expect(engine.stateFor(AudioDeck.a).playing, isTrue);
+
+      session.triggerBecomingNoisy();
+      await pumpEventQueue();
+
+      expect(engine.stateFor(AudioDeck.a).playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
 }
 
 class _FakeAudioEngine implements AudioEngine {
@@ -977,5 +1117,51 @@ class _FakeAudioEngine implements AudioEngine {
   void _checkReady() {
     if (!_initialized) throw StateError('Engine is not initialized.');
     if (_disposed) throw StateError('Engine is disposed.');
+  }
+}
+
+class _FakeAudioSession extends Fake implements AudioSession {
+  final StreamController<AudioInterruptionEvent> _interruptionController =
+      StreamController<AudioInterruptionEvent>.broadcast();
+  final StreamController<void> _noisyController =
+      StreamController<void>.broadcast();
+
+  bool active = false;
+
+  @override
+  Stream<AudioInterruptionEvent> get interruptionEventStream =>
+      _interruptionController.stream;
+
+  @override
+  Stream<void> get becomingNoisyEventStream => _noisyController.stream;
+
+  @override
+  Future<bool> setActive(
+    bool active, {
+    AVAudioSessionSetActiveOptions? avAudioSessionSetActiveOptions,
+    AndroidAudioFocusGainType? androidAudioFocusGainType,
+    AndroidAudioAttributes? androidAudioAttributes,
+    bool? androidWillPauseWhenDucked,
+    AudioSessionConfiguration fallbackConfiguration =
+        const AudioSessionConfiguration.music(),
+  }) async {
+    this.active = active;
+    return true;
+  }
+
+  @override
+  Future<void> configure(AudioSessionConfiguration configuration) async {}
+
+  void triggerInterruption(AudioInterruptionEvent event) {
+    _interruptionController.add(event);
+  }
+
+  void triggerBecomingNoisy() {
+    _noisyController.add(null);
+  }
+
+  void dispose() {
+    _interruptionController.close();
+    _noisyController.close();
   }
 }

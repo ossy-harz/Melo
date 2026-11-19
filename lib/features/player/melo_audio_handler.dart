@@ -26,7 +26,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     AudioEngine? audioEngine,
     TransitionDelay? transitionDelay,
     Duration transitionGainStep = AutoMixController.defaultGainStep,
+    AudioSession? audioSession,
   }) {
+    if (audioSession != null) {
+      _audioSession = audioSession;
+      unawaited(attachAudioSession(audioSession));
+    }
     _playerFilter = _PlayerFilter(_dspSupported ? AndroidEqualizer() : null);
     _incomingPlayerFilter = _PlayerFilter(
       _dspSupported ? AndroidEqualizer() : null,
@@ -92,6 +97,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _audioSessionActive = false;
   bool _interruptionActive = false;
   bool _resumeAfterInterruption = false;
+
+  @visibleForTesting
+  bool get isAudioSessionActive => _audioSessionActive;
+
+  @visibleForTesting
+  bool get isInterruptionActive => _interruptionActive;
+
+  @visibleForTesting
+  bool get willResumeAfterInterruption => _resumeAfterInterruption;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
   AudioProfile _audioProfile = const AudioProfile();
@@ -170,6 +184,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _initialize() async {
     await _loadPlaybackSettings();
     await _audioEngine.initialize();
+    if (_audioSession == null) {
+      try {
+        final session = await AudioSession.instance;
+        await attachAudioSession(session);
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadPlaybackSettings() async {
@@ -216,7 +236,14 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> attachAudioSession(AudioSession session) async {
-    if (identical(_audioSession, session)) return;
+    if (identical(_audioSession, session) && _audioSessionSubscriptions.isNotEmpty) return;
+    try {
+      await session.configure(
+        const AudioSessionConfiguration.music().copyWith(
+          androidWillPauseWhenDucked: true,
+        ),
+      );
+    } catch (_) {}
     for (final subscription in _audioSessionSubscriptions) {
       await subscription.cancel();
     }
@@ -239,7 +266,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           (_) {
             _interruptionActive = false;
             _resumeAfterInterruption = false;
-            if (_isAnyDeckPlaying) _runSessionOperation(_pausePlayback());
+            _desiredPlaying = false;
+            _runSessionOperation(pause());
           },
           onError: (Object error, StackTrace stackTrace) =>
               _reportPlaybackError(
@@ -253,11 +281,23 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _handleInterruption(AudioInterruptionEvent event) {
     if (event.begin) {
-      if (_interruptionActive) return;
-      _interruptionActive = true;
-      _resumeAfterInterruption = _isAnyDeckPlaying;
-      if (_resumeAfterInterruption) {
-        _runSessionOperation(_pausePlayback(retainAudioFocus: true));
+      final wasPlaying = _isAnyDeckPlaying || _desiredPlaying;
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+        case AudioInterruptionType.pause:
+          _interruptionActive = true;
+          _resumeAfterInterruption = wasPlaying;
+          if (wasPlaying) {
+            _runSessionOperation(_pausePlayback(retainAudioFocus: true));
+          }
+          break;
+        case AudioInterruptionType.unknown:
+          _interruptionActive = false;
+          _resumeAfterInterruption = false;
+          _audioSessionActive = false;
+          _desiredPlaying = false;
+          _runSessionOperation(_pausePlayback(retainAudioFocus: false));
+          break;
       }
       return;
     }
@@ -266,9 +306,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final shouldResume = _resumeAfterInterruption;
     _interruptionActive = false;
     _resumeAfterInterruption = false;
-    _runSessionOperation(
-      shouldResume ? _startPlayback() : _deactivateAudioSession(),
-    );
+    if (shouldResume) {
+      _desiredPlaying = true;
+      _runSessionOperation(_startPlayback());
+    } else {
+      _runSessionOperation(_deactivateAudioSession());
+    }
   }
 
   void _runSessionOperation(Future<void> operation) {
@@ -1217,7 +1260,6 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _activateAudioSession() async {
-    if (_audioSessionActive) return;
     try {
       final session = _audioSession ?? await AudioSession.instance;
       final activated = await session.setActive(true);
@@ -1253,9 +1295,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> pause() async {
     await _settingsReady;
+    _interruptionActive = false;
     _resumeAfterInterruption = false;
     _desiredPlaying = false;
-    await _pausePlayback(retainAudioFocus: _interruptionActive);
+    await _pausePlayback(retainAudioFocus: false);
   }
 
   Future<void> _pausePlayback({bool retainAudioFocus = false}) async {
@@ -1269,7 +1312,6 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _deactivateAudioSession() async {
-    if (!_audioSessionActive) return;
     try {
       final session = _audioSession ?? await AudioSession.instance;
       await session.setActive(false);
