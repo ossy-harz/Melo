@@ -2172,7 +2172,7 @@ void main() {
 
     expect(find.textContaining('Buy Me a Coffee'), findsNothing);
     expect(find.byIcon(Icons.coffee_rounded), findsNothing);
-    expect(find.textContaining('Melo v1.4.4'), findsWidgets);
+    expect(find.textContaining('Melo v1.4.5'), findsWidgets);
     expect(find.textContaining('github.com/ossy-harz/Tone'), findsNothing);
     expect(tester.takeException(), isNull);
   });

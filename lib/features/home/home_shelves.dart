@@ -3207,6 +3207,9 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
   List<SpotifyTrack> _feedTracks = const [];
   String? _streamingPlaylistId;
   String _selectedFeedFilter = 'For You';
+  String? _selectedPlaylistId;
+  final Map<String, List<SpotifyTrack>> _tracksByPlaylistId = {};
+  final Set<String> _loadingPlaylistIds = {};
 
   @override
   void initState() {
@@ -3248,9 +3251,68 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
   }
 
   Future<void> _loadFeedTracks() async {
-    final tracks = await SpotifyService.instance.fetchFeedTracks(limit: 8);
+    final tracks = await SpotifyService.instance.fetchFeedTracks(limit: 12);
     if (!mounted || tracks.isEmpty) return;
     setState(() => _feedTracks = tracks);
+    final playlists = _tasteOrderedPlaylists();
+    final first = _effectiveSelectedPlaylist(playlists);
+    if (first != null) {
+      unawaited(_loadTracksForPlaylist(first.id));
+    }
+  }
+
+  FeaturedSpotifyPlaylist? _effectiveSelectedPlaylist(
+    List<FeaturedSpotifyPlaylist> playlists,
+  ) {
+    if (playlists.isEmpty) return null;
+    if (_selectedPlaylistId != null) {
+      final match =
+          playlists.where((p) => p.id == _selectedPlaylistId).firstOrNull;
+      if (match != null) return match;
+    }
+    return playlists.first;
+  }
+
+  void _selectPlaylist(FeaturedSpotifyPlaylist playlist) {
+    setState(() => _selectedPlaylistId = playlist.id);
+    unawaited(_loadTracksForPlaylist(playlist.id));
+    _openSpotifyPlaylistScreen(playlist);
+  }
+
+  Future<void> _loadTracksForPlaylist(String playlistId) async {
+    if (_tracksByPlaylistId.containsKey(playlistId) ||
+        _loadingPlaylistIds.contains(playlistId)) {
+      return;
+    }
+    _loadingPlaylistIds.add(playlistId);
+    try {
+      List<SpotifyTrack> tracks;
+      if (playlistId == 'liked') {
+        final spotify = SpotifyService.instance;
+        tracks = spotify.likedTracks.isNotEmpty
+            ? spotify.likedTracks
+            : spotify.personalFeedTracks;
+      } else {
+        final data = await SpotifyService.instance.fetchPlaylist(playlistId);
+        tracks = data.tracks;
+      }
+      final seen = <String>{};
+      final uniqueTracks = <SpotifyTrack>[];
+      for (final t in tracks) {
+        final key =
+            '${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}';
+        if (seen.add(key)) uniqueTracks.add(t);
+      }
+      if (mounted) {
+        setState(() {
+          _tracksByPlaylistId[playlistId] = uniqueTracks;
+        });
+      }
+    } catch (_) {
+      // Fallback to feed tracks if network error
+    } finally {
+      _loadingPlaylistIds.remove(playlistId);
+    }
   }
 
   List<FeaturedSpotifyPlaylist> _tasteOrderedPlaylists() {
@@ -3444,20 +3506,37 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
         });
   }
 
-  Future<void> _streamFeedTrack(SpotifyTrack track) async {
+  Future<void> _streamFeedTrack(
+    SpotifyTrack track, {
+    required List<SpotifyTrack> contextTracks,
+  }) async {
     final handler = widget.audioHandler;
     if (handler == null) return;
     try {
-      final localMatch = widget.library?.findMatchingLocalTrack(
-        providerTrackId: track.id,
-        title: track.title,
-        artist: track.artist,
-      );
-      await handler.playMediaItem(
-        localMatch != null
-            ? localMatch.toMediaItem()
-            : track.toImportedTrack().toMediaItem(),
-      );
+      final items = contextTracks
+          .map((t) {
+            final localMatch = widget.library?.findMatchingLocalTrack(
+              providerTrackId: t.id,
+              title: t.title,
+              artist: t.artist,
+            );
+            return localMatch != null
+                ? localMatch.toMediaItem()
+                : t.toImportedTrack().toMediaItem();
+          })
+          .toList(growable: false);
+      final tappedIndex = contextTracks.indexWhere((t) => t.id == track.id);
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(
+          items,
+          initialIndex: tappedIndex < 0 ? 0 : tappedIndex,
+          playWhenReady: true,
+        );
+      } else {
+        await handler.updateQueue(items);
+        await handler.skipToQueueItem(tappedIndex < 0 ? 0 : tappedIndex);
+        await handler.play();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -3471,7 +3550,16 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
     }
   }
 
-  List<SpotifyTrack> _tracksForSelectedFilter() {
+  List<SpotifyTrack> _tracksForCurrentSelection(
+    FeaturedSpotifyPlaylist? selectedPlaylist,
+  ) {
+    if (selectedPlaylist != null) {
+      final cached = _tracksByPlaylistId[selectedPlaylist.id];
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
+      unawaited(_loadTracksForPlaylist(selectedPlaylist.id));
+    }
     final spotify = SpotifyService.instance;
     if (!spotify.isLoggedIn) return _feedTracks;
     if (_selectedFeedFilter == 'Recently Played' &&
@@ -3484,7 +3572,8 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
     final seen = <String>{};
     final combined = <SpotifyTrack>[];
     for (final t in [...spotify.personalFeedTracks, ..._feedTracks]) {
-      final key = '${t.title.toLowerCase()}|${t.artist.toLowerCase()}';
+      final key =
+          '${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}';
       if (seen.add(key)) combined.add(t);
     }
     return combined;
@@ -3496,17 +3585,21 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
     final spotify = SpotifyService.instance;
     final isLoggedIn = spotify.isLoggedIn;
     final playlists = _tasteOrderedPlaylists();
-    final activeTitleLower = widget.audioHandler?.mediaItem.value?.title
-        .trim()
-        .toLowerCase();
-    final visibleFeedTracks = _tracksForSelectedFilter()
-        .where(
-          (t) =>
-              activeTitleLower == null ||
-              activeTitleLower.isEmpty ||
-              t.title.trim().toLowerCase() != activeTitleLower,
-        )
-        .toList(growable: false);
+    final selectedPlaylist = _effectiveSelectedPlaylist(playlists);
+    if (selectedPlaylist != null &&
+        !_tracksByPlaylistId.containsKey(selectedPlaylist.id) &&
+        !_loadingPlaylistIds.contains(selectedPlaylist.id)) {
+      unawaited(_loadTracksForPlaylist(selectedPlaylist.id));
+    }
+    final rawTracks = _tracksForCurrentSelection(selectedPlaylist);
+    final seenKeys = <String>{};
+    final uniqueTracks = <SpotifyTrack>[];
+    for (final t in rawTracks) {
+      final key =
+          '${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}';
+      if (seenKeys.add(key)) uniqueTracks.add(t);
+    }
+    final visibleFeedTracks = uniqueTracks;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3581,7 +3674,17 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => setState(() => _selectedFeedFilter = label),
+                    onTap: () {
+                      setState(() {
+                        _selectedFeedFilter = label;
+                        _selectedPlaylistId = null;
+                      });
+                      final newPlaylists = _tasteOrderedPlaylists();
+                      final first = _effectiveSelectedPlaylist(newPlaylists);
+                      if (first != null) {
+                        unawaited(_loadTracksForPlaylist(first.id));
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -3631,28 +3734,33 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
             itemBuilder: (context, index) {
               final playlist = playlists[index];
               final isStreaming = _streamingPlaylistId == playlist.id;
+              final isSelected = selectedPlaylist?.id == playlist.id;
               return SizedBox(
                 width: 158,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
-                    onTap: () => _openSpotifyPlaylistScreen(playlist),
+                    onTap: () => _selectPlaylist(playlist),
+                    onLongPress: () => _openSpotifyPlaylistScreen(playlist),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: MeloColors.qledCard,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          width: 1.0,
+                          color: isSelected
+                              ? MeloColors.cherry
+                              : Colors.white.withValues(alpha: 0.12),
+                          width: isSelected ? 1.8 : 1.0,
                         ),
                         boxShadow: [
-                          BoxShadow(
-                            color: MeloColors.cherry.withValues(alpha: 0.14),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
+                          if (isSelected)
+                            BoxShadow(
+                              color: MeloColors.cherry.withValues(alpha: 0.28),
+                              blurRadius: 18,
+                              offset: const Offset(0, 4),
+                            ),
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.55),
                             blurRadius: 16,
@@ -3819,6 +3927,57 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
         ),
         if (visibleFeedTracks.isNotEmpty) ...[
           const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedPlaylist != null
+                        ? '${selectedPlaylist.title} · Tracks'
+                        : 'Tracks',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ),
+                if (selectedPlaylist != null)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () => _openSpotifyPlaylistScreen(selectedPlaylist),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View all',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: MeloColors.cherry,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 14,
+                            color: MeloColors.cherry,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             height: 62,
             child: ListView.separated(
@@ -3832,7 +3991,10 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    onTap: () => _streamFeedTrack(track),
+                    onTap: () => _streamFeedTrack(
+                      track,
+                      contextTracks: visibleFeedTracks,
+                    ),
                     child: Container(
                       width: 224,
                       padding: const EdgeInsets.symmetric(

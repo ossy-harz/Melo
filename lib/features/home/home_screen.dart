@@ -118,46 +118,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    return Stack(
-      children: [
-        if (isDark)
-          Positioned(
-            top: -90,
-            left: -40,
-            right: -40,
-            height: 260,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.3, -0.4),
-                    radius: 1.15,
-                    colors: [
-                      MeloColors.cherry.withValues(alpha: 0.22),
-                      MeloColors.cherryDeep.withValues(alpha: 0.12),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.55, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        RefreshIndicator(
-          color: MeloColors.cherry,
-          backgroundColor: const Color(0xFF141416),
-          onRefresh: _handleRefresh,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Clean Editorial Home Header
-                      Row(
+    return Container(
+      color: MeloColors.amoled,
+      child: RefreshIndicator(
+        color: MeloColors.cherry,
+        backgroundColor: MeloColors.amoled,
+        onRefresh: _handleRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Clean Editorial Home Header
+                    Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
@@ -411,8 +388,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-      ],
-    );
+      );
   }
 
   void _openStation(BuildContext context, SmartVibe vibe) {

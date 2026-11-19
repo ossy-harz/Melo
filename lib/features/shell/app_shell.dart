@@ -154,6 +154,7 @@ class _AppShellState extends State<AppShell> {
     ];
 
     return Scaffold(
+      backgroundColor: MeloColors.amoled,
       body: SafeArea(
         bottom: false,
         child: IndexedStack(index: _selectedIndex, children: destinationPages),

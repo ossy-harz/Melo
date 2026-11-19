@@ -279,7 +279,7 @@ class _JustAudioDeckPlayer implements AudioDeckPlayer {
   Future<void> _coordinate(Future<void> Function(int generation) action) {
     final generation = ++_operationGeneration;
     final completer = Completer<void>();
-    _sequentialQueue = _sequentialQueue.then((_) async {
+    _sequentialQueue = _sequentialQueue.catchError((_) {}).then((_) async {
       if (generation != _operationGeneration) {
         if (!completer.isCompleted) completer.complete();
         return;

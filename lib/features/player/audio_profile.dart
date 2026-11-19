@@ -105,7 +105,8 @@ class AudioProfile {
           .toDouble();
       gain = math.min(gain, peakCeilingGain);
     }
-    return gain.clamp(0, 1).toDouble();
+    if (!gain.isFinite || gain <= 0.0) return 1.0;
+    return gain.clamp(0.0, 1.0).toDouble();
   }
 
   Map<String, Object?> toJson() => {

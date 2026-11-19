@@ -1699,9 +1699,18 @@ class MusicLibrary extends ChangeNotifier {
     }
     final selectedTrack = _tracks[index];
     if (!selectedTrack.isAvailable) {
-      throw StateError(
-        'This song is currently unavailable. Rescan your music library and try again.',
-      );
+      final file = File(selectedTrack.path);
+      if (selectedTrack.isDeviceMedia || file.existsSync()) {
+        final recovered = selectedTrack.withMetadata(isAvailable: true);
+        final nextTracks = [..._tracks];
+        nextTracks[index] = recovered;
+        _setTracks(nextTracks);
+        unawaited(_saveTracks(nextTracks));
+      } else {
+        throw StateError(
+          'This song is currently unavailable. Rescan your music library and try again.',
+        );
+      }
     }
     final currentQueue = handler.queue.value;
     final queuedIndex = currentQueue.indexWhere(

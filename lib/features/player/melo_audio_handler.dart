@@ -121,7 +121,11 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       relativeLoudnessDb: relLoudness,
       peakToRmsDb: peakToRms,
     );
-    return (_userVolume * profileGain).clamp(0.0, 1.0);
+    final target = _userVolume * profileGain;
+    if (!target.isFinite || target <= 0.0) {
+      return (_userVolume > 0.0 ? _userVolume : 1.0).clamp(0.0, 1.0);
+    }
+    return target.clamp(0.0, 1.0);
   }
   final List<MediaItem> _sessionHistory = [];
   final Map<String, Duration> _incomingTrackCues = {};
@@ -611,6 +615,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _preloadNextTrack({bool fromTransition = false}) async {
+    await _settingsReady;
     if (_isLoadingTrack && !fromTransition) return;
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) {
@@ -1195,10 +1200,17 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _startPlayback() async {
     await _settingsReady;
     if (_items.isEmpty) return;
+    if (!_audioEngine.stateFor(AudioDeck.a).loaded ||
+        _audioEngine.stateFor(AudioDeck.a).processingState ==
+            AudioDeckProcessingState.error) {
+      await _loadIndex(_currentIndex, playWhenReady: true);
+      return;
+    }
     if (_audioEngine.stateFor(AudioDeck.a).processingState ==
         AudioDeckProcessingState.completed) {
       await _audioEngine.seekDeck(AudioDeck.a, Duration.zero);
     }
+    await _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain);
     await _activateAudioSession();
     _startPlaybackOnPlayer();
     _scheduleNextTrackPreload();
@@ -1206,11 +1218,18 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _activateAudioSession() async {
     if (_audioSessionActive) return;
-    final session = _audioSession ?? await AudioSession.instance;
-    if (!await session.setActive(true)) {
-      throw StateError('The audio session is unavailable for playback.');
+    try {
+      final session = _audioSession ?? await AudioSession.instance;
+      final activated = await session.setActive(true);
+      _audioSessionActive = activated;
+    } catch (error, stackTrace) {
+      _reportPlaybackError(
+        error,
+        stackTrace,
+        'while activating audio session; proceeding with playback',
+      );
+      _audioSessionActive = false;
     }
-    _audioSessionActive = true;
   }
 
   void _startPlaybackOnPlayer() {
@@ -1233,6 +1252,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> pause() async {
+    await _settingsReady;
     _resumeAfterInterruption = false;
     _desiredPlaying = false;
     await _pausePlayback(retainAudioFocus: _interruptionActive);
@@ -1250,13 +1270,16 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _deactivateAudioSession() async {
     if (!_audioSessionActive) return;
-    final session = _audioSession ?? await AudioSession.instance;
-    await session.setActive(false);
+    try {
+      final session = _audioSession ?? await AudioSession.instance;
+      await session.setActive(false);
+    } catch (_) {}
     _audioSessionActive = false;
   }
 
   @override
   Future<void> stop() async {
+    await _settingsReady;
     _interruptionActive = false;
     _resumeAfterInterruption = false;
     _desiredPlaying = false;
@@ -1271,6 +1294,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> seek(Duration position) async {
+    await _settingsReady;
     await _cancelAndWaitForTransition();
     await _audioEngine.seekDeck(AudioDeck.a, position);
     _publishState();
@@ -1724,6 +1748,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _publishState();
 
     try {
+      await _settingsReady;
       // Cancel any active transition without restoring outgoing Deck A gain so
       // cancelling an AutoMix crossfade never spikes the previous song back to 1.0.
       await _cancelAndWaitForTransition(restoreDecks: false);
