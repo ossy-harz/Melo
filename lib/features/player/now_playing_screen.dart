@@ -247,11 +247,15 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
   bool _immersiveMode = false;
   Uri? _resolvedFallbackArtUri;
   String? _resolvedFallbackForId;
+  String? _autoMixBadge;
+  double _vocalAttenuationDb = 0.0;
+  double _discoveryLevel = 0.5;
 
   @override
   void initState() {
     super.initState();
     _isLoadingLyrics = true;
+    _loadMixAndVocalState();
     _queueSignature = _signatureForQueue(widget.audioHandler.queue.value);
     _playbackSignature = _signatureForPlayback(
       widget.audioHandler.playbackState.value,
@@ -332,8 +336,75 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     unawaited(_restoreLyrics(widget.item));
   }
 
+  Future<void> _loadMixAndVocalState() async {
+    try {
+      final badge = await widget.audioHandler.customAction('getAutoMixBadge');
+      final vocal =
+          await widget.audioHandler.customAction('getVocalAttenuation');
+      final disc = await widget.audioHandler.customAction('getDiscoveryLevel');
+      if (mounted) {
+        setState(() {
+          if (badge is String) _autoMixBadge = badge;
+          if (vocal is num) _vocalAttenuationDb = vocal.toDouble();
+          if (disc is num) _discoveryLevel = disc.toDouble();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _cycleVocalMode() async {
+    final double nextDb;
+    final String modeLabel;
+    if (_vocalAttenuationDb == 0.0) {
+      nextDb = -12.0;
+      modeLabel = 'Karaoke Mode: Vocals Attenuated (-12 dB) 🎤';
+    } else if (_vocalAttenuationDb < 0.0) {
+      nextDb = 3.0;
+      modeLabel = 'Vocal Boost: Vocals Elevated (+3 dB) 🎙️';
+    } else {
+      nextDb = 0.0;
+      modeLabel = 'Normal Vocals (Flat DSP)';
+    }
+
+    setState(() => _vocalAttenuationDb = nextDb);
+    HapticFeedback.lightImpact();
+    await widget.audioHandler.customAction('setVocalAttenuation', {
+      'vocalAttenuationDb': nextDb,
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            modeLabel,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor:
+              nextDb != 0.0 ? MeloColors.cherry : const Color(0xFF22222A),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void _handleTransitionEvent(dynamic event) {
     if (event is! Map || event['type'] is! String) return;
+    if (event['type'] == 'player.stateUpdate') {
+      if (mounted) {
+        setState(() {
+          _autoMixBadge = event['autoMixBadge'] as String?;
+          _vocalAttenuationDb =
+              (event['vocalAttenuationDb'] as num?)?.toDouble() ??
+              _vocalAttenuationDb;
+          _discoveryLevel =
+              (event['discoveryLevel'] as num?)?.toDouble() ??
+              _discoveryLevel;
+        });
+      }
+      return;
+    }
     switch (event['type']) {
       case 'autoMix.transitionStarted':
         final durationMs = event['durationMs'];
@@ -1835,6 +1906,67 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                   ),
                                 ),
                               ],
+                              if (_autoMixBadge != null) ...[
+                                const SizedBox(height: 4),
+                                Center(
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => AutoMixSettingsScreen(
+                                          audioHandler: widget.audioHandler,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 3.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: MeloColors.cherry.withValues(
+                                          alpha: 0.14,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: MeloColors.cherry.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.auto_awesome_rounded,
+                                            size: 11,
+                                            color: MeloColors.cherry,
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            _autoMixBadge!,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Icon(
+                                            Icons.chevron_right_rounded,
+                                            size: 14,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 6),
                               _PlaybackControls(
                                 playing: playing,
@@ -1906,6 +2038,27 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                           !_showLyrics,
                                                     );
                                                   },
+                                                ),
+                                                IconButton(
+                                                  tooltip: _vocalAttenuationDb < 0.0
+                                                      ? 'Karaoke Mode active (-12 dB)'
+                                                      : (_vocalAttenuationDb > 0.0
+                                                          ? 'Vocal Boost active (+3 dB)'
+                                                          : 'Sing-along / Vocal Control (Normal)'),
+                                                  icon: Icon(
+                                                    _vocalAttenuationDb < 0.0
+                                                        ? Icons.record_voice_over_rounded
+                                                        : (_vocalAttenuationDb > 0.0
+                                                            ? Icons.mic_rounded
+                                                            : Icons.mic_none_rounded),
+                                                    color: _vocalAttenuationDb < 0.0
+                                                        ? MeloColors.cherry
+                                                        : (_vocalAttenuationDb > 0.0
+                                                            ? const Color(0xFF5AC8FA)
+                                                            : Colors.white70),
+                                                    size: 21,
+                                                  ),
+                                                  onPressed: _cycleVocalMode,
                                                 ),
                                                 Expanded(
                                                   child: Center(
@@ -2015,6 +2168,19 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                   ),
                                                   const SizedBox(width: 4),
                                                 ],
+                                                IconButton(
+                                                  tooltip: 'Discovery vs. Familiarity Dial',
+                                                  icon: const Icon(
+                                                    Icons.tune_rounded,
+                                                    color: Colors.white70,
+                                                    size: 21,
+                                                  ),
+                                                  onPressed: () => DiscoveryDialSheet.show(
+                                                    context,
+                                                    audioHandler: widget.audioHandler,
+                                                    initialLevel: _discoveryLevel,
+                                                  ),
+                                                ),
                                                 IconButton(
                                                   tooltip: 'Up next',
                                                   icon: const Icon(

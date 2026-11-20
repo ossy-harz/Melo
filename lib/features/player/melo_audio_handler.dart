@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -57,6 +58,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   static const _repeatModeKey = 'tone_playback_repeat_mode';
   static const _shuffleModeKey = 'tone_playback_shuffle_mode';
   static const _autoplayContinuousKey = 'tone_autoplay_continuous';
+  static const _discoveryLevelKey = 'tone_mix_discovery_level';
 
   /// Real hardware filtering is only reachable on Android.
   static bool get _dspSupported =>
@@ -117,6 +119,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   int? _lastPublishedIndex;
   bool? _lastPublishedLiked;
   AudioServiceRepeatMode? _lastPublishedRepeatMode;
+  String? _lastPublishedBadge;
+  double? _lastPublishedVocalDb;
+
+  double _discoveryLevel = 0.5;
+  final List<String> _recentPlayedTrackIds = [];
+  String? _currentTransitionBadge;
 
   bool _autoplayContinuous = true;
   bool _isExtendingAutoplay = false;
@@ -232,6 +240,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final savedAutoplay = preferences.getBool(_autoplayContinuousKey);
     if (savedAutoplay != null) {
       _autoplayContinuous = savedAutoplay;
+    }
+    final savedDiscovery = preferences.getDouble(_discoveryLevelKey);
+    if (savedDiscovery != null) {
+      _discoveryLevel = savedDiscovery.clamp(0.0, 1.0);
     }
   }
 
@@ -402,6 +414,40 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       }
       _publishState();
       return null;
+    }
+    if (name == 'setVocalAttenuation') {
+      final db = (extras?['vocalAttenuationDb'] as num?)?.toDouble() ?? 0.0;
+      _audioProfile = _audioProfile.withVocalAttenuation(db);
+      _playerFilter.applyProfile(_audioProfile);
+      _incomingPlayerFilter.applyProfile(_audioProfile);
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _audioProfileKey,
+        jsonEncode(_audioProfile.toJson()),
+      );
+      _publishState();
+      return _audioProfile.vocalAttenuationDb;
+    }
+    if (name == 'getVocalAttenuation') {
+      return _audioProfile.vocalAttenuationDb;
+    }
+    if (name == 'setDiscoveryLevel') {
+      final level = (extras?['discoveryLevel'] as num?)?.toDouble() ?? 0.5;
+      _discoveryLevel = level.clamp(0.0, 1.0);
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setDouble(_discoveryLevelKey, _discoveryLevel);
+      if (_shuffleMode == AudioServiceShuffleMode.all && _items.isNotEmpty) {
+        _rebuildPlayOrder(_currentIndex);
+      }
+      _updateTransitionBadge();
+      _publishState();
+      return _discoveryLevel;
+    }
+    if (name == 'getDiscoveryLevel') {
+      return _discoveryLevel;
+    }
+    if (name == 'getAutoMixBadge') {
+      return _currentTransitionBadge;
     }
     if (name == 'autoMix.preloadNextTrack') {
       await _preloadNextTrack();
@@ -1040,8 +1086,12 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
             tempoCompatibility: plan.tempoCompatibility,
             bpmDifferencePercent: plan.bpmDifferencePercent,
             confidenceScore: plan.confidenceScore,
+            harmonicCompatibility: plan.harmonicCompatibility,
+            outgoingKey: plan.outgoingKey,
+            incomingKey: plan.incomingKey,
           )
         : plan;
+    _currentTransitionBadge = effectivePlan.diagnosticBadgeText;
 
     await _activateAudioSession();
     if (_transitionCancelRequested) {
@@ -1085,6 +1135,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       if (_orderPosition < 0) {
         _rebuildPlayOrder(nextIndex);
       }
+      _recordPlayedTrack(incomingItem.id);
+      _updateTransitionBadge();
       _preloadedQueueIndex = null;
       await _autoMixController.promoteIncomingDeck();
       diagnostic
@@ -1784,6 +1836,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (_orderPosition < 0) {
       _rebuildPlayOrder(index);
     }
+    _recordPlayedTrack(_items[index].id);
+    _updateTransitionBadge();
     final targetItem = _items[index];
     mediaItem.add(targetItem);
     _positions.add(Duration.zero);
@@ -2106,12 +2160,111 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
+  void _recordPlayedTrack(String id) {
+    if (id.isEmpty) return;
+    _recentPlayedTrackIds.remove(id);
+    _recentPlayedTrackIds.add(id);
+    if (_recentPlayedTrackIds.length > 50) {
+      _recentPlayedTrackIds.removeAt(0);
+    }
+  }
+
+  void _updateTransitionBadge() {
+    if (_items.isEmpty || _currentIndex >= _items.length) {
+      _currentTransitionBadge = null;
+      return;
+    }
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null ||
+        nextIndex >= _items.length ||
+        nextIndex == _currentIndex) {
+      _currentTransitionBadge = null;
+      return;
+    }
+    final outgoingItem = _items[_currentIndex];
+    final incomingItem = _items[nextIndex];
+    final plan = _autoMixController.planTransition(
+      outgoing: TrackAnalysis(
+        trackId: outgoingItem.id,
+        duration: outgoingItem.duration,
+        bpm: (outgoingItem.extras?['bpm'] as num?)?.toDouble(),
+        musicalKey: outgoingItem.extras?['musicalKey'] as String?,
+      ),
+      incoming: TrackAnalysis(
+        trackId: incomingItem.id,
+        duration: incomingItem.duration,
+        bpm: (incomingItem.extras?['bpm'] as num?)?.toDouble(),
+        musicalKey: incomingItem.extras?['musicalKey'] as String?,
+      ),
+    );
+    _currentTransitionBadge = plan.diagnosticBadgeText;
+  }
+
   void _rebuildPlayOrder(int currentIndex) {
     final order = List<int>.generate(_items.length, (index) => index);
     if (_shuffleMode == AudioServiceShuffleMode.all) {
       order.remove(currentIndex);
-      order.shuffle();
-      _playOrder = List.unmodifiable([currentIndex, ...order]);
+      if (order.isEmpty) {
+        _playOrder = List.unmodifiable([currentIndex]);
+        _orderPosition = 0;
+        return;
+      }
+
+      final random = math.Random();
+      final scored = <(int index, double score)>[];
+      for (final index in order) {
+        final item = _items[index];
+        final isFav = _musicLibrary?.isFavoriteMediaItem(item) ?? false;
+        final recentIndex = _recentPlayedTrackIds.indexOf(item.id);
+
+        double score = random.nextDouble();
+
+        // 1. Recency penalty (cooldown):
+        if (recentIndex != -1) {
+          score -= 10.0 + (_recentPlayedTrackIds.length - recentIndex);
+        }
+
+        // 2. Discovery dial bias (0.0 = favorites first, 1.0 = deep exploration):
+        if (_discoveryLevel < 0.5) {
+          final favWeight = (0.5 - _discoveryLevel) * 4.0;
+          if (isFav) score += favWeight;
+        } else if (_discoveryLevel > 0.5) {
+          final discWeight = (_discoveryLevel - 0.5) * 4.0;
+          if (!isFav && recentIndex == -1) score += discWeight;
+        }
+
+        scored.add((index, score));
+      }
+
+      scored.sort((a, b) => b.$2.compareTo(a.$2));
+      final candidateOrder = scored.map((e) => e.$1).toList();
+
+      final fairOrder = <int>[];
+      final pool = List<int>.from(candidateOrder);
+      String? lastArtist = _items[currentIndex].artist?.trim().toLowerCase();
+
+      while (pool.isNotEmpty) {
+        int nextPickIndex = 0;
+        if (lastArtist != null &&
+            lastArtist.isNotEmpty &&
+            lastArtist != 'unknown artist') {
+          final diffArtistIdx = pool.indexWhere((idx) {
+            final a = _items[idx].artist?.trim().toLowerCase();
+            return a != null &&
+                a != lastArtist &&
+                a != 'unknown artist' &&
+                a.isNotEmpty;
+          });
+          if (diffArtistIdx != -1 && diffArtistIdx < 4) {
+            nextPickIndex = diffArtistIdx;
+          }
+        }
+        final picked = pool.removeAt(nextPickIndex);
+        fairOrder.add(picked);
+        lastArtist = _items[picked].artist?.trim().toLowerCase();
+      }
+
+      _playOrder = List.unmodifiable([currentIndex, ...fairOrder]);
       _orderPosition = 0;
       return;
     }
@@ -2419,7 +2572,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           isPlaying != _lastPublishedPlaying ||
           queueIndex != _lastPublishedIndex ||
           isLiked != _lastPublishedLiked ||
-          _repeatMode != _lastPublishedRepeatMode;
+          _repeatMode != _lastPublishedRepeatMode ||
+          _currentTransitionBadge != _lastPublishedBadge ||
+          _audioProfile.vocalAttenuationDb != _lastPublishedVocalDb;
       final timeSinceLast = _lastPlatformStatePublishTime == null
           ? const Duration(seconds: 10)
           : now.difference(_lastPlatformStatePublishTime!);
@@ -2438,6 +2593,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _lastPublishedIndex = queueIndex;
     _lastPublishedLiked = isLiked;
     _lastPublishedRepeatMode = _repeatMode;
+    _lastPublishedBadge = _currentTransitionBadge;
+    _lastPublishedVocalDb = _audioProfile.vocalAttenuationDb;
 
     final likeControl = MediaControl.custom(
       androidIcon: isLiked
@@ -2489,6 +2646,19 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         shuffleMode: _shuffleMode,
       ),
     );
+    final badgeChanged = _currentTransitionBadge != _lastPublishedBadge;
+    final vocalChanged =
+        _audioProfile.vocalAttenuationDb != _lastPublishedVocalDb;
+    if (badgeChanged || vocalChanged) {
+      _lastPublishedBadge = _currentTransitionBadge;
+      _lastPublishedVocalDb = _audioProfile.vocalAttenuationDb;
+      customEvent.add({
+        'type': 'player.stateUpdate',
+        'autoMixBadge': _currentTransitionBadge,
+        'vocalAttenuationDb': _audioProfile.vocalAttenuationDb,
+        'discoveryLevel': _discoveryLevel,
+      });
+    }
   }
 
   @override

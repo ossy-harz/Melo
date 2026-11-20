@@ -16,6 +16,7 @@ class ImportedTrack {
     this.trackNumber,
     this.genre,
     this.bpm,
+    this.musicalKey,
     this.isDeviceMedia = false,
     this.sourceFolderUri,
     this.lyricsUri,
@@ -40,6 +41,7 @@ class ImportedTrack {
   final int? trackNumber;
   final String? genre;
   final double? bpm;
+  final String? musicalKey;
   final bool isDeviceMedia;
   final String? sourceFolderUri;
   final String? lyricsUri;
@@ -76,6 +78,7 @@ class ImportedTrack {
       if (trackNumber != null) 'trackNumber': trackNumber,
       if (genre != null) 'genre': genre,
       if (bpm != null) 'bpm': bpm,
+      if (musicalKey != null) 'musicalKey': musicalKey,
       if (dateModifiedAt != null)
         'dateModifiedAt': dateModifiedAt!.toIso8601String(),
       if (fileSizeBytes != null) 'fileSizeBytes': fileSizeBytes,
@@ -94,6 +97,7 @@ class ImportedTrack {
     int? trackNumber,
     String? genre,
     double? bpm,
+    String? musicalKey,
     bool? metadataReviewed,
     String? sourceProvider,
     String? providerTrackId,
@@ -114,6 +118,7 @@ class ImportedTrack {
     trackNumber: trackNumber ?? this.trackNumber,
     genre: genre ?? this.genre,
     bpm: bpm ?? this.bpm,
+    musicalKey: musicalKey ?? this.musicalKey,
     isDeviceMedia: isDeviceMedia,
     sourceFolderUri: sourceFolderUri,
     lyricsUri: lyricsUri,
@@ -139,6 +144,7 @@ class ImportedTrack {
     'trackNumber': trackNumber,
     'genre': genre,
     'bpm': bpm,
+    'musicalKey': musicalKey,
     'isDeviceMedia': isDeviceMedia,
     'sourceFolderUri': sourceFolderUri,
     'lyricsUri': lyricsUri,
@@ -164,6 +170,7 @@ class ImportedTrack {
     trackNumber: (json['trackNumber'] as num?)?.toInt(),
     genre: json['genre'] as String?,
     bpm: (json['bpm'] as num?)?.toDouble(),
+    musicalKey: json['musicalKey'] as String?,
     isDeviceMedia: json['isDeviceMedia'] as bool? ?? false,
     sourceFolderUri: json['sourceFolderUri'] as String?,
     lyricsUri: json['lyricsUri'] as String?,
@@ -201,6 +208,7 @@ class ImportedTrack {
     int? trackNumber,
     String? genre,
     double? bpm,
+    String? musicalKey,
     String? sourceFolderUri,
     String? lyricsUri,
     DateTime? dateModifiedAt,
@@ -218,6 +226,7 @@ class ImportedTrack {
     trackNumber: trackNumber,
     genre: genre,
     bpm: bpm,
+    musicalKey: musicalKey,
     isDeviceMedia: true,
     sourceFolderUri: sourceFolderUri,
     lyricsUri: lyricsUri,

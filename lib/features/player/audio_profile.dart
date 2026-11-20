@@ -9,6 +9,7 @@ class AudioProfile {
     this.bassDb = 0,
     this.loudnessNormalization = false,
     this.targetLoudnessDb = -16,
+    this.vocalAttenuationDb = 0,
   });
 
   static const bandCentersHz = [60.0, 230.0, 910.0, 3600.0, 14000.0];
@@ -20,6 +21,10 @@ class AudioProfile {
   final double bassDb;
   final bool loudnessNormalization;
   final double targetLoudnessDb;
+  final double vocalAttenuationDb;
+
+  bool get isKaraokeMode => vocalAttenuationDb <= -6.0;
+  bool get isVocalBoostMode => vocalAttenuationDb >= 2.0;
 
   static AudioProfile forPreset(AudioEqPreset preset) {
     final gains = switch (preset) {
@@ -38,12 +43,18 @@ class AudioProfile {
     double? bassDb,
     bool? loudnessNormalization,
     double? targetLoudnessDb,
+    double? vocalAttenuationDb,
   }) => AudioProfile(
     preset: preset ?? this.preset,
     bandGainsDb: List.unmodifiable(bandGainsDb ?? this.bandGainsDb),
     bassDb: bassDb ?? this.bassDb,
     loudnessNormalization: loudnessNormalization ?? this.loudnessNormalization,
     targetLoudnessDb: targetLoudnessDb ?? this.targetLoudnessDb,
+    vocalAttenuationDb: vocalAttenuationDb ?? this.vocalAttenuationDb,
+  );
+
+  AudioProfile withVocalAttenuation(double attenuationDb) => copyWith(
+    vocalAttenuationDb: attenuationDb.clamp(-12.0, 4.0).toDouble(),
   );
 
   AudioProfile withBandGain(int index, double gainDb) {
@@ -60,6 +71,9 @@ class AudioProfile {
         .clamp(bandCentersHz.first, bandCentersHz.last)
         .toDouble();
     final bassShelf = bounded <= bandCentersHz[1] ? bassDb : 0.0;
+    final vocalEffect = (bounded >= 300.0 && bounded <= 3500.0)
+        ? vocalAttenuationDb
+        : 0.0;
     for (var index = 0; index < bandCentersHz.length - 1; index++) {
       final low = bandCentersHz[index];
       final high = bandCentersHz[index + 1];
@@ -70,9 +84,9 @@ class AudioProfile {
       final gain =
           bandGainsDb[index] +
           (bandGainsDb[index + 1] - bandGainsDb[index]) * progress;
-      return gain + bassShelf;
+      return gain + bassShelf + vocalEffect;
     }
-    return bandGainsDb.last;
+    return bandGainsDb.last + vocalEffect;
   }
 
   double get outputHeadroom {
@@ -115,6 +129,7 @@ class AudioProfile {
     'bassDb': bassDb,
     'loudnessNormalization': loudnessNormalization,
     'targetLoudnessDb': targetLoudnessDb,
+    if (vocalAttenuationDb != 0) 'vocalAttenuationDb': vocalAttenuationDb,
   };
 
   factory AudioProfile.fromJson(Map<String, Object?> json) {
@@ -123,6 +138,7 @@ class AudioProfile {
     final bass = json['bassDb'];
     final normalize = json['loudnessNormalization'];
     final target = json['targetLoudnessDb'];
+    final vocalAtten = (json['vocalAttenuationDb'] as num?)?.toDouble() ?? 0.0;
     final presets = AudioEqPreset.values.where(
       (value) => value.name == presetValue,
     );
@@ -134,7 +150,8 @@ class AudioProfile {
         !bass.isFinite ||
         normalize is! bool ||
         target is! num ||
-        !target.isFinite) {
+        !target.isFinite ||
+        !vocalAtten.isFinite) {
       throw const FormatException('Stored audio profile is invalid.');
     }
     final gains = gainsValue.map((value) => (value as num).toDouble()).toList();
@@ -142,7 +159,9 @@ class AudioProfile {
         bass < minimumGainDb ||
         bass > maximumGainDb ||
         target < -24 ||
-        target > -10) {
+        target > -10 ||
+        vocalAtten < -12.0 ||
+        vocalAtten > 6.0) {
       throw const FormatException('Stored audio profile is out of range.');
     }
     return AudioProfile(
@@ -151,6 +170,7 @@ class AudioProfile {
       bassDb: bass.toDouble(),
       loudnessNormalization: normalize,
       targetLoudnessDb: target.toDouble(),
+      vocalAttenuationDb: vocalAtten,
     );
   }
 

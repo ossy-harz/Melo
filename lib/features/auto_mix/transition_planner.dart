@@ -23,6 +23,10 @@ class TransitionPlanner {
 
     final compatibility = _assessTempo(outgoing, incoming);
     final duration = _transitionDuration(outgoing, incoming, settings);
+    final harmonic = TrackAnalysis.assessHarmonic(
+      outgoing.effectiveCamelotCode,
+      incoming.effectiveCamelotCode,
+    );
     final isCompatible = compatibility.status == TempoCompatibility.compatible;
     final confidence = switch (compatibility.status) {
       TempoCompatibility.compatible =>
@@ -51,6 +55,9 @@ class TransitionPlanner {
       tempoCompatibility: compatibility.status,
       bpmDifferencePercent: compatibility.differencePercent,
       confidenceScore: confidence.clamp(0.0, 1.0).toDouble(),
+      harmonicCompatibility: harmonic,
+      outgoingKey: outgoing.effectiveCamelotCode,
+      incomingKey: incoming.effectiveCamelotCode,
     );
   }
 

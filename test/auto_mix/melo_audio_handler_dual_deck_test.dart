@@ -917,6 +917,37 @@ void main() {
       expect(handler.playbackState.value.playing, isFalse);
     },
   );
+
+  test(
+    'Discovery Dial and Vocal Attenuation custom actions',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final engine = _FakeAudioEngine();
+      final handler = MeloAudioHandler(audioEngine: engine);
+      addTearDown(handler.dispose);
+
+      // Initial default values
+      final initialDiscovery = await handler.customAction('getDiscoveryLevel');
+      expect(initialDiscovery, 0.5);
+
+      final initialVocal = await handler.customAction('getVocalAttenuation');
+      expect(initialVocal, 0.0);
+
+      // Update discovery level
+      final updatedDiscovery = await handler.customAction('setDiscoveryLevel', {
+        'discoveryLevel': 0.85,
+      });
+      expect(updatedDiscovery, 0.85);
+      expect(await handler.customAction('getDiscoveryLevel'), 0.85);
+
+      // Update vocal attenuation
+      final updatedVocal = await handler.customAction('setVocalAttenuation', {
+        'vocalAttenuationDb': -12.0,
+      });
+      expect(updatedVocal, -12.0);
+      expect(await handler.customAction('getVocalAttenuation'), -12.0);
+    },
+  );
 }
 
 class _FakeAudioEngine implements AudioEngine {
