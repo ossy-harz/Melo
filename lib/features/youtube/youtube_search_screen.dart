@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/settings/youtube_settings_screen.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
@@ -270,7 +271,7 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
     }
   }
 
-  Future<void> _addToQueue(YoutubeTrack track) async {
+  Future<void> _addToQueue(YoutubeTrack track, {bool playNext = false}) async {
     final handler = widget.audioHandler;
     if (handler == null) return;
 
@@ -281,13 +282,21 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
         artist: track.author,
       );
       final item = localMatch != null ? localMatch.toMediaItem() : track.toMediaItem();
-      await handler.addQueueItem(item);
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else {
+        await handler.addQueueItem(item);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('Added "${track.title}" to Up Next'),
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -737,8 +746,10 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                                       color: colors.onSurfaceVariant,
                                     ),
                                     onSelected: (val) {
-                                      if (val == 'queue') {
-                                        _addToQueue(track);
+                                      if (val == 'play_next') {
+                                        _addToQueue(track, playNext: true);
+                                      } else if (val == 'queue') {
+                                        _addToQueue(track, playNext: false);
                                       } else if (val == 'playlist') {
                                         _showAddToPlaylistDialog(track);
                                       } else if (val == 'download') {
@@ -747,19 +758,47 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                                     },
                                     itemBuilder: (context) => [
                                       const PopupMenuItem(
+                                        value: 'play_next',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.playlist_play_rounded, size: 20),
+                                            SizedBox(width: 10),
+                                            Text('Play next'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
                                         value: 'queue',
-                                        child: Text('Add to Up Next'),
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.queue_music_rounded, size: 20),
+                                            SizedBox(width: 10),
+                                            Text('Add to Up Next'),
+                                          ],
+                                        ),
                                       ),
                                       if (widget.library != null)
                                         const PopupMenuItem(
                                           value: 'playlist',
-                                          child: Text('Add to playlist'),
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.playlist_add_rounded, size: 20),
+                                              SizedBox(width: 10),
+                                              Text('Add to playlist'),
+                                            ],
+                                          ),
                                         ),
                                       if (widget.library != null &&
                                           !isDownloaded)
                                         const PopupMenuItem(
                                           value: 'download',
-                                          child: Text('Save to device'),
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.download_rounded, size: 20),
+                                              SizedBox(width: 10),
+                                              Text('Save to device'),
+                                            ],
+                                          ),
                                         ),
                                     ],
                                   ),

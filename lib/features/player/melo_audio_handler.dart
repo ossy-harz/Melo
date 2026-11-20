@@ -359,6 +359,29 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       await clearUpcomingQueue();
       return null;
     }
+    if (name == 'playNext') {
+      final itemMap = extras?['mediaItem'];
+      if (itemMap is Map) {
+        final item = MediaItem(
+          id: itemMap['id'] as String,
+          title: itemMap['title'] as String,
+          artist: itemMap['artist'] as String?,
+          album: itemMap['album'] as String?,
+          duration: itemMap['durationMs'] != null
+              ? Duration(milliseconds: (itemMap['durationMs'] as num).toInt())
+              : null,
+          artUri: itemMap['artUri'] != null
+              ? Uri.tryParse(itemMap['artUri'] as String)
+              : null,
+          extras: itemMap['extras'] is Map
+              ? Map<String, dynamic>.from(itemMap['extras'] as Map)
+              : null,
+        );
+        await insertQueueItemNext(item);
+        return true;
+      }
+      return false;
+    }
     if (name == 'setVolume') {
       final vol = (extras?['volume'] as num?)?.toDouble() ?? 1.0;
       _userVolume = vol.clamp(0.0, 1.0);
@@ -1503,6 +1526,41 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _publishState();
   }
 
+  /// Inserts [mediaItem] immediately after the currently playing song in the playback queue.
+  Future<void> insertQueueItemNext(MediaItem mediaItem) async {
+    await _settingsReady;
+    if (_items.isEmpty) {
+      await replaceQueue([mediaItem], playWhenReady: false);
+      return;
+    }
+
+    final existingIdx = _items.indexWhere((item) => item.id == mediaItem.id);
+    if (existingIdx == _currentIndex) return;
+
+    if (existingIdx >= 0) {
+      final currentOrder = [..._playOrder];
+      currentOrder.remove(existingIdx);
+      final insertPos = (_orderPosition + 1).clamp(0, currentOrder.length);
+      currentOrder.insert(insertPos, existingIdx);
+      _playOrder = List.unmodifiable(currentOrder);
+      _orderPosition = _playOrder.indexOf(_currentIndex);
+      _publishState();
+      _prefetchUpcomingStream();
+      return;
+    }
+
+    final newIndex = _items.length;
+    _items = List.unmodifiable([..._items, mediaItem]);
+    final currentOrder = [..._playOrder];
+    final insertPos = (_orderPosition + 1).clamp(0, currentOrder.length);
+    currentOrder.insert(insertPos, newIndex);
+    _playOrder = List.unmodifiable(currentOrder);
+    _orderPosition = _playOrder.indexOf(_currentIndex);
+    queue.add(_items);
+    _publishState();
+    _prefetchUpcomingStream();
+  }
+
   @override
   Future<void> addQueueItem(MediaItem mediaItem) async {
     await _settingsReady;
@@ -1517,6 +1575,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _playOrder = List.unmodifiable([..._playOrder, newIndex]);
     queue.add(_items);
     _publishState();
+    _prefetchUpcomingStream();
   }
 
   @override
@@ -1669,7 +1728,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       _audioEngine.stateFor(AudioDeck.b).playing;
 
   bool _needsAsyncResolution(MediaItem item) {
-    if (item.id.startsWith('/') || item.id.startsWith('file:')) {
+    if (item.id.startsWith('/') ||
+        item.id.startsWith('file:') ||
+        item.id.startsWith('content:')) {
       return false;
     }
     final cachedStreamUrl = item.extras?['streamUrl'] as String?;
@@ -1678,10 +1739,8 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
             cachedStreamUrl.startsWith('https://'))) {
       return false;
     }
-    return item.id.startsWith('youtube:') ||
-        item.extras?['source'] == 'youtube' ||
-        item.id.startsWith('spotify:') ||
-        item.extras?['source'] == 'spotify';
+    // Any track that is not a local file on device needs async stream resolution!
+    return true;
   }
 
   static const _networkStreamHeaders = <String, String>{
@@ -1836,7 +1895,42 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       }
     }
 
-    return _sourceFor(item);
+    // 3. Universal audio resolver for all other online / streaming tracks
+    // (Deezer, Qobuz, Amazon Music, TIDAL, Universal search results, online mixes)
+    try {
+      final query = '${item.title} ${item.artist ?? ''}'.trim();
+      final ytTracks = await YoutubeAudioService.instance.search(query);
+      if (ytTracks.isNotEmpty) {
+        final matched = ytTracks.first;
+        final streamDetails =
+            await YoutubeAudioService.instance.getStreamDetails(matched.id);
+        final resolvedItem = item.copyWith(
+          extras: {
+            ...?item.extras,
+            'streamUrl': streamDetails.url,
+            'mimeType': streamDetails.mimeType,
+            'bitRate': streamDetails.bitrate,
+            'sampleRate': streamDetails.sampleRate,
+            'channelCount': streamDetails.channelCount,
+            'codec': streamDetails.codec,
+            'userAgent': streamDetails.headers['User-Agent'],
+            'matchedYoutubeId': matched.id,
+            'isLiveStream': true,
+          },
+        );
+        _updateQueueItem(resolvedItem);
+        return AudioDeckSource(
+          uri: Uri.parse(streamDetails.url),
+          tag: resolvedItem,
+          headers: streamDetails.headers,
+        );
+      } else {
+        return _sourceFor(item);
+      }
+    } catch (e, st) {
+      debugPrint('Could not resolve online stream: $e\n$st');
+      return _sourceFor(item);
+    }
   }
 
   Future<void> _loadIndex(int index, {required bool playWhenReady}) async {
@@ -2183,7 +2277,15 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
                 debugPrint('Prefetch stream failed for $pId: $error');
               }),
         );
+        continue;
       }
+
+      // Universal online track prefetch (Deezer, Qobuz, Amazon, TIDAL, Universal search)
+      unawaited(
+        _prefetchSpotifyStream(item).then((_) {
+          if (offset == 0) _scheduleNextTrackPreload();
+        }).catchError((_) {}),
+      );
     }
   }
 

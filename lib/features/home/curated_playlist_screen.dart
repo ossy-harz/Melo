@@ -2387,6 +2387,27 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                       case 'save':
                                         await _toggleSaveSingleTrack(track);
                                         break;
+                                      case 'play_next':
+                                        final item = _trackToMediaItem(track);
+                                        final handler = widget.audioHandler;
+                                        if (handler is MeloAudioHandler) {
+                                          await handler.insertQueueItemNext(item);
+                                        } else {
+                                          await handler?.addQueueItem(item);
+                                        }
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                          ..hideCurrentSnackBar()
+                                          ..showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Playing "${track.title}" next',
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        break;
                                       case 'queue':
                                         final item = _trackToMediaItem(track);
                                         await widget.audioHandler?.addQueueItem(
@@ -2398,7 +2419,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                           ..showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Added "${track.title}" to queue',
+                                                'Added "${track.title}" to Up Next',
                                               ),
                                               behavior:
                                                   SnackBarBehavior.floating,
@@ -2461,6 +2482,19 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                       ),
                                     ),
                                     const PopupMenuItem(
+                                      value: 'play_next',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.playlist_play_rounded,
+                                            size: 20,
+                                          ),
+                                          SizedBox(width: 12),
+                                          Text('Play next'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
                                       value: 'queue',
                                       child: Row(
                                         children: [
@@ -2469,7 +2503,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                             size: 20,
                                           ),
                                           SizedBox(width: 12),
-                                          Text('Add to queue'),
+                                          Text('Add to Up Next'),
                                         ],
                                       ),
                                     ),

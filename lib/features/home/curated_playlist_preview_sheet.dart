@@ -142,6 +142,43 @@ class _CuratedPlaylistPreviewSheetState
     }
   }
 
+  Future<void> _queueTrack(YoutubeTrack track, {bool playNext = false}) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final item = track.toMediaItem();
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else {
+        await handler.addQueueItem(item);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not queue "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
   Future<void> _downloadSingleTrack(YoutubeTrack track) async {
     final lib = widget.library;
     if (lib == null || _downloadProgress.containsKey(track.id)) return;
@@ -547,7 +584,7 @@ class _CuratedPlaylistPreviewSheetState
                                             color: MeloColors.cherry,
                                           ),
                                         )
-                                      else
+                                      else ...[
                                         IconButton(
                                           tooltip: 'Download track',
                                           icon: const Icon(
@@ -558,6 +595,67 @@ class _CuratedPlaylistPreviewSheetState
                                           onPressed: () =>
                                               _downloadSingleTrack(track),
                                         ),
+                                        PopupMenuButton<String>(
+                                          tooltip: 'Track options',
+                                          icon: Icon(
+                                            Icons.more_vert_rounded,
+                                            color: Colors.white.withValues(alpha: 0.6),
+                                            size: 20,
+                                          ),
+                                          color: MeloColors.qledCard,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            side: BorderSide(
+                                              color: Colors.white.withValues(alpha: 0.12),
+                                            ),
+                                          ),
+                                          onSelected: (val) {
+                                            switch (val) {
+                                              case 'play_next':
+                                                _queueTrack(track, playNext: true);
+                                                break;
+                                              case 'queue':
+                                                _queueTrack(track, playNext: false);
+                                                break;
+                                              case 'download':
+                                                _downloadSingleTrack(track);
+                                                break;
+                                            }
+                                          },
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(
+                                              value: 'play_next',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.playlist_play_rounded, size: 20),
+                                                  SizedBox(width: 10),
+                                                  Text('Play next'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuItem(
+                                              value: 'queue',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.queue_music_rounded, size: 20),
+                                                  SizedBox(width: 10),
+                                                  Text('Add to Up Next'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuItem(
+                                              value: 'download',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.arrow_circle_down_outlined, size: 20),
+                                                  SizedBox(width: 10),
+                                                  Text('Download track'),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

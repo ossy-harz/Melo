@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
@@ -209,6 +210,97 @@ class _SearchScreenState extends State<SearchScreen> {
       if (mounted) {
         setState(() => _playingOnlineId = null);
       }
+    }
+  }
+
+  Future<void> _queueOnlineTrack(YoutubeTrack track, {bool playNext = false}) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final localMatch = widget.library?.findMatchingLocalTrack(
+        providerTrackId: track.id,
+        title: track.title,
+        artist: track.author,
+      );
+      final item = localMatch != null ? localMatch.toMediaItem() : track.toMediaItem();
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else if (playNext) {
+        await handler.customAction('playNext', {
+          'mediaItem': {
+            'id': item.id,
+            'title': item.title,
+            'artist': item.artist,
+            'album': item.album,
+            'durationMs': item.duration?.inMilliseconds,
+            'artUri': item.artUri?.toString(),
+            'extras': item.extras,
+          },
+        });
+      } else {
+        await handler.addQueueItem(item);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not queue "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  Future<void> _queueLocalTrack(ImportedTrack track, {bool playNext = false}) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final item = track.toMediaItem();
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else {
+        await handler.addQueueItem(item);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not queue "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
     }
   }
 
@@ -545,6 +637,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           sourceUri: Uri.tryParse(topLocal.path),
                           isOnDevice: true,
                           onPlay: () => _playTrack(0),
+                          onPlayNext: () => _queueLocalTrack(topLocal, playNext: true),
+                          onQueue: () => _queueLocalTrack(topLocal, playNext: false),
                         );
                       } else {
                         final topOnline = _onlineResults.first;
@@ -556,6 +650,8 @@ class _SearchScreenState extends State<SearchScreen> {
                               : Uri.tryParse(topOnline.thumbnailUrl!),
                           isOnDevice: false,
                           onPlay: () => _playOnlineTrack(topOnline),
+                          onPlayNext: () => _queueOnlineTrack(topOnline, playNext: true),
+                          onQueue: () => _queueOnlineTrack(topOnline, playNext: false),
                         );
                       }
                     },
@@ -661,6 +757,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           isDownloaded: isDownloaded,
                           downloadProgress: _downloadProgress[track.id],
                           onTap: () => _playOnlineTrack(track),
+                          onQueue: () => _queueOnlineTrack(track),
+                          onPlayNext: () => _queueOnlineTrack(track, playNext: true),
                           onDownload: widget.library == null
                               ? null
                               : () => _downloadOnlineTrack(track),
@@ -898,6 +996,8 @@ class _OnlineSearchResultTile extends StatelessWidget {
     required this.isDownloaded,
     required this.downloadProgress,
     required this.onTap,
+    this.onQueue,
+    this.onPlayNext,
     required this.onDownload,
   });
 
@@ -906,6 +1006,8 @@ class _OnlineSearchResultTile extends StatelessWidget {
   final bool isDownloaded;
   final double? downloadProgress;
   final VoidCallback onTap;
+  final VoidCallback? onQueue;
+  final VoidCallback? onPlayNext;
   final VoidCallback? onDownload;
 
   @override
@@ -984,27 +1086,72 @@ class _OnlineSearchResultTile extends StatelessWidget {
                       ),
                     ),
                   )
-                else if (isDownloaded)
-                  Tooltip(
-                    message: 'Saved on device',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Icon(
-                        Icons.download_done_rounded,
-                        size: 20,
-                        color: colors.primary,
+                else ...[
+                  if (isDownloaded)
+                    Tooltip(
+                      message: 'Saved on device',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Icon(
+                          Icons.download_done_rounded,
+                          size: 20,
+                          color: colors.primary,
+                        ),
                       ),
                     ),
-                  )
-                else if (onDownload != null)
-                  IconButton(
-                    tooltip: 'Save to device',
-                    onPressed: onDownload,
+                  PopupMenuButton<String>(
                     icon: Icon(
-                      Icons.download_for_offline_outlined,
+                      Icons.more_vert_rounded,
                       color: colors.onSurfaceVariant,
+                      size: 20,
                     ),
+                    tooltip: 'Options',
+                    onSelected: (val) {
+                      if (val == 'playNext') {
+                        onPlayNext?.call();
+                      } else if (val == 'queue') {
+                        onQueue?.call();
+                      } else if (val == 'download') {
+                        onDownload?.call();
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      if (onPlayNext != null)
+                        const PopupMenuItem(
+                          value: 'playNext',
+                          child: Row(
+                            children: [
+                              Icon(Icons.playlist_play_rounded, size: 20),
+                              SizedBox(width: 10),
+                              Text('Play next'),
+                            ],
+                          ),
+                        ),
+                      if (onQueue != null)
+                        const PopupMenuItem(
+                          value: 'queue',
+                          child: Row(
+                            children: [
+                              Icon(Icons.queue_music_rounded, size: 20),
+                              SizedBox(width: 10),
+                              Text('Add to Up Next'),
+                            ],
+                          ),
+                        ),
+                      if (!isDownloaded && onDownload != null)
+                        const PopupMenuItem(
+                          value: 'download',
+                          child: Row(
+                            children: [
+                              Icon(Icons.download_for_offline_outlined, size: 20),
+                              SizedBox(width: 10),
+                              Text('Save to device'),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
+                ],
               ],
             ),
           ),
@@ -1023,6 +1170,8 @@ class _TopResultCard extends StatelessWidget {
     this.sourceUri,
     required this.isOnDevice,
     required this.onPlay,
+    this.onPlayNext,
+    this.onQueue,
   });
 
   final String title;
@@ -1031,6 +1180,8 @@ class _TopResultCard extends StatelessWidget {
   final Uri? sourceUri;
   final bool isOnDevice;
   final VoidCallback onPlay;
+  final VoidCallback? onPlayNext;
+  final VoidCallback? onQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -1123,7 +1274,55 @@ class _TopResultCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              if (onPlayNext != null || onQueue != null) ...[
+                PopupMenuButton<String>(
+                  tooltip: 'Queue options',
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: colors.onSurfaceVariant,
+                    size: 20,
+                  ),
+                  color: MeloColors.qledCard,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  onSelected: (val) {
+                    if (val == 'play_next') {
+                      onPlayNext?.call();
+                    } else if (val == 'queue') {
+                      onQueue?.call();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    if (onPlayNext != null)
+                      const PopupMenuItem(
+                        value: 'play_next',
+                        child: Row(
+                          children: [
+                            Icon(Icons.playlist_play_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Play next'),
+                          ],
+                        ),
+                      ),
+                    if (onQueue != null)
+                      const PopupMenuItem(
+                        value: 'queue',
+                        child: Row(
+                          children: [
+                            Icon(Icons.queue_music_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Add to Up Next'),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+              ],
               IconButton.filled(
                 style: IconButton.styleFrom(
                   backgroundColor: MeloColors.cherry,

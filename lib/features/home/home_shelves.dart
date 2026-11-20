@@ -3553,6 +3553,53 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
     }
   }
 
+  Future<void> _queueFeedTrack(
+    SpotifyTrack track, {
+    bool playNext = false,
+  }) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final localMatch = widget.library?.findMatchingLocalTrack(
+        providerTrackId: track.id,
+        title: track.title,
+        artist: track.artist,
+      );
+      final item = localMatch != null
+          ? localMatch.toMediaItem()
+          : track.toImportedTrack().toMediaItem();
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else {
+        await handler.addQueueItem(item);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not queue "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
   List<SpotifyTrack> _tracksForCurrentSelection(
     FeaturedSpotifyPlaylist? selectedPlaylist,
   ) {
@@ -4113,11 +4160,52 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.play_circle_filled_rounded,
-                            size: 20,
-                            color: MeloColors.cherry,
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            tooltip: 'Options',
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              size: 18,
+                              color: colors.onSurfaceVariant,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            color: MeloColors.qledCard,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            onSelected: (val) {
+                              if (val == 'play_next') {
+                                _queueFeedTrack(track, playNext: true);
+                              } else if (val == 'queue') {
+                                _queueFeedTrack(track, playNext: false);
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: 'play_next',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.playlist_play_rounded, size: 20),
+                                    SizedBox(width: 10),
+                                    Text('Play next'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'queue',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.queue_music_rounded, size: 20),
+                                    SizedBox(width: 10),
+                                    Text('Add to Up Next'),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
