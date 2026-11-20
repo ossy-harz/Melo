@@ -29,20 +29,23 @@ class MeloApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: MeloAppearanceController.instance,
-      builder: (context, themeMode, _) => MaterialApp(
-        title: 'Melo',
-        debugShowCheckedModeBanner: false,
-        theme: MeloTheme.light,
-        darkTheme: MeloTheme.dark,
-        themeMode: themeMode,
-        home: services != null
-            ? _home(services!)
-            : servicesFuture != null
-            ? _ServicesLoader(
-                future: servicesFuture!,
-                diagnosticMode: diagnosticMode,
-              )
-            : const AppShell(),
+      builder: (context, themeMode, _) => ValueListenableBuilder<MeloThemeSettings>(
+        valueListenable: MeloThemeService.instance,
+        builder: (context, themeSettings, _) => MaterialApp(
+          title: 'Melo',
+          debugShowCheckedModeBanner: false,
+          theme: MeloTheme.themeFor(Brightness.light, themeSettings),
+          darkTheme: MeloTheme.themeFor(Brightness.dark, themeSettings),
+          themeMode: themeMode,
+          home: services != null
+              ? _home(services!)
+              : servicesFuture != null
+              ? _ServicesLoader(
+                  future: servicesFuture!,
+                  diagnosticMode: diagnosticMode,
+                )
+              : const AppShell(),
+        ),
       ),
     );
   }

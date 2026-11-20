@@ -224,18 +224,185 @@ class LosslessAudioService {
       }
     }
 
-    // 2. Deezer Link (Playlist, Album, or Track)
+    // 2. Qobuz Hi-Res Lossless Link
+    if (host.contains('qobuz.com')) {
+      return _resolveQobuzLink(uri, input);
+    }
+
+    // 3. Amazon Music HD Link
+    if (host.contains('amazon.') || host.contains('music.amazon')) {
+      return _resolveAmazonMusicLink(uri, input);
+    }
+
+    // 4. TIDAL HiFi / Master Link
+    if (host.contains('tidal.com')) {
+      return _resolveTidalLink(uri, input);
+    }
+
+    // 5. Deezer Link (Playlist, Album, or Track)
     if (host.contains('deezer.com')) {
       return _resolveDeezerLink(uri);
     }
 
-    // 3. YouTube / YouTube Music Link
+    // 6. YouTube / YouTube Music Link
     if (host.contains('youtube.com') || host.contains('youtu.be')) {
       return _resolveYoutubeLink(uri, input);
     }
 
-    // 4. Apple Music / Universal fallback
+    // 7. Apple Music / Universal fallback
     return _resolveGenericMusicLink(uri, input);
+  }
+
+  Future<UniversalPlaylistResult> _resolveQobuzLink(Uri uri, String input) async {
+    String title = 'Qobuz Hi-Res Track';
+    String artist = 'Qobuz Artist';
+    String? artworkUrl;
+
+    try {
+      final res = await http.get(
+        uri,
+        headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final html = res.body;
+        final titleMatch = RegExp(r'<meta\s+property="og:title"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html) ??
+            RegExp(r'<title>([^<]+)</title>', caseSensitive: false).firstMatch(html);
+        final imageMatch = RegExp(r'<meta\s+property="og:image"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+        final descMatch = RegExp(r'<meta\s+property="og:description"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+
+        if (titleMatch != null) {
+          var rawTitle = titleMatch.group(1) ?? title;
+          rawTitle = rawTitle.replaceAll(' - Qobuz', '').replaceAll('| Qobuz', '').trim();
+          if (rawTitle.contains(' - ')) {
+            final parts = rawTitle.split(' - ');
+            artist = parts.first.trim();
+            title = parts.sublist(1).join(' - ').trim();
+          } else {
+            title = rawTitle;
+          }
+        }
+        if (imageMatch != null) artworkUrl = imageMatch.group(1);
+        if (descMatch != null && artist == 'Qobuz Artist') {
+          artist = descMatch.group(1)?.split(',').first.trim() ?? artist;
+        }
+      }
+    } catch (_) {}
+
+    // Fall back to clean URL path if web scrape returned generic
+    if (title == 'Qobuz Hi-Res Track' || title.isEmpty) {
+      final parts = uri.pathSegments.where((s) => s.isNotEmpty && s != 'album' && s != 'track' && s != 'us-en').toList();
+      if (parts.isNotEmpty) {
+        title = parts.first.replaceAll('-', ' ');
+      }
+    }
+
+    return UniversalPlaylistResult(
+      name: title,
+      author: artist,
+      artworkUrl: artworkUrl,
+      sourceUrl: input,
+      tracks: [
+        UniversalMusicTrack(
+          id: 'qobuz_${uri.pathSegments.lastOrNull ?? DateTime.now().millisecondsSinceEpoch}',
+          title: title,
+          artist: artist,
+          album: 'Qobuz 24-bit Hi-Res',
+          durationMs: 0,
+          artworkUrl: artworkUrl,
+          provider: 'Qobuz Hi-Res',
+          sourceLink: input,
+        ),
+      ],
+    );
+  }
+
+  Future<UniversalPlaylistResult> _resolveAmazonMusicLink(Uri uri, String input) async {
+    String title = 'Amazon Music Track';
+    String artist = 'Amazon Music';
+    String? artworkUrl;
+
+    try {
+      final res = await http.get(
+        uri,
+        headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final html = res.body;
+        final titleMatch = RegExp(r'<meta\s+property="og:title"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html) ??
+            RegExp(r'<title>([^<]+)</title>', caseSensitive: false).firstMatch(html);
+        final imageMatch = RegExp(r'<meta\s+property="og:image"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+
+        if (titleMatch != null) {
+          var raw = titleMatch.group(1) ?? title;
+          raw = raw.replaceAll(' on Amazon Music', '').replaceAll('| Amazon Music', '').trim();
+          if (raw.contains(' by ')) {
+            final parts = raw.split(' by ');
+            title = parts.first.trim();
+            artist = parts.sublist(1).join(' by ').trim();
+          } else {
+            title = raw;
+          }
+        }
+        if (imageMatch != null) artworkUrl = imageMatch.group(1);
+      }
+    } catch (_) {}
+
+    return UniversalPlaylistResult(
+      name: title,
+      author: artist,
+      artworkUrl: artworkUrl,
+      sourceUrl: input,
+      tracks: [
+        UniversalMusicTrack(
+          id: 'amzn_${uri.pathSegments.lastOrNull ?? DateTime.now().millisecondsSinceEpoch}',
+          title: title,
+          artist: artist,
+          album: 'Amazon Music HD',
+          durationMs: 0,
+          artworkUrl: artworkUrl,
+          provider: 'Amazon Music HD',
+          sourceLink: input,
+        ),
+      ],
+    );
+  }
+
+  Future<UniversalPlaylistResult> _resolveTidalLink(Uri uri, String input) async {
+    String title = 'TIDAL Track';
+    String artist = 'TIDAL Artist';
+    String? artworkUrl;
+
+    try {
+      final oEmbedUri = Uri.parse('https://oembed.tidal.com/v1.0/oembed?url=${Uri.encodeComponent(input)}');
+      final res = await http.get(oEmbedUri).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        title = data['title'] as String? ?? title;
+        artist = data['author_name'] as String? ?? artist;
+        artworkUrl = data['thumbnail_url'] as String?;
+      }
+    } catch (_) {}
+
+    return UniversalPlaylistResult(
+      name: title,
+      author: artist,
+      artworkUrl: artworkUrl,
+      sourceUrl: input,
+      tracks: [
+        UniversalMusicTrack(
+          id: 'tidal_${uri.pathSegments.lastOrNull ?? DateTime.now().millisecondsSinceEpoch}',
+          title: title,
+          artist: artist,
+          album: 'TIDAL HiFi Plus',
+          durationMs: 0,
+          artworkUrl: artworkUrl,
+          provider: 'TIDAL HiFi',
+          sourceLink: input,
+        ),
+      ],
+    );
   }
 
   Future<UniversalPlaylistResult> _resolveDeezerLink(Uri uri) async {

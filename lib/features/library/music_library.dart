@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/library_platform_data_source.dart';
+import 'package:melo_player/features/library/data/library_backup_service.dart';
 import 'package:melo_player/features/library/data/library_repository.dart';
 import 'package:melo_player/features/library/data/melo_database.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
@@ -576,6 +577,28 @@ class MusicLibrary extends ChangeNotifier {
             }
           } catch (e) {
             debugPrint('Could not restore playlists from preferences backup: $e');
+          }
+        }
+
+        // Resilient external storage fallback: If DB and preferences are fresh
+        // (e.g. app uninstalled and reinstalled), auto-restore from persistent storage
+        if (_playlists.isEmpty) {
+          try {
+            final backupFile = await LibraryBackupService.findLatestExternalBackup();
+            if (backupFile != null) {
+              final backupData = await LibraryBackupService.readBackup(backupFile);
+              if (backupData != null && backupData.playlists.isNotEmpty) {
+                _playlists = backupData.playlists;
+                if (backupData.favoriteTrackIds.isNotEmpty) {
+                  _favoriteTrackIds = {..._favoriteTrackIds, ...backupData.favoriteTrackIds};
+                }
+                unawaited(repository.savePlaylists(_playlists));
+                unawaited(repository.saveFavorites(_favoriteTrackIds));
+                debugPrint('Auto-restored ${_playlists.length} playlists and ${_favoriteTrackIds.length} favorites from external backup: ${backupFile.path}');
+              }
+            }
+          } catch (e) {
+            debugPrint('External backup auto-restore failed: $e');
           }
         }
       }
@@ -2106,6 +2129,14 @@ class MusicLibrary extends ChangeNotifier {
     if (_repository case final repository?) {
       await repository.savePlaylists(playlists);
     }
+    unawaited(
+      LibraryBackupService.autoBackup(
+        playlists: playlists,
+        tracks: _tracks,
+        favoriteTrackIds: _favoriteTrackIds,
+        excludedTrackIds: _mixExcludedTrackIds,
+      ),
+    );
   }
 
   Future<void> _saveFolders(List<MusicFolder> folders) {
@@ -2119,12 +2150,66 @@ class MusicLibrary extends ChangeNotifier {
   }
 
   Future<void> _saveFavorites(Set<String> trackIds) {
+    unawaited(
+      LibraryBackupService.autoBackup(
+        playlists: _playlists,
+        tracks: _tracks,
+        favoriteTrackIds: trackIds,
+        excludedTrackIds: _mixExcludedTrackIds,
+      ),
+    );
     if (_repository case final repository?) {
       return repository.saveFavorites(trackIds);
     }
     return trackIds.isEmpty
         ? _preferences.remove(_favoritesKey)
         : _preferences.setStringList(_favoritesKey, trackIds.toList());
+  }
+
+  /// Manually exports the full library & playlists snapshot to external storage.
+  Future<File?> exportExternalBackup() => LibraryBackupService.autoBackup(
+    playlists: _playlists,
+    tracks: _tracks,
+    favoriteTrackIds: _favoriteTrackIds,
+    excludedTrackIds: _mixExcludedTrackIds,
+  );
+
+  /// Restores playlists, favorite tracks, and metadata from a backup dataset.
+  Future<int> restoreFromBackupData(LibraryBackupData data) async {
+    final existingIds = _playlists.map((p) => p.id).toSet();
+    final newPlaylists = <MusicPlaylist>[..._playlists];
+    var addedCount = 0;
+
+    for (final p in data.playlists) {
+      if (!existingIds.contains(p.id)) {
+        newPlaylists.add(p);
+        addedCount++;
+      }
+    }
+
+    _playlists = newPlaylists;
+    _favoriteTrackIds = {..._favoriteTrackIds, ...data.favoriteTrackIds};
+    if (data.excludedTrackIds.isNotEmpty) {
+      _mixExcludedTrackIds = {..._mixExcludedTrackIds, ...data.excludedTrackIds};
+    }
+
+    // Merge offline tracks from backup that are missing in local state
+    final currentTrackIds = _tracks.map((t) => t.id).toSet();
+    final newTracks = <ImportedTrack>[..._tracks];
+    for (final t in data.tracks) {
+      if (!currentTrackIds.contains(t.id)) {
+        newTracks.add(t);
+      }
+    }
+    if (newTracks.length > _tracks.length) {
+      _setTracks(newTracks);
+      await _saveTracks(newTracks);
+    }
+
+    await _savePlaylists(_playlists);
+    await _saveFavorites(_favoriteTrackIds);
+    notifyListeners();
+    return addedCount;
   }
 
   Future<void> _saveExclusions(Set<String> trackIds) {

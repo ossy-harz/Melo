@@ -620,6 +620,85 @@ class LyricsRepository {
       // Secondary fallback: query Apple Music synced lyrics mirror (api.lrc.red)
       final lrcRedLyrics = await _queryLrcRedFallback(item);
       if (lrcRedLyrics != null) return lrcRedLyrics;
+
+      // Tertiary fallback: query Netease Cloud Music global synced lyrics database
+      final neteaseLyrics = await _queryNeteaseLyricsFallback(item);
+      if (neteaseLyrics != null) return neteaseLyrics;
+    }
+    return null;
+  }
+
+  static Future<SongLyrics?> _queryNeteaseLyricsFallback(MediaItem item) async {
+    final title = item.title.trim();
+    final artist = item.artist?.trim() ?? '';
+    if (title.isEmpty) return null;
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+    try {
+      final query = artist.isNotEmpty && !artist.toLowerCase().contains('unknown')
+          ? '$title $artist'
+          : title;
+      final searchUri = Uri.https('music.163.com', '/api/search/get/web', {
+        'csrf_token': '',
+        'hlpretag': '',
+        'hlposttag': '',
+        's': query,
+        'type': '1',
+        'offset': '0',
+        'total': 'true',
+        'limit': '3',
+      });
+      final sReq = await client.getUrl(searchUri).timeout(const Duration(seconds: 8));
+      sReq.headers.set(HttpHeaders.userAgentHeader, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+      sReq.headers.set('Referer', 'https://music.163.com');
+      final sRes = await sReq.close().timeout(const Duration(seconds: 8));
+      if (sRes.statusCode != HttpStatus.ok) {
+        await sRes.drain<void>();
+        return null;
+      }
+      final sBody = await sRes.transform(utf8.decoder).join();
+      final sJson = jsonDecode(sBody);
+      if (sJson is! Map || sJson['result'] == null) return null;
+      final songs = sJson['result']['songs'] as List?;
+      if (songs == null || songs.isEmpty) return null;
+      final firstSong = songs.first as Map;
+      final songId = firstSong['id'];
+      if (songId == null) return null;
+
+      final lyricUri = Uri.https('music.163.com', '/api/song/lyric', {
+        'os': 'pc',
+        'id': '$songId',
+        'lv': '-1',
+        'kv': '-1',
+        'tv': '-1',
+      });
+      final lReq = await client.getUrl(lyricUri).timeout(const Duration(seconds: 8));
+      lReq.headers.set(HttpHeaders.userAgentHeader, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+      lReq.headers.set('Referer', 'https://music.163.com');
+      final lRes = await lReq.close().timeout(const Duration(seconds: 8));
+      if (lRes.statusCode != HttpStatus.ok) {
+        await lRes.drain<void>();
+        return null;
+      }
+      final lBody = await lRes.transform(utf8.decoder).join();
+      final lJson = jsonDecode(lBody);
+      if (lJson is! Map) return null;
+      final lrc = lJson['lrc'] as Map?;
+      final rawLyric = lrc?['lyric'] as String?;
+      if (rawLyric != null && rawLyric.trim().isNotEmpty) {
+        final lyrics = SongLyrics.parse(synchronized: rawLyric, plain: rawLyric);
+        if (lyrics != null && lyrics.lines.isNotEmpty) {
+          final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(cacheKey, rawLyric);
+          await prefs.setString(_canonicalSongKey(item.title, item.artist), rawLyric);
+          await _tryWriteLocalLrcSidecar(item.id, rawLyric);
+          revision.value++;
+          return lyrics;
+        }
+      }
+    } catch (_) {
+    } finally {
+      client.close(force: true);
     }
     return null;
   }

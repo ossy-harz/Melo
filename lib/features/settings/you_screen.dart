@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_appearance.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/library/data/library_backup_service.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
@@ -251,6 +252,51 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
     }
   }
 
+  Future<void> _exportBackup() async {
+    final library = widget.library;
+    if (library == null) return;
+    setState(() => _isClearing = true);
+    try {
+      final file = await library.exportExternalBackup();
+      if (!mounted) return;
+      if (file != null) {
+        _showStatus('Persistent backup saved: ${file.path}');
+      } else {
+        _showStatus('No playlists or favorites to back up yet.');
+      }
+    } catch (e) {
+      if (mounted) _showStatus('Backup failed: $e');
+    } finally {
+      if (mounted) setState(() => _isClearing = false);
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    final library = widget.library;
+    if (library == null) return;
+    setState(() => _isClearing = true);
+    try {
+      var data = await LibraryBackupService.pickAndImportBackup();
+      if (data == null) {
+        final latest = await LibraryBackupService.findLatestExternalBackup();
+        if (latest != null) {
+          data = await LibraryBackupService.readBackup(latest);
+        }
+      }
+      if (!mounted) return;
+      if (data == null) {
+        _showStatus('No backup file found or selected.');
+        return;
+      }
+      final count = await library.restoreFromBackupData(data);
+      _showStatus('Restored $count playlist(s) and ${data.favoriteTrackIds.length} favorites!');
+    } catch (e) {
+      if (mounted) _showStatus('Restore failed: $e');
+    } finally {
+      if (mounted) setState(() => _isClearing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -378,6 +424,65 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
           ),
           const SizedBox(height: 24),
           Text(
+            'PLAYLISTS & LIBRARY BACKUP (SURVIVES UNINSTALL)',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          MeloGlass(
+            borderRadius: MeloRadii.lg,
+            shadow: false,
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.backup_rounded,
+                      color: MeloColors.cherry,
+                    ),
+                    title: const Text(
+                      'Export Library Backup',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Saves all playlists, songs, and favorites to Music/Tone/Backups (persists across uninstalls)',
+                    ),
+                    trailing: FilledButton.tonal(
+                      onPressed: _isClearing ? null : _exportBackup,
+                      child: const Text('Export'),
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: colors.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.settings_backup_restore_rounded,
+                      color: MeloColors.cherry,
+                    ),
+                    title: const Text(
+                      'Restore from Backup',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Auto-scans external storage or lets you pick a melo_library_backup.json file',
+                    ),
+                    trailing: OutlinedButton(
+                      onPressed: _isClearing ? null : _restoreBackup,
+                      child: const Text('Restore'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
             'STREAMING & DOWNLOAD QUALITY',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: colors.onSurfaceVariant,
@@ -426,115 +531,278 @@ class AppearanceInfoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Appearance')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        children: [
-          Container(
-            height: 164,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(MeloRadii.xl),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF351618),
-                  Color(0xFF76251F),
-                  Color(0xFFFF4B3E),
-                ],
-              ),
-              boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.28),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(MeloRadii.xl),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: -30,
-                    bottom: -50,
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withValues(alpha: 0.22),
-                            Colors.transparent,
+    return ValueListenableBuilder<MeloThemeSettings>(
+      valueListenable: MeloThemeService.instance,
+      builder: (context, themeSettings, _) {
+        final activePalette = themeSettings.palette;
+        return Scaffold(
+          appBar: AppBar(title: const Text('Theme & Appearance')),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+            children: [
+              // Dynamic Theme Preview Banner
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeInOut,
+                height: 164,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(MeloRadii.xl),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: activePalette.gradient,
+                  ),
+                  boxShadow: MeloShadows.glow(activePalette.primaryColor, opacity: 0.32),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(MeloRadii.xl),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: -30,
+                        bottom: -50,
+                        child: Container(
+                          width: 150,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.22),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Positioned.fill(child: MeloGrain(opacity: 0.07)),
+                      Positioned(
+                        left: 24,
+                        bottom: 20,
+                        right: 24,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withValues(alpha: 0.28),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                              ),
+                              child: const Icon(
+                                Icons.palette_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    activePalette.displayName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  Text(
+                                    activePalette.subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.8),
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const Positioned.fill(child: MeloGrain(opacity: 0.07)),
-                  const Center(
-                    child: Icon(
-                      Icons.graphic_eq_rounded,
-                      color: Colors.white,
-                      size: 54,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Built around the album art.',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Melo uses a deep red, glass-inspired player with artwork-led color. '
-            'Ambient motion follows your device’s Reduce animations accessibility '
-            'setting so playback stays comfortable.',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 26),
-          Text(
-            'THEME',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: MeloAppearanceController.instance,
-            builder: (context, mode, _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SegmentedButton<ThemeMode>(
-                  showSelectedIcon: false,
-                  expandedInsets: EdgeInsets.zero,
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.system,
-                      label: Text('System'),
-                    ),
-                    ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                    ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+              const SizedBox(height: 24),
+
+              Text(
+                'AUDIOPHILE THEME PALETTES',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              MeloGlass(
+                borderRadius: MeloRadii.lg,
+                shadow: false,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < MeloThemePalette.values.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                          height: 1,
+                          color: colors.outlineVariant.withValues(alpha: 0.3),
+                        ),
+                      _ThemePaletteTile(
+                        palette: MeloThemePalette.values[i],
+                        isSelected: activePalette == MeloThemePalette.values[i],
+                        onTap: () => MeloThemeService.instance
+                            .setPalette(MeloThemePalette.values[i]),
+                      ),
+                    ],
                   ],
-                  selected: {mode},
-                  onSelectionChanged: (selection) => MeloAppearanceController
-                      .instance
-                      .setMode(selection.first),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'Now Playing stays a deep, artwork-led surface in every '
-                  'theme, so covers and controls stay vivid and readable.',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: colors.onSurfaceVariant, height: 1.45),
+              ),
+
+              const SizedBox(height: 24),
+              Text(
+                'SURFACE & OLED DISPLAY',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              MeloGlass(
+                borderRadius: MeloRadii.lg,
+                shadow: false,
+                child: Column(
+                  children: [
+                    SwitchListTile.adaptive(
+                      title: const Text(
+                        'True AMOLED Pitch Black (#000000)',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: const Text(
+                        'Zero battery consumption on OLED displays with true pure black canvases.',
+                      ),
+                      value: themeSettings.amoledPitchBlack,
+                      onChanged: (v) =>
+                          MeloThemeService.instance.setAmoledPitchBlack(v),
+                    ),
+                    Divider(
+                      height: 1,
+                      color: colors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text(
+                        'Album Reactive Accents',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: const Text(
+                        'Extracts vibrant tones from playing track artwork to adapt seekbars and glows.',
+                      ),
+                      value: themeSettings.dynamicAlbumReactive,
+                      onChanged: (v) =>
+                          MeloThemeService.instance.setDynamicAlbumReactive(v),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              Text(
+                'THEME MODE',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<ThemeMode>(
+                valueListenable: MeloAppearanceController.instance,
+                builder: (context, mode, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SegmentedButton<ThemeMode>(
+                      showSelectedIcon: false,
+                      expandedInsets: EdgeInsets.zero,
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('System'),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Light'),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Dark'),
+                        ),
+                      ],
+                      selected: {mode},
+                      onSelectionChanged: (selection) =>
+                          MeloAppearanceController.instance
+                              .setMode(selection.first),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _ThemePaletteTile extends StatelessWidget {
+  const _ThemePaletteTile({
+    required this.palette,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final MeloThemePalette palette;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      leading: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [palette.primaryColor, palette.secondaryColor],
+          ),
+          border: Border.all(
+            color: isSelected ? Colors.white : Colors.transparent,
+            width: 2.2,
+          ),
+          boxShadow: isSelected
+              ? MeloShadows.soft(palette.primaryColor, opacity: 0.4)
+              : null,
+        ),
       ),
+      title: Text(
+        palette.displayName,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          color: isSelected ? palette.primaryColor : null,
+        ),
+      ),
+      subtitle: Text(
+        palette.subtitle,
+        style: const TextStyle(fontSize: 12.5),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle_rounded, color: palette.primaryColor)
+          : null,
     );
   }
 }

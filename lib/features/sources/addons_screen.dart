@@ -35,6 +35,88 @@ class _AddonsScreenState extends State<AddonsScreen> {
     });
   }
 
+  void _showQobuzInfoDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        title: const Row(
+          children: [
+            Icon(Icons.graphic_eq_rounded, color: MeloColors.cherry),
+            SizedBox(width: 10),
+            Text('Qobuz Hi-Res FLAC', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'Qobuz addon provides audiophile studio FLAC matching (24-bit 96kHz / 192kHz), '
+          'complete ISRC track matching, and high-resolution album tags. '
+          'Paste any Qobuz track or album link in Search to import or play.',
+          style: TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAmazonInfoDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        title: const Row(
+          children: [
+            Icon(Icons.stream_rounded, color: MeloColors.cherry),
+            SizedBox(width: 10),
+            Text('Amazon Music HD', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'Amazon Music HD & Ultra HD addon matches lossless catalog links and spatial masters. '
+          'Paste any music.amazon.com link to resolve metadata, artwork, and lossless audio streams.',
+          style: TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTidalInfoDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        title: const Row(
+          children: [
+            Icon(Icons.waves_rounded, color: MeloColors.cherry),
+            SizedBox(width: 10),
+            Text('TIDAL HiFi Plus', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'TIDAL addon parses TIDAL MAX / HiFi links via official oEmbed endpoints, '
+          'extracting master credits, high-res artwork, and stream routing.',
+          style: TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSubsonicConfigDialog() {
     final current = _manager.subsonicConfig;
     final urlController = TextEditingController(text: current.serverUrl);
@@ -147,6 +229,15 @@ class _AddonsScreenState extends State<AddonsScreen> {
           if (mounted) setState(() {});
         });
         break;
+      case 'qobuz_lossless':
+        _showQobuzInfoDialog();
+        break;
+      case 'amazon_music_hd':
+        _showAmazonInfoDialog();
+        break;
+      case 'tidal_hifi':
+        _showTidalInfoDialog();
+        break;
       case 'bit_perfect_dac':
         PlayerDeviceHelper.showAudioOutputSheet(context);
         break;
@@ -207,6 +298,21 @@ class _AddonsScreenState extends State<AddonsScreen> {
             ? 'USB DAC detected (${bitPerfect ? "Bit-Perfect ON" : "Standard mixer"})'
             : 'No external USB DAC attached (${devices.length} output route ready)',
         ok: _manager.isAddonActive('bit_perfect_dac'),
+      ),
+      (
+        label: 'Qobuz Hi-Res FLAC Streamer',
+        detail: 'Studio 24-bit 96kHz / 192kHz audiophile metadata & ISRC mapping ready',
+        ok: _manager.isAddonActive('qobuz_lossless'),
+      ),
+      (
+        label: 'Amazon Music HD & Ultra HD',
+        detail: 'Lossless catalog parsing & spatial master stream matching ready',
+        ok: _manager.isAddonActive('amazon_music_hd'),
+      ),
+      (
+        label: 'TIDAL HiFi Plus & Master',
+        detail: 'TIDAL MAX / HiFi oEmbed metadata & stream resolution ready',
+        ok: _manager.isAddonActive('tidal_hifi'),
       ),
       (
         label: 'Deezer & iTunes Catalog',

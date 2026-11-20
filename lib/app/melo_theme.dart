@@ -1,4 +1,124 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+enum MeloThemePalette {
+  cherry,
+  cyberpunk,
+  emerald,
+  amber,
+  titanium;
+
+  String get displayName => switch (this) {
+    MeloThemePalette.cherry => 'Obsidian Cherry',
+    MeloThemePalette.cyberpunk => 'Neon Cyberpunk',
+    MeloThemePalette.emerald => 'Tokyo Emerald',
+    MeloThemePalette.amber => 'Sunset Amber',
+    MeloThemePalette.titanium => 'Obsidian Titanium',
+  };
+
+  String get subtitle => switch (this) {
+    MeloThemePalette.cherry => 'Signature deep crimson red on true pitch black',
+    MeloThemePalette.cyberpunk => 'Vibrant electric violet & neon cyan accents',
+    MeloThemePalette.emerald => 'Nordic emerald & fresh jade studio tone',
+    MeloThemePalette.amber => 'Warm analog vinyl amber & sunset gold',
+    MeloThemePalette.titanium => 'Pure minimalist monochrome silver & white',
+  };
+
+  Color get primaryColor => switch (this) {
+    MeloThemePalette.cherry => const Color(0xFFFA243C),
+    MeloThemePalette.cyberpunk => const Color(0xFFA855F7),
+    MeloThemePalette.emerald => const Color(0xFF10B981),
+    MeloThemePalette.amber => const Color(0xFFF59E0B),
+    MeloThemePalette.titanium => const Color(0xFFE2E8F0),
+  };
+
+  Color get secondaryColor => switch (this) {
+    MeloThemePalette.cherry => const Color(0xFFFF5368),
+    MeloThemePalette.cyberpunk => const Color(0xFF06B6D4),
+    MeloThemePalette.emerald => const Color(0xFF34D399),
+    MeloThemePalette.amber => const Color(0xFFEA580C),
+    MeloThemePalette.titanium => const Color(0xFF94A3B8),
+  };
+
+  List<Color> get gradient => switch (this) {
+    MeloThemePalette.cherry => const [Color(0xFF351618), Color(0xFF76251F), Color(0xFFFF4B3E)],
+    MeloThemePalette.cyberpunk => const [Color(0xFF2A103D), Color(0xFF6B21A8), Color(0xFFA855F7)],
+    MeloThemePalette.emerald => const [Color(0xFF0A2E20), Color(0xFF047857), Color(0xFF10B981)],
+    MeloThemePalette.amber => const [Color(0xFF3D2507), Color(0xFFB45309), Color(0xFFF59E0B)],
+    MeloThemePalette.titanium => const [Color(0xFF18181B), Color(0xFF3F3F46), Color(0xFF71717A)],
+  };
+}
+
+class MeloThemeSettings {
+  const MeloThemeSettings({
+    this.palette = MeloThemePalette.cherry,
+    this.amoledPitchBlack = true,
+    this.dynamicAlbumReactive = true,
+  });
+
+  final MeloThemePalette palette;
+  final bool amoledPitchBlack;
+  final bool dynamicAlbumReactive;
+
+  MeloThemeSettings copyWith({
+    MeloThemePalette? palette,
+    bool? amoledPitchBlack,
+    bool? dynamicAlbumReactive,
+  }) => MeloThemeSettings(
+    palette: palette ?? this.palette,
+    amoledPitchBlack: amoledPitchBlack ?? this.amoledPitchBlack,
+    dynamicAlbumReactive: dynamicAlbumReactive ?? this.dynamicAlbumReactive,
+  );
+}
+
+class MeloThemeService extends ValueNotifier<MeloThemeSettings> {
+  MeloThemeService._() : super(const MeloThemeSettings());
+  static final MeloThemeService instance = MeloThemeService._();
+
+  static const _paletteKey = 'tone_theme_palette_v2';
+  static const _amoledKey = 'tone_theme_amoled_v2';
+  static const _dynamicKey = 'tone_theme_dynamic_v2';
+  bool _hasLoaded = false;
+
+  Future<void> load() async {
+    if (_hasLoaded) return;
+    _hasLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pName = prefs.getString(_paletteKey);
+      final amoled = prefs.getBool(_amoledKey) ?? true;
+      final dynamicReactive = prefs.getBool(_dynamicKey) ?? true;
+
+      final matchedPalette = MeloThemePalette.values.where((p) => p.name == pName).firstOrNull ?? MeloThemePalette.cherry;
+      value = MeloThemeSettings(
+        palette: matchedPalette,
+        amoledPitchBlack: amoled,
+        dynamicAlbumReactive: dynamicReactive,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> setPalette(MeloThemePalette palette) async {
+    if (value.palette == palette) return;
+    value = value.copyWith(palette: palette);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_paletteKey, palette.name);
+  }
+
+  Future<void> setAmoledPitchBlack(bool enabled) async {
+    if (value.amoledPitchBlack == enabled) return;
+    value = value.copyWith(amoledPitchBlack: enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_amoledKey, enabled);
+  }
+
+  Future<void> setDynamicAlbumReactive(bool enabled) async {
+    if (value.dynamicAlbumReactive == enabled) return;
+    value = value.copyWith(dynamicAlbumReactive: enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_dynamicKey, enabled);
+  }
+}
 
 /// Tone's palette: cherry red on a deep, warm ink. The app shell stays dark
 /// so the product always feels like the same place, while light mode offers a
@@ -205,56 +325,56 @@ class MeloPageTransitionsBuilder extends PageTransitionsBuilder {
 }
 
 abstract final class MeloTheme {
-  static ThemeData get light => _theme(Brightness.light);
-  static ThemeData get dark => _theme(Brightness.dark);
+  static ThemeData get light => themeFor(Brightness.light, MeloThemeService.instance.value);
+  static ThemeData get dark => themeFor(Brightness.dark, MeloThemeService.instance.value);
 
-  static ThemeData _theme(Brightness brightness) {
+  static ThemeData themeFor(Brightness brightness, [MeloThemeSettings? settings]) {
+    final effectiveSettings = settings ?? MeloThemeService.instance.value;
     final isLight = brightness == Brightness.light;
+    final primary = effectiveSettings.palette.primaryColor;
+    final secondary = effectiveSettings.palette.secondaryColor;
+    final surface = isLight
+        ? MeloColors.paper
+        : (effectiveSettings.amoledPitchBlack ? const Color(0xFF000000) : const Color(0xFF0D0D11));
+
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: MeloColors.cherry,
+          seedColor: primary,
           brightness: brightness,
         ).copyWith(
-          primary: isLight ? MeloColors.plum : MeloColors.ember,
+          primary: primary,
           onPrimary: isLight ? Colors.white : const Color(0xFF2A0008),
           primaryContainer: isLight
-              ? const Color(0xFFFFDDE3)
-              : const Color(0xFF5C0A1C),
+              ? primary.withValues(alpha: 0.16)
+              : primary.withValues(alpha: 0.28),
           onPrimaryContainer: isLight
               ? const Color(0xFF5A0A1B)
-              : const Color(0xFFFFD9E0),
-          secondary: isLight
-              ? const Color(0xFF9B2C42)
-              : const Color(0xFFFFA3B2),
-          onSecondary: isLight ? Colors.white : const Color(0xFF3A0712),
+              : Colors.white,
+          secondary: secondary,
+          onSecondary: Colors.white,
           secondaryContainer: isLight
-              ? const Color(0xFFF7E0E6)
-              : const Color(0xFF3A1119),
-          onSecondaryContainer: isLight
-              ? const Color(0xFF4E1624)
-              : const Color(0xFFFFD9E0),
-          tertiary: isLight ? const Color(0xFF9A4439) : const Color(0xFFFFB09E),
-          onTertiary: isLight ? Colors.white : const Color(0xFF3A0A02),
-          surface: isLight ? MeloColors.paper : MeloColors.shell,
+              ? secondary.withValues(alpha: 0.14)
+              : secondary.withValues(alpha: 0.22),
+          surface: surface,
           onSurface: isLight ? MeloColors.ink : MeloColors.playerText,
           onSurfaceVariant: isLight
               ? MeloColors.mutedInk
               : MeloColors.playerMuted,
           surfaceContainerLowest: isLight
               ? MeloColors.card
-              : const Color(0xFF0B0B0B),
+              : (effectiveSettings.amoledPitchBlack ? const Color(0xFF000000) : const Color(0xFF08080A)),
           surfaceContainerLow: isLight
               ? const Color(0xFFF6EDF0)
-              : const Color(0xFF111111),
+              : (effectiveSettings.amoledPitchBlack ? const Color(0xFF0D0D0D) : const Color(0xFF111114)),
           surfaceContainer: isLight
               ? const Color(0xFFF1E6EA)
-              : const Color(0xFF181818),
+              : (effectiveSettings.amoledPitchBlack ? const Color(0xFF141414) : const Color(0xFF18181D)),
           surfaceContainerHigh: isLight
               ? const Color(0xFFEADCE1)
-              : const Color(0xFF202020),
+              : (effectiveSettings.amoledPitchBlack ? const Color(0xFF1E1E1E) : const Color(0xFF222228)),
           surfaceContainerHighest: isLight
               ? const Color(0xFFE3D3D8)
-              : const Color(0xFF292929),
+              : (effectiveSettings.amoledPitchBlack ? const Color(0xFF282828) : const Color(0xFF2B2B33)),
           outline: isLight ? const Color(0xFFC9B2B9) : const Color(0xFF5A5A5A),
           outlineVariant: isLight ? MeloColors.line : const Color(0xFF2D2D2D),
           shadow: Colors.black,

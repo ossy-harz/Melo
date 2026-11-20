@@ -85,13 +85,43 @@ class AudioAddonManager {
       version: '2.1.0',
     ),
     const AudioSourceAddon(
+      id: 'qobuz_lossless',
+      name: 'Qobuz Hi-Res FLAC Streamer & Matcher',
+      description: 'Studio 24-bit 96kHz / 192kHz audiophile metadata, ISRC mapping, and lossless audio streams.',
+      category: AudioAddonCategory.stream,
+      icon: Icons.graphic_eq_rounded,
+      isEnabled: true,
+      priority: 2,
+      version: '1.2.0',
+    ),
+    const AudioSourceAddon(
+      id: 'amazon_music_hd',
+      name: 'Amazon Music HD & Ultra HD Matcher',
+      description: 'Lossless spatial & Ultra HD catalog matching with high-bitrate stream resolution.',
+      category: AudioAddonCategory.stream,
+      icon: Icons.stream_rounded,
+      isEnabled: true,
+      priority: 3,
+      version: '1.1.0',
+    ),
+    const AudioSourceAddon(
+      id: 'tidal_hifi',
+      name: 'TIDAL HiFi Plus & Master Matcher',
+      description: 'TIDAL MAX lossless catalog lookup, verified track credits, and high-fidelity routing.',
+      category: AudioAddonCategory.stream,
+      icon: Icons.waves_rounded,
+      isEnabled: true,
+      priority: 4,
+      version: '1.1.0',
+    ),
+    const AudioSourceAddon(
       id: 'spotify_matcher',
       name: 'Spotify Playlist Matcher',
       description: 'Import Spotify playlists, albums, and match verified tracks for playback.',
       category: AudioAddonCategory.metadata,
       icon: Icons.playlist_add_rounded,
       isEnabled: true,
-      priority: 2,
+      priority: 5,
       version: '1.4.2',
     ),
     const AudioSourceAddon(
@@ -101,7 +131,7 @@ class AudioAddonManager {
       category: AudioAddonCategory.stream,
       icon: Icons.usb_rounded,
       isEnabled: true,
-      priority: 3,
+      priority: 6,
       version: '1.0.0',
     ),
     const AudioSourceAddon(
@@ -111,7 +141,7 @@ class AudioAddonManager {
       category: AudioAddonCategory.metadata,
       icon: Icons.album_rounded,
       isEnabled: true,
-      priority: 4,
+      priority: 7,
       version: '1.2.0',
     ),
     const AudioSourceAddon(
@@ -121,7 +151,7 @@ class AudioAddonManager {
       category: AudioAddonCategory.metadata,
       icon: Icons.lyrics_rounded,
       isEnabled: true,
-      priority: 5,
+      priority: 8,
       version: '2.0.0',
     ),
     const AudioSourceAddon(
@@ -131,7 +161,7 @@ class AudioAddonManager {
       category: AudioAddonCategory.selfHosted,
       icon: Icons.dns_rounded,
       isEnabled: false,
-      priority: 6,
+      priority: 9,
       version: '1.0.0',
     ),
   ];
@@ -217,6 +247,9 @@ class AudioAddonManager {
         return YoutubeAuthService.instance.isLoggedIn;
       case 'spotify_matcher':
         return SpotifyService.instance.isConfigured;
+      case 'qobuz_lossless':
+      case 'amazon_music_hd':
+      case 'tidal_hifi':
       case 'bit_perfect_dac':
       case 'deezer_itunes_catalog':
       case 'lrclib_itunes_metadata':
