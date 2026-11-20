@@ -3274,9 +3274,12 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
   }
 
   void _selectPlaylist(FeaturedSpotifyPlaylist playlist) {
+    if (_selectedPlaylistId == playlist.id) {
+      _openSpotifyPlaylistScreen(playlist);
+      return;
+    }
     setState(() => _selectedPlaylistId = playlist.id);
     unawaited(_loadTracksForPlaylist(playlist.id));
-    _openSpotifyPlaylistScreen(playlist);
   }
 
   Future<void> _loadTracksForPlaylist(String playlistId) async {
@@ -3553,30 +3556,67 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
   List<SpotifyTrack> _tracksForCurrentSelection(
     FeaturedSpotifyPlaylist? selectedPlaylist,
   ) {
+    // 1. If user explicitly tapped a playlist or is in 'Your Playlists', show that playlist's tracks
+    if (_selectedPlaylistId != null || _selectedFeedFilter == 'Your Playlists') {
+      final active = selectedPlaylist;
+      if (active != null) {
+        final cached = _tracksByPlaylistId[active.id];
+        if (cached != null && cached.isNotEmpty) {
+          return cached;
+        }
+        unawaited(_loadTracksForPlaylist(active.id));
+      }
+    }
+
+    final spotify = SpotifyService.instance;
+
+    // 2. Filter-specific views
+    if (_selectedFeedFilter == 'Recently Played') {
+      if (spotify.recentlyPlayedTracks.isNotEmpty) {
+        return spotify.recentlyPlayedTracks;
+      }
+      final history = widget.library?.recentSessionItems ?? const [];
+      if (history.isNotEmpty) {
+        return history
+            .map(
+              (item) => SpotifyTrack(
+                id: item.id,
+                title: item.title,
+                artist: item.artist ?? 'Unknown artist',
+                album: item.album ?? '',
+                durationMs: item.duration?.inMilliseconds ?? 0,
+                artworkUrl: item.artUri?.toString(),
+              ),
+            )
+            .toList(growable: false);
+      }
+    }
+
+    if (_selectedFeedFilter == 'Charts') {
+      if (_feedTracks.isNotEmpty) {
+        return _feedTracks;
+      }
+    }
+
+    // 3. For You (Personalized Feed)
+    if (spotify.isLoggedIn && spotify.personalFeedTracks.isNotEmpty) {
+      final seen = <String>{};
+      final combined = <SpotifyTrack>[];
+      for (final t in [...spotify.personalFeedTracks, ..._feedTracks]) {
+        final key =
+            '${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}';
+        if (seen.add(key)) combined.add(t);
+      }
+      if (combined.isNotEmpty) return combined;
+    }
+
+    // Fallback: if cached tracks exist for current playlist, show them
     if (selectedPlaylist != null) {
       final cached = _tracksByPlaylistId[selectedPlaylist.id];
-      if (cached != null && cached.isNotEmpty) {
-        return cached;
-      }
-      unawaited(_loadTracksForPlaylist(selectedPlaylist.id));
+      if (cached != null && cached.isNotEmpty) return cached;
     }
-    final spotify = SpotifyService.instance;
-    if (!spotify.isLoggedIn) return _feedTracks;
-    if (_selectedFeedFilter == 'Recently Played' &&
-        spotify.recentlyPlayedTracks.isNotEmpty) {
-      return spotify.recentlyPlayedTracks;
-    }
-    if (_selectedFeedFilter == 'Charts') {
-      return _feedTracks;
-    }
-    final seen = <String>{};
-    final combined = <SpotifyTrack>[];
-    for (final t in [...spotify.personalFeedTracks, ..._feedTracks]) {
-      final key =
-          '${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}';
-      if (seen.add(key)) combined.add(t);
-    }
-    return combined;
+
+    return _feedTracks;
   }
 
   @override
@@ -3933,9 +3973,15 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
               children: [
                 Expanded(
                   child: Text(
-                    selectedPlaylist != null
+                    _selectedPlaylistId != null && selectedPlaylist != null
                         ? '${selectedPlaylist.title} · Tracks'
-                        : 'Tracks',
+                        : _selectedFeedFilter == 'Recently Played'
+                            ? 'Recently Played · Tracks'
+                            : _selectedFeedFilter == 'Charts'
+                                ? 'Top Charts · Tracks'
+                                : selectedPlaylist != null
+                                    ? '${selectedPlaylist.title} · Quick Tracks'
+                                    : 'Trending Tracks',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
