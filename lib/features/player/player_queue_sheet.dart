@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/imported_track.dart';
+import 'package:melo_player/features/mix/discovery_dial.dart';
 import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/player/player_device_helper.dart';
@@ -259,6 +260,18 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                           ),
                     ),
                     const Spacer(),
+                    IconButton(
+                      tooltip: 'Discovery Dial',
+                      icon: const Icon(
+                        Icons.tune_rounded,
+                        color: MeloColors.cherrySoft,
+                        size: 20,
+                      ),
+                      onPressed: () => DiscoveryDialSheet.show(
+                        context,
+                        audioHandler: widget.audioHandler,
+                      ),
+                    ),
                     if (widget.upcomingIndices.isNotEmpty)
                       TextButton(
                         onPressed: widget.onClear,

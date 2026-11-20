@@ -1600,10 +1600,36 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       queue.add(_items);
       mediaItem.add(_items[initialIndex]);
       _positions.add(Duration.zero);
-      final loadedSource = await _loadDeckAWithFallback(
-        initialIndex,
-        isCancelled: () => loadId != _activeLoadId,
-      );
+      AudioDeckSource? loadedSource;
+      try {
+        loadedSource = await _loadDeckAWithFallback(
+          initialIndex,
+          isCancelled: () => loadId != _activeLoadId,
+        );
+      } on Object catch (error, stackTrace) {
+        if (loadId != _activeLoadId) return;
+        _reportPlaybackError(
+          error,
+          stackTrace,
+          'while loading initial track in replaceQueue; attempting next playable track',
+        );
+        if (_items.length > 1) {
+          final nextIndex = (initialIndex + 1) % _items.length;
+          final loaded = await _loadNextPlayable(
+            firstIndex: nextIndex,
+            playWhenReady: playWhenReady,
+          );
+          if (loaded) return;
+        }
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+            playing: false,
+            errorMessage: 'Track is unavailable. Check network or select a local song.',
+          ),
+        );
+        return;
+      }
       if (loadedSource == null || loadId != _activeLoadId) return;
       _isLoadingTrack = false;
       final activeItem = loadedSource.tag is MediaItem
@@ -1951,10 +1977,41 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       await _unloadDeckBBeforeQueueChange();
       if (loadId != _activeLoadId) return;
 
-      final source = await _loadDeckAWithFallback(
-        index,
-        isCancelled: () => loadId != _activeLoadId,
-      );
+      AudioDeckSource? source;
+      try {
+        source = await _loadDeckAWithFallback(
+          index,
+          isCancelled: () => loadId != _activeLoadId,
+        );
+      } on Object catch (error, stackTrace) {
+        if (loadId != _activeLoadId) return;
+        _reportPlaybackError(
+          error,
+          stackTrace,
+          'while loading track at index $index; attempting next playable track',
+        );
+        final position = _playOrder.indexOf(index);
+        final nextIndex = position >= 0 && position + 1 < _playOrder.length
+            ? _playOrder[position + 1]
+            : (_repeatMode == AudioServiceRepeatMode.all && _playOrder.isNotEmpty
+                ? _playOrder.first
+                : -1);
+        if (nextIndex >= 0 && nextIndex != index) {
+          final loaded = await _loadNextPlayable(
+            firstIndex: nextIndex,
+            playWhenReady: playWhenReady,
+          );
+          if (loaded) return;
+        }
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+            playing: false,
+            errorMessage: 'Track is unavailable. Check network or select a local song.',
+          ),
+        );
+        return;
+      }
       if (source == null || loadId != _activeLoadId) return;
 
       _isLoadingTrack = false;

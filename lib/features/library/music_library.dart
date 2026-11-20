@@ -1820,11 +1820,15 @@ class MusicLibrary extends ChangeNotifier {
       queue.map((track) => track.toMediaItem()).toList(growable: false),
     );
     _queuedTrackOrder = queue.map((track) => track.id).toList(growable: false);
-    await handler.skipToQueueItem(restoredIndex < 0 ? 0 : restoredIndex);
-    final position =
-        snapshot?.positionMs ?? _preferences.getInt(_positionKey) ?? 0;
-    if (position > 0) {
-      await handler.seek(Duration(milliseconds: position));
+    try {
+      await handler.skipToQueueItem(restoredIndex < 0 ? 0 : restoredIndex);
+      final position =
+          snapshot?.positionMs ?? _preferences.getInt(_positionKey) ?? 0;
+      if (position > 0) {
+        await handler.seek(Duration(milliseconds: position));
+      }
+    } catch (e) {
+      debugPrint('Could not restore last playing track position: $e');
     }
   }
 
