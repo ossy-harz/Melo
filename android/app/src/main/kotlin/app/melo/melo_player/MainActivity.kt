@@ -1,10 +1,12 @@
 package app.melo.melo_player
 
 import android.app.RecoverableSecurityException
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.ContentUris
 import android.content.IntentSender
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
@@ -403,8 +405,23 @@ class MainActivity : AudioServiceActivity() {
         )
         val installIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(apkUri, "application/vnd.android.package-archive")
+            clipData = ClipData.newRawUri("melo_apk", apkUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+        }
+        val resolveInfoList = packageManager.queryIntentActivities(
+            installIntent,
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        for (resolveInfo in resolveInfoList) {
+            val pkg = resolveInfo.activityInfo.packageName
+            grantUriPermission(
+                pkg,
+                apkUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
         }
         startActivity(installIntent)
     }

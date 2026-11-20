@@ -3,4 +3,6 @@
     <cache-path name="updates_cache" path="." />
     <files-path name="updates_files" path="." />
     <external-cache-path name="external_updates_cache" path="." />
+    <external-files-path name="external_updates_files" path="." />
+    <external-path name="external_storage" path="." />
 </paths>

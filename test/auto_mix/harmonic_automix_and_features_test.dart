@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:melo_player/features/auto_mix/auto_mix_profile.dart';
 import 'package:melo_player/features/auto_mix/auto_mix_settings.dart';
 import 'package:melo_player/features/auto_mix/track_analysis.dart';
-import 'package:melo_player/features/auto_mix/transition_plan.dart';
 import 'package:melo_player/features/auto_mix/transition_planner.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
 

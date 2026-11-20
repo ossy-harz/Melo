@@ -488,11 +488,24 @@ class AppUpdateService extends ChangeNotifier {
     return (nums, buildNumber);
   }
 
+  Future<Directory> _getUpdateStorageDir() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final extDirs = await getExternalCacheDirectories();
+        if (extDirs != null && extDirs.isNotEmpty) {
+          return extDirs.first;
+        }
+      } catch (_) {}
+    }
+    return getTemporaryDirectory();
+  }
+
   /// Checks whether an APK file for [release] has already been downloaded and is ready to install.
   Future<File?> getDownloadedApkFile(GithubReleaseInfo release) async {
     try {
       final asset = release.preferredApkAsset;
       if (asset == null) return null;
+      final storageDir = await _getUpdateStorageDir();
       final tempDir = await getTemporaryDirectory();
       final safeTag = release.cleanVersion.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       
@@ -506,6 +519,7 @@ class AppUpdateService extends ChangeNotifier {
         if (_downloadedApkPath != null &&
             _downloadedApkPath!.endsWith(expectedFileName))
           File(_downloadedApkPath!),
+        File('${storageDir.path}/$expectedFileName'),
         File('${tempDir.path}/$expectedFileName'),
         File('${tempDir.path}/tone_update_$safeTag.apk'),
       ];
@@ -552,9 +566,9 @@ class AppUpdateService extends ChangeNotifier {
 
     final client = http.Client();
     try {
-      final tempDir = await getTemporaryDirectory();
+      final storageDir = await _getUpdateStorageDir();
       final safeTag = release.cleanVersion.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final outFile = File('${tempDir.path}/melo_update_$safeTag.apk');
+      final outFile = File('${storageDir.path}/melo_update_$safeTag.apk');
 
       final req = http.Request('GET', Uri.parse(asset.downloadUrl));
       req.headers['User-Agent'] = 'Melo-Music-Player-Updater';

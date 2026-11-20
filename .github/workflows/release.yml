@@ -54,13 +54,20 @@ jobs:
 
       - name: Build Universal & Slim APKs
         run: |
+          # Extract build number from pubspec.yaml so Android versionCode is always monotonically increasing
+          BUILD_NUM=$(grep 'version:' pubspec.yaml | sed 's/.*+//' | tr -d '\r\n ')
+          if [ -z "$BUILD_NUM" ]; then
+            BUILD_NUM=22
+          fi
+          echo "Building with version ${{ steps.version.outputs.version }} and versionCode $BUILD_NUM"
+
           # 1. Build Universal APK (compatible with all 32-bit and 64-bit Android devices)
-          flutter build apk --release --build-name="${{ steps.version.outputs.version }}" --build-number="${{ github.run_number }}"
+          flutter build apk --release --build-name="${{ steps.version.outputs.version }}" --build-number="$BUILD_NUM"
           cp build/app/outputs/flutter-apk/app-release.apk "Melo-${{ steps.version.outputs.tag }}-universal.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "app-release.apk"
 
           # 2. Build slim arm64-v8a APK (optimized for 64-bit devices)
-          flutter build apk --release --target-platform android-arm64 --build-name="${{ steps.version.outputs.version }}" --build-number="${{ github.run_number }}"
+          flutter build apk --release --target-platform android-arm64 --build-name="${{ steps.version.outputs.version }}" --build-number="$BUILD_NUM"
           cp build/app/outputs/flutter-apk/app-release.apk "Melo-${{ steps.version.outputs.tag }}-arm64-v8a.apk"
 
       - name: Publish GitHub Release

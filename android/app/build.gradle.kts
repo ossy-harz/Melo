@@ -14,32 +14,35 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("melo_release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = "meloplayerrelease"
+                keyAlias = "melokey"
+                keyPassword = "meloplayerrelease"
+            } else {
+                val debugKeystore = signingConfigs.getByName("debug")
+                storeFile = debugKeystore.storeFile
+                storePassword = debugKeystore.storePassword
+                keyAlias = debugKeystore.keyAlias
+                keyPassword = debugKeystore.keyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "app.melo.melo_player"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
-    }
-
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-            excludes += listOf(
-                "**/x86/**",
-                "**/x86_64/**",
-                "**/armeabi-v7a/**",
-            )
-        }
     }
 
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
