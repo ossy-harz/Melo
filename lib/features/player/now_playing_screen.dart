@@ -1867,6 +1867,8 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                     0.6
                                                 ? _outgoingCues?.quietOutroStart
                                                 : null,
+                                            peakMarkerPosition:
+                                                _outgoingCues?.peakEnergyPosition,
                                             onRetry: _retryWaveform,
                                             onChanged: (value) => setState(
                                               () => _dragPosition = value,

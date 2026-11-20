@@ -270,11 +270,33 @@ class MusicLibrary extends ChangeNotifier {
 
   List<ImportedTrack> tracksForPlaylist(String playlistId) {
     final playlist = _playlistById(playlistId);
-    return playlist.trackIds
-        .map((id) => _trackIndexById[id])
-        .whereType<int>()
-        .map((index) => _tracks[index])
-        .toList(growable: false);
+    final result = <ImportedTrack>[];
+    for (final id in playlist.trackIds) {
+      final index = _trackIndexById[id];
+      if (index != null && index >= 0 && index < _tracks.length) {
+        result.add(_tracks[index]);
+      } else {
+        final isStream = _isStreamPath(id);
+        final cleanTitle = isStream
+            ? (id.startsWith('spotify:') ? 'Spotify Track' : 'Online Track')
+            : p.basenameWithoutExtension(id);
+        result.add(
+          ImportedTrack(
+            id: id,
+            path: id,
+            title: cleanTitle,
+            artist: 'Saved Track',
+            album: playlist.name,
+            isAvailable: isStream,
+            isDeviceMedia: !isStream,
+            sourceProvider: isStream
+                ? (id.startsWith('spotify:') ? 'Spotify' : 'YouTube')
+                : null,
+          ),
+        );
+      }
+    }
+    return List.unmodifiable(result);
   }
 
   List<ImportedTrack> artistRadioTracks(

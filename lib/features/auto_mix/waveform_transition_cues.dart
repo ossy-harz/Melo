@@ -8,6 +8,8 @@ class WaveformTransitionCues {
     required this.quietOutroStart,
     required this.introConfidence,
     required this.outroConfidence,
+    this.peakEnergyPosition,
+    this.peakEnergyLevel = 0.0,
   });
 
   final String trackId;
@@ -16,6 +18,8 @@ class WaveformTransitionCues {
   final Duration? quietOutroStart;
   final double introConfidence;
   final double outroConfidence;
+  final Duration? peakEnergyPosition;
+  final double peakEnergyLevel;
 
   double get confidence {
     final detected = [
@@ -71,6 +75,7 @@ class WaveformTransitionAnalyzer {
         .toInt();
     final introBoundary = _introBoundary(amplitudes, minimumQuietBins);
     final outroBoundary = _outroBoundary(amplitudes, minimumQuietBins);
+    final peakBoundary = _peakEnergyBoundary(amplitudes);
 
     return WaveformTransitionCues(
       trackId: trackId,
@@ -90,7 +95,30 @@ class WaveformTransitionAnalyzer {
               amplitudes.length - outroBoundary,
               minimumQuietBins,
             ),
+      peakEnergyPosition: peakBoundary == null
+          ? null
+          : _positionAtBin(peakBoundary, amplitudes.length, duration),
+      peakEnergyLevel:
+          peakBoundary != null ? amplitudes[peakBoundary] : 0.0,
     );
+  }
+
+  int? _peakEnergyBoundary(List<double> amplitudes) {
+    if (amplitudes.length < 8) return null;
+    final startIdx = (amplitudes.length * 0.12).floor();
+    final endIdx = (amplitudes.length * 0.85).ceil();
+    var maxVal = 0.0;
+    var maxIdx = -1;
+    for (var i = startIdx; i < endIdx && i < amplitudes.length; i++) {
+      if (amplitudes[i] > maxVal) {
+        maxVal = amplitudes[i];
+        maxIdx = i;
+      }
+    }
+    if (maxVal >= 0.62 && maxIdx >= 0) {
+      return maxIdx;
+    }
+    return null;
   }
 
   int? _introBoundary(List<double> amplitudes, int minimumQuietBins) {

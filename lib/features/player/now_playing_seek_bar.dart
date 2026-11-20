@@ -9,6 +9,7 @@ class _PlaybackSeekBar extends StatefulWidget {
     required this.waveformError,
     required this.bpm,
     required this.mixMarkerPosition,
+    this.peakMarkerPosition,
     this.bufferedPosition,
     required this.onRetry,
     required this.onChanged,
@@ -22,6 +23,7 @@ class _PlaybackSeekBar extends StatefulWidget {
   final Object? waveformError;
   final double? bpm;
   final Duration? mixMarkerPosition;
+  final Duration? peakMarkerPosition;
   final Duration? bufferedPosition;
   final VoidCallback onRetry;
   final ValueChanged<double> onChanged;
@@ -69,6 +71,8 @@ class _PlaybackSeekBarState extends State<_PlaybackSeekBar> {
                       bpm: widget.bpm,
                       mixMarkerPositionMs:
                           widget.mixMarkerPosition?.inMilliseconds,
+                      peakMarkerPositionMs:
+                          widget.peakMarkerPosition?.inMilliseconds,
                       isDragging: _isDragging,
                     ),
                     thumbShape: _SeekBarThumb(
@@ -245,6 +249,7 @@ class _ModernSeekBarTrack extends SliderTrackShape {
     required this.inactiveColor,
     required this.bpm,
     required this.mixMarkerPositionMs,
+    this.peakMarkerPositionMs,
     this.isDragging = false,
   });
 
@@ -256,6 +261,7 @@ class _ModernSeekBarTrack extends SliderTrackShape {
   final Color inactiveColor;
   final double? bpm;
   final int? mixMarkerPositionMs;
+  final int? peakMarkerPositionMs;
   final bool isDragging;
 
   @override
@@ -424,6 +430,34 @@ class _ModernSeekBarTrack extends SliderTrackShape {
       }
     }
 
+    // Peak energy drop / hook cue marker
+    final peakMarker = peakMarkerPositionMs;
+    if (peakMarker != null && durationMs > 0) {
+      final peakRatio = peakMarker / durationMs;
+      if (peakRatio >= 0 && peakRatio <= 1) {
+        final x = rect.left + rect.width * peakRatio;
+        final markerPaint = Paint()
+          ..color = const Color(0xFFFFB300)
+          ..style = PaintingStyle.fill;
+        final glowPaint = Paint()
+          ..color = const Color(0xFFFFB300).withValues(alpha: 0.45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        final path = Path()
+          ..moveTo(x, rect.top - 1)
+          ..lineTo(x + 3.2, rect.top + 3.5)
+          ..lineTo(x, rect.top + 8)
+          ..lineTo(x - 3.2, rect.top + 3.5)
+          ..close();
+        canvas.drawPath(path, glowPaint);
+        canvas.drawPath(path, markerPaint);
+        canvas.drawCircle(
+          Offset(x, rect.top + 3.5),
+          1.0,
+          Paint()..color = Colors.white,
+        );
+      }
+    }
+
     // BPM measure lines.
     final tempo = bpm;
     if (tempo == null || !tempo.isFinite || tempo < 40 || tempo > 240) return;
@@ -460,12 +494,22 @@ class _ModernSeekBarTrack extends SliderTrackShape {
     final playedPaint = Paint()
       ..color = activeColor
       ..isAntiAlias = true;
+    final playedPeakPaint = Paint()
+      ..color = MeloColors.cherryGlow
+      ..isAntiAlias = true;
     final remainingPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.22)
+      ..isAntiAlias = true;
+    final remainingPeakPaint = Paint()
+      ..color = MeloColors.cherrySoft.withValues(alpha: 0.42)
       ..isAntiAlias = true;
     final playedGlow = Paint()
       ..color = activeColor.withValues(alpha: 0.35)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+      ..isAntiAlias = true;
+    final playedPeakGlow = Paint()
+      ..color = MeloColors.cherryGlow.withValues(alpha: 0.55)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
       ..isAntiAlias = true;
 
     for (var index = 0; index < barCount; index++) {
@@ -478,6 +522,7 @@ class _ModernSeekBarTrack extends SliderTrackShape {
       for (var sample = start; sample < end; sample++) {
         peak = math.max(peak, amplitudes[sample]);
       }
+      final isHighEnergy = peak >= 0.65;
       final x = rect.left + step * (index + 0.5);
       final height = (4 + math.pow(peak, 0.72) * 32)
           .clamp(4.0, rect.height - 4)
@@ -500,11 +545,11 @@ class _ModernSeekBarTrack extends SliderTrackShape {
             ),
             Radius.circular(barWidth * 1.1),
           ),
-          playedGlow,
+          isHighEnergy ? playedPeakGlow : playedGlow,
         );
-        canvas.drawRRect(bar, playedPaint);
+        canvas.drawRRect(bar, isHighEnergy ? playedPeakPaint : playedPaint);
       } else {
-        canvas.drawRRect(bar, remainingPaint);
+        canvas.drawRRect(bar, isHighEnergy ? remainingPeakPaint : remainingPaint);
       }
     }
 

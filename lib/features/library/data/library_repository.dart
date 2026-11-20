@@ -393,10 +393,38 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
       });
 
       final retainedIds = tracks.map((track) => track.id).toSet();
+
+      // NEVER delete tracks that belong to user playlists, favorites, or user preferences.
+      // This prevents app updates and device rescans from cascade-deleting saved playlist
+      // tracks that are online/streamed or not yet downloaded to the local device.
+      final playlistTrackRows =
+          await database.select(database.playlistTracks).get();
+      final protectedTrackIds =
+          playlistTrackRows.map((row) => row.trackId).toSet();
+
+      final favoriteRows = await database.select(database.favorites).get();
+      protectedTrackIds.addAll(favoriteRows.map((row) => row.trackId));
+
+      final metaRow = await (database.select(database.userPreferences)
+            ..where((row) => row.key.equals('library.playlists_meta')))
+          .getSingleOrNull();
+      final metaJson =
+          metaRow?.valueJson ?? _legacyPreferences.getString(_playlistsKey);
+      if (metaJson != null) {
+        try {
+          for (final p in MusicPlaylist.decodeList(metaJson)) {
+            protectedTrackIds.addAll(p.trackIds);
+          }
+        } catch (_) {}
+      }
+
       final existingRows = await database.select(database.libraryTracks).get();
       final removedIds = existingRows
           .map((row) => row.id)
-          .where((id) => !retainedIds.contains(id))
+          .where(
+            (id) =>
+                !retainedIds.contains(id) && !protectedTrackIds.contains(id),
+          )
           .toList(growable: false);
       for (var offset = 0; offset < removedIds.length; offset += 400) {
         final end = (offset + 400).clamp(0, removedIds.length);
