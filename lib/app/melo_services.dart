@@ -78,11 +78,13 @@ class MeloServices {
     }
     unawaited(AppUpdateService.instance.initialize(runStartupCheck: true));
     unawaited(SpotifyService.instance.initialize());
-    unawaited(
+    // Defer automatic background lyrics preloading until after initial UI frames
+    // render smoothly to eliminate main thread startup frame skips.
+    Future.delayed(const Duration(seconds: 4), () {
       LyricsRepository.autoDownloadForLibrary(
         library.tracks.map((t) => t.toMediaItem()),
-      ),
-    );
+      );
+    });
     final subscriptions = <StreamSubscription<dynamic>>[];
     Future<void> persistPlaybackQueue() => library.persistPlaybackQueue(
       items: handler.queue.value,

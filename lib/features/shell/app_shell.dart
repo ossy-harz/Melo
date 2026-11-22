@@ -153,8 +153,11 @@ class _AppShellState extends State<AppShell> {
         ),
     ];
 
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     return Scaffold(
-      backgroundColor: MeloColors.amoled,
+      backgroundColor: surfaceColor,
       body: SafeArea(
         bottom: false,
         child: IndexedStack(index: _selectedIndex, children: destinationPages),
@@ -187,7 +190,9 @@ class _AppShellState extends State<AppShell> {
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: MeloColors.cherry.withValues(alpha: 0.16),
+                      color: MeloColors.cherry.withValues(
+                        alpha: isLight ? 0.08 : 0.16,
+                      ),
                       blurRadius: 24,
                       spreadRadius: -8,
                       offset: const Offset(0, 10),
@@ -197,13 +202,19 @@ class _AppShellState extends State<AppShell> {
                 child: MeloGlass(
                   borderRadius: 25,
                   blur: 12,
-                  tint: const Color(0xC9000000),
-                  borderColor: Colors.white.withValues(alpha: 0.14),
+                  tint: isLight
+                      ? Colors.white.withValues(alpha: 0.88)
+                      : const Color(0xC9000000),
+                  borderColor: isLight
+                      ? Colors.black.withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.14),
                   padding: EdgeInsets.zero,
                   child: NavigationBarTheme(
                   data: Theme.of(context).navigationBarTheme.copyWith(
                     backgroundColor: Colors.transparent,
-                    indicatorColor: MeloColors.cherry.withValues(alpha: 0.16),
+                    indicatorColor: MeloColors.cherry.withValues(
+                      alpha: isLight ? 0.14 : 0.16,
+                    ),
                     height: 68,
                   ),
                   child: NavigationBar(

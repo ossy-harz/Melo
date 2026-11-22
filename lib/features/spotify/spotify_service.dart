@@ -623,10 +623,47 @@ class SpotifyService {
   }
 
   /// Connects using a Spotify Bearer access token, session cookie (`sp_dc=...`),
-  /// or a Spotify user profile URL/username (`https://open.spotify.com/user/...`).
+  /// a Spotify user profile URL/username (`https://open.spotify.com/user/...`),
+  /// or a Spotify playlist link directly.
   Future<bool> connectWithTokenOrCookie(String input) async {
-    final clean = input.trim();
+    var clean = input.trim();
     if (clean.isEmpty) return false;
+
+    // Strip trailing query parameters or fragments
+    final qIdx = clean.indexOf('?');
+    if (qIdx != -1) clean = clean.substring(0, qIdx).trim();
+    final hIdx = clean.indexOf('#');
+    if (hIdx != -1) clean = clean.substring(0, hIdx).trim();
+
+    // Check if the input is a Spotify playlist or album URL/ID directly
+    final playlistParsed = parseSpotifyUrlOrId(clean);
+    if (playlistParsed != null &&
+        (playlistParsed.$2 == 'playlist' || playlistParsed.$2 == 'album')) {
+      try {
+        final data = await fetchPlaylist(playlistParsed.$1);
+        if (data.tracks.isNotEmpty) {
+          _userPlaylists = [
+            SpotifyPlaylistSummary(
+              id: data.id,
+              title: data.title,
+              subtitle: '${data.tracks.length} tracks',
+              artworkUrl: data.artworkUrl ?? '',
+              trackCount: data.tracks.length,
+            ),
+            ..._userPlaylists.where((p) => p.id != data.id),
+          ];
+          _personalFeedTracks = data.tracks;
+          _displayName ??= data.title;
+          _userId ??= playlistParsed.$1;
+          await _persistSession();
+          authState.value = true;
+          feedRevision.value++;
+          return true;
+        }
+      } catch (e) {
+        debugPrint('Direct playlist connection failed: $e');
+      }
+    }
 
     final prevToken = _accessToken;
     final prevCookie = _cookie;
@@ -644,7 +681,8 @@ class SpotifyService {
       _cookie = null;
     } else {
       final userMatch = RegExp(
-        r'(?:open\.spotify\.com/user/|spotify:user:)([a-zA-Z0-9._-]+)',
+        r'(?:open\.spotify\.com/(?:intl-[a-zA-Z]{2,5}/)?user/|spotify:user:)([a-zA-Z0-9._-]+)',
+        caseSensitive: false,
       ).firstMatch(clean);
       final extractedUser =
           userMatch?.group(1) ??
@@ -993,9 +1031,10 @@ class SpotifyService {
         if (res.statusCode == 200) {
           final seen = <String>{};
           for (final m in RegExp(
-            r'spotify:playlist:([a-zA-Z0-9]{22})|/playlist/([a-zA-Z0-9]{22})',
+            r'(?:spotify:playlist:|/(?:intl-[a-zA-Z]{2,5}/)?playlist/)([a-zA-Z0-9_-]{16,40})',
+            caseSensitive: false,
           ).allMatches(res.body)) {
-            final id = m.group(1) ?? m.group(2);
+            final id = m.group(1);
             if (id != null && seen.add(id)) {
               publicPlaylistIds.add(id);
             }
@@ -1052,32 +1091,40 @@ class SpotifyService {
     }
   }
 
-  /// Syncs the user's Spotify liked songs and up to 5 personal playlists into
+  /// Syncs the user's Spotify liked songs and personal playlists into
   /// [library], returning the total number of tracks synced.
   Future<int> syncAccountToLibrary(MusicLibrary library) async {
-    await refreshPersonalFeed(library: library);
+    try {
+      await refreshPersonalFeed(library: library);
+    } catch (e) {
+      debugPrint('Spotify feed refresh during sync warning: $e');
+    }
     var syncedCount = 0;
 
     final primaryTracks = _likedTracks.isNotEmpty
         ? _likedTracks
         : _personalFeedTracks;
     if (primaryTracks.isNotEmpty) {
-      final likedPlaylist = SpotifyPlaylistData(
-        id: 'liked',
-        title: 'Spotify Liked Songs',
-        description: 'Synced from your Spotify account',
-        tracks: primaryTracks,
-        artworkUrl: primaryTracks.first.artworkUrl,
-      );
-      await importPlaylistToTone(
-        playlist: likedPlaylist,
-        library: library,
-        mergeExisting: true,
-      );
-      syncedCount += primaryTracks.length;
+      try {
+        final likedPlaylist = SpotifyPlaylistData(
+          id: 'liked',
+          title: 'Spotify Liked Songs',
+          description: 'Synced from your Spotify account',
+          tracks: primaryTracks,
+          artworkUrl: primaryTracks.first.artworkUrl,
+        );
+        await importPlaylistToTone(
+          playlist: likedPlaylist,
+          library: library,
+          mergeExisting: true,
+        );
+        syncedCount += primaryTracks.length;
+      } catch (e) {
+        debugPrint('Failed syncing Spotify liked songs: $e');
+      }
     }
 
-    for (final summary in _userPlaylists.take(5)) {
+    for (final summary in _userPlaylists.take(10)) {
       try {
         final data = await fetchPlaylist(summary.id);
         if (data.tracks.isEmpty) continue;
@@ -1096,19 +1143,42 @@ class SpotifyService {
 
   /// Parses a Spotify URL or raw ID into its unique identifier and entity type ('playlist', 'album', 'track').
   static (String id, String type)? parseSpotifyUrlOrId(String input) {
-    final clean = input.trim();
+    var clean = input.trim();
     if (clean.isEmpty) return null;
-    final uriMatch = RegExp(r'spotify:(playlist|album|track):([a-zA-Z0-9]+)').firstMatch(clean);
+
+    // Strip trailing query parameters (?si=...) or fragments (#...)
+    final qIdx = clean.indexOf('?');
+    if (qIdx != -1) clean = clean.substring(0, qIdx).trim();
+    final hIdx = clean.indexOf('#');
+    if (hIdx != -1) clean = clean.substring(0, hIdx).trim();
+
+    // 1. Spotify URI formats:
+    // spotify:playlist:xxx, spotify:album:xxx, spotify:track:xxx, spotify:user:xxx:playlist:yyy
+    final uriMatch = RegExp(
+      r'spotify:(?:user:[^:]+:)?(playlist|album|track):([a-zA-Z0-9_-]+)',
+      caseSensitive: false,
+    ).firstMatch(clean);
     if (uriMatch != null) {
-      return (uriMatch.group(2)!, uriMatch.group(1)!);
+      return (uriMatch.group(2)!, uriMatch.group(1)!.toLowerCase());
     }
-    final urlMatch = RegExp(r'open\.spotify\.com/(playlist|album|track)/([a-zA-Z0-9]+)').firstMatch(clean);
+
+    // 2. Spotify Web URLs:
+    // https://open.spotify.com/intl-xx/(playlist|album|track)/xxx
+    // https://open.spotify.com/(playlist|album|track)/xxx
+    // https://open.spotify.com/user/xxx/playlist/yyy
+    final urlMatch = RegExp(
+      r'open\.spotify\.com/(?:intl-[a-zA-Z]{2,5}/)?(?:user/[^/]+/)?(playlist|album|track)/([a-zA-Z0-9_-]+)',
+      caseSensitive: false,
+    ).firstMatch(clean);
     if (urlMatch != null) {
-      return (urlMatch.group(2)!, urlMatch.group(1)!);
+      return (urlMatch.group(2)!, urlMatch.group(1)!.toLowerCase());
     }
-    if (RegExp(r'^[a-zA-Z0-9]{22}$').hasMatch(clean)) {
+
+    // 3. Raw Spotify Base62 ID (20 to 24 characters)
+    if (RegExp(r'^[a-zA-Z0-9]{20,24}$').hasMatch(clean)) {
       return (clean, 'playlist');
     }
+
     return null;
   }
 
@@ -1135,6 +1205,11 @@ class SpotifyService {
     SpotifyPlaylistData data;
     // 1. If user is logged in with active token, fetch directly from Web API.
     // This allows importing personal, private, and collaborative user playlists cleanly.
+    if ((_accessToken == null || _accessToken!.isEmpty) && _cookie != null && _cookie!.isNotEmpty) {
+      try {
+        await _exchangeCookieForToken();
+      } catch (_) {}
+    }
     if (_accessToken != null && _accessToken!.isNotEmpty) {
       try {
         final apiData = await _fetchViaAccessToken(entityId, entityType: entityType);
@@ -1287,10 +1362,23 @@ class SpotifyService {
         HttpHeaders.userAgentHeader,
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       );
+      request.headers.set(
+        HttpHeaders.acceptHeader,
+        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      );
+      request.headers.set(
+        HttpHeaders.acceptLanguageHeader,
+        'en-US,en;q=0.9',
+      );
       final response = await request.close().timeout(const Duration(seconds: 15));
 
       if (response.statusCode != HttpStatus.ok) {
-        throw HttpException('Spotify returned HTTP ${response.statusCode}');
+        return await _fallbackTracksSearch(
+          entityId,
+          oembedTitle,
+          oembedThumbnail,
+          entityType: entityType,
+        );
       }
 
       final body = await response.transform(utf8.decoder).join();
@@ -1299,7 +1387,12 @@ class SpotifyService {
       ).firstMatch(body);
 
       if (nextDataMatch == null) {
-        throw const FormatException('Could not parse Spotify playlist data.');
+        return await _fallbackTracksSearch(
+          entityId,
+          oembedTitle,
+          oembedThumbnail,
+          entityType: entityType,
+        );
       }
 
       final jsonData = jsonDecode(nextDataMatch.group(1)!) as Map<String, dynamic>;
@@ -1308,7 +1401,12 @@ class SpotifyService {
               as Map<String, dynamic>?;
 
       if (entity == null) {
-        throw const FormatException('Spotify playlist entity not found.');
+        return await _fallbackTracksSearch(
+          entityId,
+          oembedTitle,
+          oembedThumbnail,
+          entityType: entityType,
+        );
       }
 
       final name = (entity['name'] as String?) ??
@@ -1362,6 +1460,15 @@ class SpotifyService {
         );
       }
 
+      if (tracks.isEmpty) {
+        return await _fallbackTracksSearch(
+          entityId,
+          name,
+          artworkUrl,
+          entityType: entityType,
+        );
+      }
+
       return SpotifyPlaylistData(
         id: entityId,
         title: name,
@@ -1369,9 +1476,75 @@ class SpotifyService {
         artworkUrl: artworkUrl,
         tracks: tracks,
       );
+    } catch (e) {
+      return await _fallbackTracksSearch(
+        entityId,
+        oembedTitle,
+        oembedThumbnail,
+        entityType: entityType,
+      );
     } finally {
       client.close(force: true);
     }
+  }
+
+  Future<SpotifyPlaylistData> _fallbackTracksSearch(
+    String entityId,
+    String title,
+    String? artworkUrl, {
+    String entityType = 'playlist',
+  }) async {
+    final query = title != 'Spotify Playlist' ? title : entityId;
+    final tracks = <SpotifyTrack>[];
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.deezer.com/search?q=${Uri.encodeComponent(query)}&limit=30',
+            ),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        final data = json['data'] as List?;
+        if (data != null) {
+          for (final item in data) {
+            if (item is! Map) continue;
+            final tTitle = (item['title'] as String?)?.trim() ?? '';
+            final artistMap = item['artist'] as Map?;
+            final tArtist = (artistMap?['name'] as String?)?.trim() ?? 'Unknown Artist';
+            final albumMap = item['album'] as Map?;
+            final tAlbum = (albumMap?['title'] as String?)?.trim() ?? title;
+            final art = (albumMap?['cover_medium'] as String?) ?? artworkUrl;
+            final dur = ((item['duration'] as num?)?.toInt() ?? 180) * 1000;
+            if (tTitle.isNotEmpty) {
+              tracks.add(
+                SpotifyTrack(
+                  id: 'sp_fallback_${item['id'] ?? tTitle}',
+                  title: tTitle,
+                  artist: tArtist,
+                  album: tAlbum,
+                  durationMs: dur,
+                  artworkUrl: art,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (tracks.isNotEmpty) {
+      return SpotifyPlaylistData(
+        id: entityId,
+        title: title,
+        description: 'Synced playlist tracks',
+        artworkUrl: artworkUrl,
+        tracks: tracks,
+      );
+    }
+
+    throw const FormatException('Could not parse Spotify playlist data.');
   }
 
   Future<SpotifyPlaylistData> _fetchViaWebApi(

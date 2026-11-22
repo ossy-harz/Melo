@@ -1961,8 +1961,10 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     final distinctCovers = _distinctArtworkUrls();
     final miniPreviewArt = distinctCovers.firstOrNull;
 
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: surfaceColor,
       bottomNavigationBar: PlaylistMiniPlayerDock(
         audioHandler: widget.audioHandler,
         musicLibrary: widget.library,
@@ -1973,7 +1975,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             expandedHeight: 448 + MediaQuery.paddingOf(context).top,
             pinned: true,
             stretch: true,
-            backgroundColor: Colors.black,
+            backgroundColor: surfaceColor,
             surfaceTintColor: Colors.transparent,
             leading: Padding(
               padding: const EdgeInsets.only(left: 10),

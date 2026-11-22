@@ -805,7 +805,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         : MeloColors.cherry;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       bottomNavigationBar: PlaylistMiniPlayerDock(
         audioHandler: widget.audioHandler,
         musicLibrary: widget.library,

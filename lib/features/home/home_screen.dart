@@ -165,10 +165,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     return Container(
-      color: MeloColors.amoled,
+      color: colors.surface,
       child: RefreshIndicator(
-        color: MeloColors.cherry,
-        backgroundColor: MeloColors.amoled,
+        color: colors.primary,
+        backgroundColor: isDark ? const Color(0xFF141416) : colors.surfaceContainerHighest,
         onRefresh: _handleRefresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),

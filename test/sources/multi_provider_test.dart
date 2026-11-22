@@ -16,6 +16,7 @@ import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/multi_metadata_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
+import 'package:melo_player/features/shell/app_shell.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_auth_service.dart';
@@ -773,6 +774,76 @@ void main() {
 
       expect(highAffinity > 100.0, isTrue);
       expect(unrelatedCandidate < 25.0, isTrue);
+    });
+  });
+
+  group('Spotify URL Parsing & Light Theme Fixes (v1.6.9)', () {
+    test('parses international, user, and query-parameter Spotify URLs correctly', () {
+      // International /intl-de/ URL with query string
+      final res1 = SpotifyService.parseSpotifyUrlOrId(
+        'https://open.spotify.com/intl-de/playlist/37i9dQZF1DXcBWIGoYBM5M?si=b3579b1836fd4ce8',
+      );
+      expect(res1, isNotNull);
+      expect(res1!.$1, '37i9dQZF1DXcBWIGoYBM5M');
+      expect(res1.$2, 'playlist');
+
+      // International /intl-es/ album URL
+      final res2 = SpotifyService.parseSpotifyUrlOrId(
+        'https://open.spotify.com/intl-es/album/4aawyAB9vmqN3uQ7FjRGTy?si=xyz',
+      );
+      expect(res2, isNotNull);
+      expect(res2!.$1, '4aawyAB9vmqN3uQ7FjRGTy');
+      expect(res2.$2, 'album');
+
+      // User playlist URL
+      final res3 = SpotifyService.parseSpotifyUrlOrId(
+        'https://open.spotify.com/user/spotify/playlist/37i9dQZF1DXcBWIGoYBM5M',
+      );
+      expect(res3, isNotNull);
+      expect(res3!.$1, '37i9dQZF1DXcBWIGoYBM5M');
+      expect(res3.$2, 'playlist');
+
+      // Spotify user URI
+      final res4 = SpotifyService.parseSpotifyUrlOrId(
+        'spotify:user:12345:playlist:37i9dQZF1DXcBWIGoYBM5M',
+      );
+      expect(res4, isNotNull);
+      expect(res4!.$1, '37i9dQZF1DXcBWIGoYBM5M');
+      expect(res4.$2, 'playlist');
+
+      // Standard URI
+      final res5 = SpotifyService.parseSpotifyUrlOrId(
+        'spotify:track:5ViLKrbyL3HD6wsq3AB9eI',
+      );
+      expect(res5, isNotNull);
+      expect(res5!.$1, '5ViLKrbyL3HD6wsq3AB9eI');
+      expect(res5.$2, 'track');
+
+      // Raw ID with 22 characters
+      final res6 = SpotifyService.parseSpotifyUrlOrId('37i9dQZF1DXcBWIGoYBM5M');
+      expect(res6, isNotNull);
+      expect(res6!.$1, '37i9dQZF1DXcBWIGoYBM5M');
+      expect(res6.$2, 'playlist');
+    });
+
+    testWidgets('AppShell renders with light paper surface under light theme', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1080, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final lightTheme = MeloTheme.themeFor(Brightness.light);
+      expect(lightTheme.colorScheme.surface, MeloColors.paper);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lightTheme,
+          home: const AppShell(),
+        ),
+      );
+      await tester.pump();
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(scaffold.backgroundColor, MeloColors.paper);
+      expect(scaffold.backgroundColor, isNot(MeloColors.amoled));
     });
   });
 }
