@@ -284,6 +284,461 @@ class ExternalFeedService {
     }
   }
 
+  /// Fetches structured [ExploreSection]s for [provider] mirroring Mornye's getHomeFeed architecture.
+  Future<List<ExploreSection>> getHomeFeed(
+    MusicProviderType provider, {
+    bool forceRefresh = false,
+    String? region,
+  }) async {
+    // 1. Check persistent cache store first (mirroring Mornye's ExploreCacheStore)
+    if (!forceRefresh) {
+      final cached = await ExploreFeedCacheStore.instance.read();
+      if (cached.payload != null && cached.timestampMs != null) {
+        final age = DateTime.now().millisecondsSinceEpoch - cached.timestampMs!;
+        if (age < 5 * 60 * 1000) { // 5-minute cache TTL like Mornye
+          try {
+            final decoded = jsonDecode(cached.payload!) as Map<String, dynamic>;
+            if (decoded['provider_id'] == provider.id && decoded['sections'] is List) {
+              final sections = (decoded['sections'] as List)
+                  .whereType<Map<String, dynamic>>()
+                  .map((s) => ExploreSection.fromJson(s))
+                  .toList();
+              if (sections.isNotEmpty) return sections;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 2. Fetch fresh sections per provider
+    final sections = await _buildFreshHomeFeedSections(provider, region: region);
+
+    // 3. Save to persistent cache store
+    if (sections.isNotEmpty) {
+      final payload = jsonEncode({
+        'provider_id': provider.id,
+        'region': region ?? 'US',
+        'sections': sections.map((s) => s.toJson()).toList(),
+      });
+      unawaited(ExploreFeedCacheStore.instance.write(payload));
+    }
+
+    return sections;
+  }
+
+  Future<List<ExploreSection>> _buildFreshHomeFeedSections(
+    MusicProviderType provider, {
+    String? region,
+  }) async {
+    final rawTracks = await fetchFeedForProvider(provider, limit: 30);
+    final quickPickItems = rawTracks.map((t) => ExploreItem(
+      id: t.providerTrackId ?? t.id.replaceAll(RegExp(r'^[a-z]+:'), ''),
+      uri: t.id,
+      type: 'track',
+      name: t.title,
+      artists: t.artist,
+      coverUrl: t.artworkUri,
+      featuredCoverUrl: t.artworkUri,
+      heading: provider.displayName.toUpperCase(),
+      providerId: provider.id,
+      albumId: t.album,
+      albumName: t.album,
+      durationMs: t.durationMs ?? 180000,
+    )).toList();
+
+    switch (provider) {
+      case MusicProviderType.appleMusic:
+        return [
+          ExploreSection(
+            uri: 'apple:featured',
+            title: 'New in Apple Music',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'am_1',
+                uri: 'apple:radio:1',
+                type: 'station',
+                name: 'Apple Music 1 Worldwide',
+                artists: 'Zane Lowe & Ebro Darden',
+                description: 'Live broadcast of global chart hits, premier releases and artist interviews',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                heading: 'LIVE BROADCAST',
+                providerId: 'apple_music',
+              ),
+              ExploreItem(
+                id: 'am_spatial',
+                uri: 'apple:playlist:spatial',
+                type: 'playlist',
+                name: 'Spatial Audio Masters',
+                artists: 'Apple Music Editorial',
+                description: 'Dolby Atmos & spatial soundscapes curated by Apple Music editors',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+                heading: 'SPATIAL AUDIO',
+                providerId: 'apple_music',
+              ),
+              ExploreItem(
+                id: 'am_top100',
+                uri: 'apple:playlist:top100',
+                type: 'playlist',
+                name: 'Today at Apple Top 100',
+                artists: 'Apple Music Charts',
+                description: 'The 100 most played tracks worldwide on Apple Music today',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+                heading: 'GLOBAL CHART',
+                providerId: 'apple_music',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'apple:quick_picks',
+            title: 'Top Songs & Latest Hits',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+          const ExploreSection(
+            uri: 'apple:broadcast',
+            title: 'Apple Music Live Stations',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'am_station_1',
+                uri: 'apple:station:1',
+                type: 'station',
+                name: 'Apple Music 1',
+                artists: 'Live Worldwide Radio',
+                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                heading: 'LIVE ON AIR',
+                providerId: 'apple_music',
+              ),
+              ExploreItem(
+                id: 'am_station_hits',
+                uri: 'apple:station:hits',
+                type: 'station',
+                name: 'Apple Music Hits',
+                artists: 'Retro 80s to 2000s Pop',
+                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+                heading: 'RETRO CLASSICS',
+                providerId: 'apple_music',
+              ),
+              ExploreItem(
+                id: 'am_station_country',
+                uri: 'apple:station:country',
+                type: 'station',
+                name: 'Apple Music Country',
+                artists: 'Nashville Studios Live',
+                coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+                heading: 'NASHVILLE LIVE',
+                providerId: 'apple_music',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.youtubeMusic:
+        return [
+          ExploreSection(
+            uri: 'yt:featured',
+            title: 'Trending & Spotlight',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'yt_trending',
+                uri: 'youtube:trending',
+                type: 'playlist',
+                name: 'YouTube Trending Hits',
+                artists: 'YouTube Music Charts',
+                description: 'Number 1 trending music & breakthrough videos across YouTube',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+                heading: 'YT TRENDING',
+                providerId: 'youtube_music',
+              ),
+              ExploreItem(
+                id: 'yt_viral',
+                uri: 'youtube:viral',
+                type: 'playlist',
+                name: 'Global Viral 50',
+                artists: 'YouTube Shorts & Viral Sound',
+                description: 'The top viral tracks with millions of views this week',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                heading: 'VIRAL SHORTS',
+                providerId: 'youtube_music',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'yt:quick_picks',
+            title: 'Quick Picks',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+          const ExploreSection(
+            uri: 'yt:broadcast',
+            title: 'YouTube Music Live & Charts',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'yt_channel_1',
+                uri: 'youtube:channel:trending',
+                type: 'station',
+                name: 'YouTube Trending Hits',
+                artists: 'Global Top Trending',
+                coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+                heading: 'YT CHARTS',
+                providerId: 'youtube_music',
+              ),
+              ExploreItem(
+                id: 'yt_channel_2',
+                uri: 'youtube:channel:viral',
+                type: 'station',
+                name: 'YouTube Viral 100',
+                artists: 'Breakthrough Audio Anthems',
+                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                heading: 'VIRAL 100',
+                providerId: 'youtube_music',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.spotify:
+        return [
+          ExploreSection(
+            uri: 'spotify:featured',
+            title: 'Featured on Spotify',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'sp_top_hits',
+                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
+                type: 'playlist',
+                name: "Today's Top Hits",
+                artists: 'Spotify Editorial',
+                description: 'The hottest 50 tracks on Spotify worldwide right now',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: 'SPOTIFY TOP 50',
+                providerId: 'spotify',
+              ),
+              ExploreItem(
+                id: 'sp_rapcaviar',
+                uri: 'spotify:playlist:rapcaviar',
+                type: 'playlist',
+                name: 'RapCaviar Anthem',
+                artists: 'Heavyweight Hip-Hop',
+                description: 'Heavyweight hip-hop bangers and new rap anthems',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+                heading: 'RAPCAVIAR',
+                providerId: 'spotify',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'spotify:quick_picks',
+            title: 'Top Hits & Viral Charts',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+          const ExploreSection(
+            uri: 'spotify:broadcast',
+            title: 'Spotify Editorial Broadcasts',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'sp_b_top50',
+                uri: 'spotify:station:top50',
+                type: 'station',
+                name: 'Spotify Global Top 50',
+                artists: 'Most Streamed Tracks Worldwide',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: 'SPOTIFY LIVE',
+                providerId: 'spotify',
+              ),
+              ExploreItem(
+                id: 'sp_b_viral',
+                uri: 'spotify:station:viral',
+                type: 'station',
+                name: 'Spotify Viral 50',
+                artists: 'Viral Breakout Songs',
+                coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+                heading: 'VIRAL 50',
+                providerId: 'spotify',
+              ),
+              ExploreItem(
+                id: 'sp_b_fresh',
+                uri: 'spotify:station:fresh',
+                type: 'station',
+                name: 'Spotify Fresh Finds',
+                artists: 'Indie & Future Stars',
+                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+                heading: 'FRESH FINDS',
+                providerId: 'spotify',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.deezer:
+        return [
+          ExploreSection(
+            uri: 'deezer:featured',
+            title: 'Deezer Editorial Spotlight',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'dz_flow',
+                uri: 'deezer:flow',
+                type: 'station',
+                name: 'Deezer Infinite Flow',
+                artists: 'Deezer Editors',
+                description: 'Non-stop personalized stream with fresh releases & timeless classics',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+                heading: 'DEEZER FLOW',
+                providerId: 'deezer',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'deezer:quick_picks',
+            title: 'Worldwide Top Charts',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+          const ExploreSection(
+            uri: 'deezer:broadcast',
+            title: 'Deezer Live & Worldwide Flow',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'dz_b_flow',
+                uri: 'deezer:station:flow',
+                type: 'station',
+                name: 'Deezer Infinite Flow',
+                artists: 'High-Fidelity Stream',
+                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+                heading: 'DEEZER FLOW',
+                providerId: 'deezer',
+              ),
+              ExploreItem(
+                id: 'dz_b_top',
+                uri: 'deezer:station:top',
+                type: 'station',
+                name: 'Deezer Top Worldwide',
+                artists: 'Top 100 International Hits',
+                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+                heading: 'DEEZER GLOBAL',
+                providerId: 'deezer',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.soundcloud:
+        return [
+          ExploreSection(
+            uri: 'soundcloud:featured',
+            title: 'SoundCloud Next Wave',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'sc_nextwave',
+                uri: 'soundcloud:nextwave',
+                type: 'playlist',
+                name: 'SoundCloud Next Wave',
+                artists: 'Emerging Underground Artists',
+                description: 'Emerging underground artists, remixes, future bass & lo-fi flips',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
+                heading: 'SC NEXT WAVE',
+                providerId: 'soundcloud',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'soundcloud:quick_picks',
+            title: 'Hot & Trending Tracks',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+          const ExploreSection(
+            uri: 'soundcloud:broadcast',
+            title: 'SoundCloud Live Sets & Radio',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'sc_b_next',
+                uri: 'soundcloud:station:nextwave',
+                type: 'station',
+                name: 'SoundCloud Next Wave',
+                artists: 'Emerging Indie & Future Bass',
+                coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
+                heading: 'SOUNDCLOUD LIVE',
+                providerId: 'soundcloud',
+              ),
+              ExploreItem(
+                id: 'sc_b_flips',
+                uri: 'soundcloud:station:flips',
+                type: 'station',
+                name: 'SoundCloud VIP Flips',
+                artists: 'Underground Club Edits & Bootlegs',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: 'UNDERGROUND',
+                providerId: 'soundcloud',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.all:
+      default:
+        return [
+          ExploreSection(
+            uri: 'curated:featured',
+            title: 'Featured Highlights',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'cur_am1',
+                uri: 'apple:station:1',
+                type: 'station',
+                name: 'Apple Music 1 Worldwide',
+                artists: 'Zane Lowe & Ebro Darden',
+                description: 'Live broadcast of global chart hits, premier releases and artist interviews',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                heading: 'APPLE MUSIC 1',
+                providerId: 'apple_music',
+              ),
+              ExploreItem(
+                id: 'cur_sp',
+                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
+                type: 'playlist',
+                name: "Today's Top Hits",
+                artists: 'Spotify Editorial',
+                description: 'The hottest 50 tracks on Spotify worldwide right now',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: 'SPOTIFY TOP 50',
+                providerId: 'spotify',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'curated:quick_picks',
+            title: 'Top Songs & Latest Hits',
+            layout: 'quick-picks',
+            items: quickPickItems,
+          ),
+        ];
+    }
+  }
+
   /// Automatically inspects and resolves ANY external music URL (Spotify, YouTube,
   /// YouTube Music, Apple Music, Deezer) into a normalized [ExternalResolvedPlaylist].
   Future<ExternalResolvedPlaylist> resolveExternalUrl(String url) async {

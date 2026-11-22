@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
+import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
@@ -214,6 +216,134 @@ void main() {
 
       HomeFeedProviderSettings.instance.resetForTesting();
       expect(tester.takeException(), isNull);
+    });
+
+    test('ExploreItem and ExploreSection serialize to and from JSON', () {
+      const item = ExploreItem(
+        id: 'am_1',
+        uri: 'apple:station:1',
+        type: 'station',
+        name: 'Apple Music 1 Worldwide',
+        artists: 'Zane Lowe',
+        heading: 'LIVE BROADCAST',
+        coverUrl: 'https://example.com/cover.jpg',
+        featuredCoverUrl: 'https://example.com/feat.jpg',
+        description: 'Global broadcast',
+        explicit: false,
+        providerId: 'apple_music',
+        durationMs: 180000,
+      );
+
+      final jsonItem = item.toJson();
+      final fromJsonItem = ExploreItem.fromJson(jsonItem);
+      expect(fromJsonItem.id, 'am_1');
+      expect(fromJsonItem.uri, 'apple:station:1');
+      expect(fromJsonItem.name, 'Apple Music 1 Worldwide');
+      expect(fromJsonItem.heading, 'LIVE BROADCAST');
+      expect(fromJsonItem.durationMs, 180000);
+
+      const section = ExploreSection(
+        uri: 'apple:featured',
+        title: 'New in Apple Music',
+        layout: 'featured',
+        items: [item],
+      );
+      expect(section.isFeatured, isTrue);
+      expect(section.isQuickPicks, isFalse);
+      expect(section.isShelf, isFalse);
+
+      final jsonSection = section.toJson();
+      final fromJsonSection = ExploreSection.fromJson(jsonSection);
+      expect(fromJsonSection.title, 'New in Apple Music');
+      expect(fromJsonSection.layout, 'featured');
+      expect(fromJsonSection.items.length, 1);
+      expect(fromJsonSection.items.first.id, 'am_1');
+    });
+
+    test('ExploreFeedCacheStore reads, writes, and clears cache', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = ExploreFeedCacheStore.instance;
+
+      final initial = await store.read();
+      expect(initial.payload, isNull);
+
+      await store.write('{"sections": []}');
+      final afterWrite = await store.read();
+      expect(afterWrite.payload, '{"sections": []}');
+      expect(afterWrite.timestampMs, isNotNull);
+
+      await store.clear();
+      final afterClear = await store.read();
+      expect(afterClear.payload, isNull);
+    });
+
+    test('ExternalFeedService returns structured Mornye ExploreSections per provider', () async {
+      final appleSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.appleMusic);
+      expect(appleSections.isNotEmpty, isTrue);
+      expect(appleSections.any((s) => s.isFeatured), isTrue);
+      expect(appleSections.any((s) => s.isQuickPicks), isTrue);
+      expect(appleSections.any((s) => s.isShelf), isTrue);
+
+      final ytSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.youtubeMusic);
+      expect(ytSections.isNotEmpty, isTrue);
+      expect(ytSections.any((s) => s.isFeatured), isTrue);
+
+      final spSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.spotify);
+      expect(spSections.isNotEmpty, isTrue);
+
+      final dzSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.deezer);
+      expect(dzSections.isNotEmpty, isTrue);
+
+      final scSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.soundcloud);
+      expect(scSections.isNotEmpty, isTrue);
+
+      final allSections = await ExternalFeedService.instance.getHomeFeed(MusicProviderType.all);
+      expect(allSections.isNotEmpty, isTrue);
+    });
+
+    testWidgets('ExploreFeaturedSection renders editorial hero cards correctly', (tester) async {
+      ExploreItem? tapped;
+      const section = ExploreSection(
+        uri: 'test:featured',
+        title: 'Editorial Spotlight',
+        layout: 'featured',
+        items: [
+          ExploreItem(
+            id: 'feat_1',
+            uri: 'test:uri:1',
+            type: 'station',
+            name: 'Apple Music 1 Worldwide',
+            artists: 'Zane Lowe & Ebro Darden',
+            heading: 'LIVE BROADCAST',
+            description: 'Live broadcast of global chart hits',
+            providerId: 'apple_music',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ExploreFeaturedSection(
+              section: section,
+              onItemTap: (item) => tapped = item,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Editorial Spotlight'), findsOneWidget);
+      expect(find.text('LIVE BROADCAST'), findsOneWidget);
+      expect(find.text('Apple Music 1 Worldwide'), findsOneWidget);
+      expect(find.text('Zane Lowe & Ebro Darden'), findsOneWidget);
+      expect(find.text('Live broadcast of global chart hits'), findsOneWidget);
+
+      await tester.tap(find.text('Apple Music 1 Worldwide'));
+      await tester.pumpAndSettle();
+
+      expect(tapped, isNotNull);
+      expect(tapped!.id, 'feat_1');
     });
   });
 }

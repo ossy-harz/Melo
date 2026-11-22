@@ -12,8 +12,11 @@ import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/search/search_screen.dart';
+import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 /// Tone's home is a discovery surface; playback and destinations stay in the
 /// persistent player and app navigation.
@@ -60,12 +63,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _refreshGeneration = 0;
   final String _selectedMood = 'All';
   Timer? _clockTimer;
+  List<ExploreSection>? _exploreSections;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     HomeFeedProviderSettings.instance.activeProvider.addListener(_onProviderChanged);
+    unawaited(_loadFeedSections());
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       _clockTimer = Timer.periodic(
         const Duration(seconds: 60),
@@ -74,11 +79,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadFeedSections([bool force = false]) async {
+    final provider = HomeFeedProviderSettings.instance.activeProvider.value;
+    try {
+      final sections = await ExternalFeedService.instance.getHomeFeed(
+        provider,
+        forceRefresh: force,
+      );
+      if (mounted) {
+        setState(() {
+          _exploreSections = sections;
+        });
+      }
+    } catch (_) {}
+  }
+
   void _onProviderChanged() {
     if (mounted) {
       setState(() {
         _refreshGeneration++;
       });
+      unawaited(_loadFeedSections());
     }
   }
 
@@ -107,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _refreshGeneration++;
       });
     }
+    await _loadFeedSections(true);
     await Future<void>.delayed(const Duration(milliseconds: 260));
   }
 
@@ -356,17 +378,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 22),
 
                       // Shelf 1: Editorial Showcase (Hero Banners & Curated Highlights)
-                      TopPicksShelf(
-                        library: widget.library,
-                        refreshGeneration: _refreshGeneration,
-                        provider: activeProvider,
-                        onPlayVibe: (vibe) => _openStation(context, vibe),
-                        onPlayPreset: (preset) =>
-                            _openCuratedPreset(context, preset),
-                        onOpenArtistRadio: (artist) =>
-                            _openArtistRadio(context, artist),
-                      ),
-                      const SizedBox(height: 32),
+                      if (activeProvider != MusicProviderType.all &&
+                          _exploreSections != null &&
+                          _exploreSections!.any((s) => s.isFeatured)) ...[
+                        ExploreFeaturedSection(
+                          section: _exploreSections!.firstWhere((s) => s.isFeatured),
+                          onItemTap: (item) => _openExploreItem(context, item),
+                        ),
+                        const SizedBox(height: 32),
+                      ] else ...[
+                        TopPicksShelf(
+                          library: widget.library,
+                          refreshGeneration: _refreshGeneration,
+                          provider: activeProvider,
+                          onPlayVibe: (vibe) => _openStation(context, vibe),
+                          onPlayPreset: (preset) =>
+                              _openCuratedPreset(context, preset),
+                          onOpenArtistRadio: (artist) =>
+                              _openArtistRadio(context, artist),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
 
                       // Shelf 2: Top Songs & Latest Hits (Unified 4-Row Editorial Swiper)
                       QuickPicksShelf(
@@ -411,6 +443,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       );
+  }
+
+  void _openExploreItem(BuildContext context, ExploreItem item) {
+    if (item.type == 'track') {
+      final rawId = item.id.replaceAll(RegExp(r'^[a-z]+:'), '');
+      final safeId = RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(rawId) ? rawId : '';
+      final track = YoutubeTrack(
+        id: safeId,
+        title: item.name,
+        author: item.artists,
+        duration: Duration(milliseconds: item.durationMs > 0 ? item.durationMs : 180000),
+        thumbnailUrl: item.coverUrl ?? item.featuredCoverUrl,
+        album: item.albumName ?? item.albumId,
+      );
+      final handler = widget.audioHandler;
+      if (handler != null) {
+        if (handler is MeloAudioHandler) {
+          handler.replaceQueue([track.toMediaItem()], initialIndex: 0, playWhenReady: true);
+        } else {
+          handler.playMediaItem(track.toMediaItem());
+        }
+      }
+      return;
+    }
+
+    final preset = CuratedPlaylistPreset(
+      title: item.name,
+      curatorSubtitle: item.description ?? item.artists,
+      badge: item.heading ?? 'FEATURED',
+      searchQuery: '${item.name} ${item.artists} official audio',
+      gradient: [
+        item.providerId != null
+            ? MusicProviderType.fromId(item.providerId!).brandColor
+            : MeloColors.cherry,
+        MeloColors.cherryDeep,
+        const Color(0xFF0A0A0C),
+      ],
+      icon: Icons.album_rounded,
+      coverUrl: item.featuredCoverUrl ?? item.coverUrl,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
+        ),
+      ),
+    );
   }
 
   void _openStation(BuildContext context, SmartVibe vibe) {

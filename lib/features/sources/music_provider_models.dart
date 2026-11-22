@@ -152,3 +152,154 @@ class HomeFeedProviderSettings {
   }
 }
 
+/// Mornye-grade Explore Item representing a single track, album, playlist, artist, or station.
+class ExploreItem {
+  const ExploreItem({
+    required this.id,
+    required this.uri,
+    required this.type,
+    required this.name,
+    required this.artists,
+    this.description,
+    this.coverUrl,
+    this.featuredCoverUrl,
+    this.heading,
+    this.explicit,
+    this.providerId,
+    this.albumId,
+    this.albumName,
+    this.releaseDate,
+    this.durationMs = 0,
+  });
+
+  final String id;
+  final String uri;
+  final String type; // 'track', 'album', 'playlist', 'artist', 'station'
+  final String name;
+  final String artists;
+  final String? description;
+  final String? coverUrl;
+  final String? featuredCoverUrl;
+  final String? heading;
+  final bool? explicit;
+  final String? providerId;
+  final String? albumId;
+  final String? albumName;
+  final String? releaseDate;
+  final int durationMs;
+
+  factory ExploreItem.fromJson(Map<String, dynamic> json) {
+    return ExploreItem(
+      id: json['id'] as String? ?? '',
+      uri: json['uri'] as String? ?? '',
+      type: json['type'] as String? ?? 'track',
+      name: json['name'] as String? ?? '',
+      artists: json['artists'] as String? ?? '',
+      description: json['description'] as String?,
+      coverUrl: json['cover_url'] as String?,
+      featuredCoverUrl: json['featured_cover_url'] as String?,
+      heading: json['heading'] as String?,
+      explicit: json['explicit'] as bool?,
+      providerId: json['provider_id'] as String?,
+      albumId: json['album_id'] as String?,
+      albumName: json['album_name'] as String?,
+      releaseDate: json['release_date']?.toString(),
+      durationMs: json['duration_ms'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'uri': uri,
+    'type': type,
+    'name': name,
+    'artists': artists,
+    if (description != null) 'description': description,
+    if (coverUrl != null) 'cover_url': coverUrl,
+    if (featuredCoverUrl != null) 'featured_cover_url': featuredCoverUrl,
+    if (heading != null) 'heading': heading,
+    if (explicit != null) 'explicit': explicit,
+    if (providerId != null) 'provider_id': providerId,
+    if (albumId != null) 'album_id': albumId,
+    if (albumName != null) 'album_name': albumName,
+    if (releaseDate != null) 'release_date': releaseDate,
+    'duration_ms': durationMs,
+  };
+}
+
+/// Mornye-grade Explore Section supporting 'featured', 'quick-picks', and 'shelf' layouts.
+class ExploreSection {
+  const ExploreSection({
+    required this.uri,
+    required this.title,
+    this.layout = 'shelf',
+    required this.items,
+  });
+
+  final String uri;
+  final String title;
+  final String layout; // 'featured' | 'quick-picks' | 'shelf'
+  final List<ExploreItem> items;
+
+  bool get isFeatured => layout == 'featured';
+  bool get isQuickPicks => layout == 'quick-picks';
+  bool get isShelf => !isFeatured && !isQuickPicks;
+
+  factory ExploreSection.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List<dynamic>? ?? [];
+    return ExploreSection(
+      uri: json['uri'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      layout: json['layout'] as String? ?? 'shelf',
+      items: rawItems
+          .whereType<Map<String, dynamic>>()
+          .map((i) => ExploreItem.fromJson(i))
+          .toList(growable: false),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'uri': uri,
+    'title': title,
+    'layout': layout,
+    'items': items.map((i) => i.toJson()).toList(growable: false),
+  };
+}
+
+/// Persistent cache store for Explore Sections mirroring Mornye's ExploreCacheStore.
+class ExploreFeedCacheStore {
+  ExploreFeedCacheStore._();
+  static final ExploreFeedCacheStore instance = ExploreFeedCacheStore._();
+
+  static const String _cacheKey = 'tone_explore_feed_cache';
+  static const String _cacheTsKey = 'tone_explore_feed_ts';
+
+  Future<({String? payload, int? timestampMs})> read([SharedPreferences? injectedPrefs]) async {
+    try {
+      final prefs = injectedPrefs ?? await SharedPreferences.getInstance();
+      final payload = prefs.getString(_cacheKey);
+      final ts = prefs.getInt(_cacheTsKey);
+      return (payload: payload, timestampMs: ts);
+    } catch (_) {
+      return (payload: null, timestampMs: null);
+    }
+  }
+
+  Future<void> write(String payload, [SharedPreferences? injectedPrefs]) async {
+    try {
+      final prefs = injectedPrefs ?? await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, payload);
+      await prefs.setInt(_cacheTsKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+  }
+
+  Future<void> clear([SharedPreferences? injectedPrefs]) async {
+    try {
+      final prefs = injectedPrefs ?? await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTsKey);
+    } catch (_) {}
+  }
+}
+
+

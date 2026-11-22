@@ -5968,3 +5968,197 @@ class BroadcastChannelsShelf extends StatelessWidget {
     );
   }
 }
+
+/// Mornye-grade Explore Featured Section with large editorial hero cards.
+class ExploreFeaturedSection extends StatelessWidget {
+  const ExploreFeaturedSection({
+    required this.section,
+    required this.onItemTap,
+    super.key,
+  });
+
+  final ExploreSection section;
+  final ValueChanged<ExploreItem> onItemTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (section.items.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            section.title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                  letterSpacing: -0.5,
+                ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 315,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: section.items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final item = section.items[index];
+              final image = item.featuredCoverUrl?.isNotEmpty == true
+                  ? item.featuredCoverUrl
+                  : item.coverUrl;
+              final width = (MediaQuery.sizeOf(context).width - 64).clamp(240.0, 360.0);
+              final imageHeight = (width / 2.0).clamp(130.0, 165.0);
+
+              return SizedBox(
+                width: width,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onItemTap(item),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (item.heading != null && item.heading!.isNotEmpty) ...[
+                          Text(
+                            item.heading!.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: item.providerId != null
+                                  ? MusicProviderType.fromId(item.providerId!).brandColor
+                                  : (isDark ? MeloColors.cherry : colors.primary),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                        ],
+                        Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          item.artists,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(
+                            width: width,
+                            height: imageHeight,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (image != null && image.isNotEmpty)
+                                  Image.network(
+                                    image,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      color: const Color(0xFF1C1C1E),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.music_note_rounded,
+                                          size: 40,
+                                          color: Colors.white38,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Container(
+                                    color: const Color(0xFF1C1C1E),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.music_note_rounded,
+                                        size: 40,
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                                  ),
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.black.withValues(alpha: 0.35),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.3),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.play_arrow_rounded,
+                                      size: 18,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (item.description != null && item.description!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            item.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
