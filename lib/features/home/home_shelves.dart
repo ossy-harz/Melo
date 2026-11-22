@@ -14,6 +14,9 @@ import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/settings/spotify_settings_screen.dart';
+import 'package:melo_player/features/sources/external_feed_service.dart';
+import 'package:melo_player/features/sources/multi_download_provider.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
@@ -4932,12 +4935,14 @@ class QuickPicksShelf extends StatefulWidget {
     required this.audioHandler,
     this.library,
     this.activeMood = 'All',
+    this.provider = MusicProviderType.all,
     super.key,
   });
 
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
   final String activeMood;
+  final MusicProviderType provider;
 
   @override
   State<QuickPicksShelf> createState() => _QuickPicksShelfState();
@@ -4959,15 +4964,35 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
   @override
   void didUpdateWidget(covariant QuickPicksShelf oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.activeMood != widget.activeMood) {
-      unawaited(_loadQuickPicks(mood: widget.activeMood));
+    if (oldWidget.activeMood != widget.activeMood || oldWidget.provider != widget.provider) {
+      unawaited(_loadQuickPicks(mood: widget.activeMood, provider: widget.provider));
     }
   }
 
-  Future<void> _loadQuickPicks({String mood = 'All'}) async {
+  Future<void> _loadQuickPicks({String mood = 'All', MusicProviderType? provider}) async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
+      final activeProvider = provider ?? widget.provider;
+      if (activeProvider != MusicProviderType.all) {
+        final feedTracks = await ExternalFeedService.instance.fetchFeedForProvider(activeProvider, limit: 20);
+        if (feedTracks.isNotEmpty && mounted) {
+          final mapped = feedTracks.map((t) => YoutubeTrack(
+            id: t.providerTrackId ?? t.id.replaceAll(RegExp(r'^[a-z]+:'), ''),
+            title: t.title,
+            author: t.artist,
+            duration: Duration(milliseconds: t.durationMs ?? 180000),
+            thumbnailUrl: t.artworkUri,
+            album: t.album,
+          )).toList();
+          _cachedTracks = mapped;
+          setState(() {
+            _tracks = mapped;
+          });
+          return;
+        }
+      }
+
       final query = switch (mood) {
         'Energize' => 'High Energy Workout Upbeat Dance Hits Official Audio',
         'Chill & Lo-Fi' => 'Chill Lo-Fi Late Night R&B Relaxing Hits Official Audio',
@@ -5086,6 +5111,52 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
     } catch (_) {}
   }
 
+  Future<void> _downloadTrack(YoutubeTrack track) async {
+    final lib = widget.library;
+    if (lib == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Downloading "${track.title}" for offline playback...'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    try {
+      await DownloadProviderService.instance.downloadTrack(
+        library: lib,
+        title: track.title,
+        artist: track.author,
+        artworkUrl: track.thumbnailUrl,
+        youtubeTrack: track,
+        preferredProvider: widget.provider,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Downloaded "${track.title}" to library'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: MeloColors.cherry,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_tracks.isEmpty && !_isLoading) return const SizedBox.shrink();
@@ -5108,11 +5179,17 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ShelfHeader(
-          icon: Icons.trending_up_rounded,
-          title: 'Top Hits & Heavy Rotation',
-          badgeLabel: widget.activeMood == 'All'
-              ? 'LATEST CHART SINGLES'
-              : widget.activeMood.toUpperCase(),
+          icon: widget.provider == MusicProviderType.all
+              ? Icons.trending_up_rounded
+              : widget.provider.icon,
+          title: widget.provider == MusicProviderType.all
+              ? 'Top Hits & Heavy Rotation'
+              : '${widget.provider.displayName} Hits',
+          badgeLabel: widget.provider == MusicProviderType.all
+              ? (widget.activeMood == 'All'
+                  ? 'LATEST CHART SINGLES'
+                  : widget.activeMood.toUpperCase())
+              : widget.provider.displayName.toUpperCase(),
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -5260,6 +5337,8 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
                                       _queueTrack(track, playNext: false);
                                     } else if (val == 'similar') {
                                       _queueSimilar(track);
+                                    } else if (val == 'download') {
+                                      _downloadTrack(track);
                                     }
                                   },
                                   itemBuilder: (ctx) => [
@@ -5293,6 +5372,17 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
                                         ],
                                       ),
                                     ),
+                                    if (widget.library != null)
+                                      const PopupMenuItem(
+                                        value: 'download',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.download_rounded, size: 20),
+                                            SizedBox(width: 10),
+                                            Text('Download to library'),
+                                          ],
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ],

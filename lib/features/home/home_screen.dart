@@ -13,6 +13,7 @@ import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/search/search_screen.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
 
 /// Tone's home is a discovery surface; playback and destinations stay in the
 /// persistent player and app navigation.
@@ -58,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late String _greeting = HomeScreen.timeOfDayGreeting();
   int _refreshGeneration = 0;
   final String _selectedMood = 'All';
+  MusicProviderType _selectedProvider = MusicProviderType.all;
   Timer? _clockTimer;
 
   @override
@@ -339,6 +341,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 18),
 
+                      // Provider Switcher Pill Bar (All, Apple Music, Spotify, YouTube Music, Deezer, SoundCloud)
+                      _buildProviderSwitcher(colors, isDark),
+                      const SizedBox(height: 20),
+
                       // Shelf 1: Apple Music Editorial Showcase (Hero Banners & Curated Highlights)
                       TopPicksShelf(
                         library: widget.library,
@@ -356,6 +362,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         audioHandler: widget.audioHandler,
                         library: widget.library,
                         activeMood: _selectedMood,
+                        provider: _selectedProvider,
                       ),
                       const SizedBox(height: 32),
 
@@ -443,6 +450,90 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           audioHandler: widget.audioHandler,
           library: widget.library,
         ),
+      ),
+    );
+  }
+
+  Widget _buildProviderSwitcher(ColorScheme colors, bool isDark) {
+    const providers = [
+      MusicProviderType.all,
+      MusicProviderType.appleMusic,
+      MusicProviderType.spotify,
+      MusicProviderType.youtubeMusic,
+      MusicProviderType.deezer,
+      MusicProviderType.soundcloud,
+    ];
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: providers.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, idx) {
+          final p = providers[idx];
+          final isSelected = _selectedProvider == p;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                if (_selectedProvider != p) {
+                  setState(() => _selectedProvider = p);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: isSelected
+                      ? (isDark ? MeloColors.qledElevated : colors.surfaceContainerHighest)
+                      : (isDark ? const Color(0xFF121214) : colors.surfaceContainerLow),
+                  border: Border.all(
+                    color: isSelected
+                        ? p.brandColor.withValues(alpha: 0.65)
+                        : Colors.white.withValues(alpha: 0.08),
+                    width: isSelected ? 1.2 : 0.8,
+                  ),
+                  boxShadow: isSelected && isDark
+                      ? [
+                          BoxShadow(
+                            color: p.brandColor.withValues(alpha: 0.22),
+                            blurRadius: 8,
+                            spreadRadius: 0.5,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: p.brandColor,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      p.displayName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? Colors.white : colors.onSurfaceVariant,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

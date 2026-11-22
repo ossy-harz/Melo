@@ -111,6 +111,18 @@ class SongDetailsSheet extends StatelessWidget {
         (mediaItem?.id != null && !mediaItem!.id.startsWith('youtube:') && !mediaItem!.id.startsWith('http'));
   }
 
+  String get _providerName {
+    final src = track?.sourceProvider ?? '';
+    if (src.isNotEmpty) return src;
+    final path = track?.path.toLowerCase() ?? mediaItem?.id.toLowerCase() ?? '';
+    if (path.startsWith('apple:') || path.contains('music.apple.com')) return 'Apple Music';
+    if (path.startsWith('spotify:') || path.contains('spotify.com')) return 'Spotify';
+    if (path.startsWith('deezer:') || path.contains('deezer.com')) return 'Deezer';
+    if (path.startsWith('soundcloud:') || path.contains('soundcloud.com')) return 'SoundCloud';
+    if (path.startsWith('youtube:') || path.contains('youtube.com') || ytTrack != null) return 'YouTube Music';
+    return _isLocal ? 'Melo Offline Library' : 'Unified Stream Provider';
+  }
+
   Future<void> _playNow(BuildContext context) async {
     final handler = audioHandler;
     if (handler == null) return;
@@ -359,6 +371,12 @@ class SongDetailsSheet extends StatelessWidget {
                       icon: _isLocal ? Icons.folder_outlined : Icons.cloud_outlined,
                       label: 'Origin',
                       value: _isLocal ? 'Melo Offline Library' : 'Lossless Streaming Cache',
+                    ),
+                    const Divider(color: Colors.white10, height: 16),
+                    _DetailRow(
+                      icon: Icons.hub_outlined,
+                      label: 'Provider',
+                      value: _providerName,
                     ),
                     if (track?.genre != null && track!.genre!.isNotEmpty) ...[
                       const Divider(color: Colors.white10, height: 16),

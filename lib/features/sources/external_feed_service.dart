@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
+import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
@@ -193,6 +195,95 @@ class ExternalFeedService {
     return _cachedDeezerCharts ?? const [];
   }
 
+  /// Fetches the live SoundCloud Trending / Hot Charts (100% tokenless, 500x500 covers).
+  Future<List<ImportedTrack>> fetchSoundCloudTrending({int limit = 50}) async {
+    try {
+      final tracks = await SoundCloudAudioService.instance.fetchTrendingCharts(limit: limit);
+      if (tracks.isNotEmpty) {
+        return tracks.map((t) => t.toImportedTrack()).toList(growable: false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching SoundCloud trending: $e');
+    }
+    return const [];
+  }
+
+  /// Fetches current YouTube Music Trending & Global Popular Singles.
+  Future<List<ImportedTrack>> fetchYouTubeMusicTrending({int limit = 50}) async {
+    try {
+      final songs = await YoutubeAudioService.instance.search(
+        'Top 50 Global Hits 2025 2026 Official Audio',
+        filterMixtapes: true,
+      );
+      if (songs.isNotEmpty) {
+        return songs.take(limit).map((s) => s.toImportedTrack()).toList(growable: false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching YouTube Music trending: $e');
+    }
+    return const [];
+  }
+
+  /// Fetches Spotify Global Top Hits & Editorial Playlist tracks.
+  Future<List<ImportedTrack>> fetchSpotifyTopHits({int limit = 50}) async {
+    try {
+      final sp = await SpotifyService.instance.fetchPlaylist(
+        'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+      );
+      if (sp.tracks.isNotEmpty) {
+        return sp.tracks.map((t) => t.toImportedTrack()).take(limit).toList(growable: false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching Spotify top hits: $e');
+    }
+    return const [];
+  }
+
+  /// Fetches the home feed tracks for the selected [provider] ('all', 'apple_music', 'spotify', etc.).
+  Future<List<ImportedTrack>> fetchFeedForProvider(
+    MusicProviderType provider, {
+    int limit = 50,
+  }) async {
+    switch (provider) {
+      case MusicProviderType.appleMusic:
+        return fetchAppleMusicCharts(limit: limit);
+      case MusicProviderType.deezer:
+        return fetchDeezerGlobalCharts(limit: limit);
+      case MusicProviderType.soundcloud:
+        return fetchSoundCloudTrending(limit: limit);
+      case MusicProviderType.youtubeMusic:
+        return fetchYouTubeMusicTrending(limit: limit);
+      case MusicProviderType.spotify:
+        return fetchSpotifyTopHits(limit: limit);
+      case MusicProviderType.all:
+      default:
+        // Smart blend: 16 from Apple Music, 16 from Deezer, 10 from SoundCloud, 8 from YouTube Music
+        final results = await Future.wait([
+          fetchAppleMusicCharts(limit: 20),
+          fetchDeezerGlobalCharts(limit: 20),
+          fetchSoundCloudTrending(limit: 15),
+          fetchYouTubeMusicTrending(limit: 15),
+        ]);
+        final merged = <ImportedTrack>[];
+        final seen = <String>{};
+        final apple = results[0];
+        final deezer = results[1];
+        final soundcloud = results[2];
+        final youtube = results[3];
+
+        final maxLen = [apple.length, deezer.length, soundcloud.length, youtube.length]
+            .reduce((a, b) => a > b ? a : b);
+
+        for (var i = 0; i < maxLen && merged.length < limit; i++) {
+          if (i < apple.length && seen.add(apple[i].title.toLowerCase())) merged.add(apple[i]);
+          if (i < deezer.length && seen.add(deezer[i].title.toLowerCase())) merged.add(deezer[i]);
+          if (i < soundcloud.length && seen.add(soundcloud[i].title.toLowerCase())) merged.add(soundcloud[i]);
+          if (i < youtube.length && seen.add(youtube[i].title.toLowerCase())) merged.add(youtube[i]);
+        }
+        return merged;
+    }
+  }
+
   /// Automatically inspects and resolves ANY external music URL (Spotify, YouTube,
   /// YouTube Music, Apple Music, Deezer) into a normalized [ExternalResolvedPlaylist].
   Future<ExternalResolvedPlaylist> resolveExternalUrl(String url) async {
@@ -247,6 +338,21 @@ class ExternalFeedService {
       final resolved = await _resolveDeezerUrl(clean);
       if (resolved != null && resolved.tracks.isNotEmpty) {
         return resolved;
+      }
+    }
+
+    // 5. SoundCloud
+    if (clean.contains('soundcloud.com')) {
+      final tracks = await SoundCloudAudioService.instance.search(clean, limit: 25);
+      if (tracks.isNotEmpty) {
+        return ExternalResolvedPlaylist(
+          id: 'soundcloud:${tracks.first.id}',
+          title: tracks.first.title,
+          curator: tracks.first.artist,
+          artworkUrl: tracks.first.artworkUrl,
+          provider: 'SoundCloud',
+          tracks: tracks.map((t) => t.toImportedTrack()).toList(growable: false),
+        );
       }
     }
 
