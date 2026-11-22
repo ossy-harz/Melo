@@ -1,36 +1,81 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
-/// Unified cross-platform metadata engine aggregating Spotify Web, Apple Music,
-/// YouTube Music, Deezer, TIDAL, Amazon Music, and SoundCloud.
+/// Unified cross-platform studio metadata engine aggregating Spotify Web, Apple Music,
+/// Deezer, YouTube Music, SoundCloud, Qobuz, and MusicBrainz matching Mornye's TrackMetadata architecture.
 class MetadataProviderService {
   MetadataProviderService._();
   static final MetadataProviderService instance = MetadataProviderService._();
 
+  static const String _persistentCachePrefix = 'tone_metadata_cache_v2_';
   final http.Client _httpClient = http.Client();
   final Map<String, UnifiedTrackMetadata> _metadataCache = {};
+  final Map<String, Future<UnifiedTrackMetadata?>> _metadataInFlight = {};
 
-  /// Fetches rich studio metadata (ISRC, release date, high-res cover, credits)
+  /// Fetches rich studio metadata (ISRC, release date, high-res cover, track/disc numbers, credits)
   /// using the specified [provider] or cascading across all active services.
   Future<UnifiedTrackMetadata?> fetchMetadata({
     required String title,
     required String artist,
     MusicProviderType provider = MusicProviderType.all,
+    bool forceRefresh = false,
   }) async {
     final cleanTitle = SongMetadataEnricher.cleanTitle(title, rawArtist: artist);
     final cleanArtist = SongMetadataEnricher.cleanArtist(artist, rawTitle: title);
     if (cleanTitle.isEmpty) return null;
 
-    final cacheKey = '${provider.name}:${cleanTitle.toLowerCase()}:${cleanArtist.toLowerCase()}';
-    if (_metadataCache.containsKey(cacheKey)) {
-      return _metadataCache[cacheKey];
+    final cacheKey = '${provider.name}:${cleanTitle.toLowerCase()}::${cleanArtist.toLowerCase()}';
+
+    // 1. Check in-flight requests (deduplication)
+    if (_metadataInFlight.containsKey(cacheKey)) {
+      return _metadataInFlight[cacheKey];
     }
 
+    // 2. Check memory cache
+    if (!forceRefresh) {
+      if (_metadataCache.containsKey(cacheKey)) {
+        return _metadataCache[cacheKey];
+      }
+
+      // Check persistent SharedPreferences cache
+      final fromDisk = await _readFromDiskCache(cacheKey);
+      if (fromDisk != null) {
+        _metadataCache[cacheKey] = fromDisk;
+        return fromDisk;
+      }
+    }
+
+    final future = _fetchMetadataInternal(
+      cleanTitle: cleanTitle,
+      cleanArtist: cleanArtist,
+      provider: provider,
+    );
+
+    _metadataInFlight[cacheKey] = future;
+    try {
+      final result = await future;
+      if (result != null) {
+        _metadataCache[cacheKey] = result;
+        unawaited(_writeToDiskCache(cacheKey, result));
+      }
+      return result;
+    } finally {
+      _metadataInFlight.remove(cacheKey);
+    }
+  }
+
+  Future<UnifiedTrackMetadata?> _fetchMetadataInternal({
+    required String cleanTitle,
+    required String cleanArtist,
+    required MusicProviderType provider,
+  }) async {
     UnifiedTrackMetadata? result;
 
     switch (provider) {
@@ -76,12 +121,45 @@ class MetadataProviderService {
         break;
     }
 
-    if (result != null) {
-      _metadataCache[cacheKey] = result;
+    // Optional background MusicBrainz enrichment for release tags / genres if missing
+    if (result != null && result.genres.isEmpty) {
+      final mbResult = await _queryMusicBrainz(cleanTitle, cleanArtist);
+      if (mbResult != null && mbResult.genres.isNotEmpty) {
+        result = UnifiedTrackMetadata(
+          title: result.title,
+          artist: result.artist,
+          album: result.album,
+          provider: result.provider,
+          albumArtist: result.albumArtist,
+          durationMs: result.durationMs,
+          artworkUrl: result.artworkUrl,
+          releaseDate: result.releaseDate ?? mbResult.releaseDate,
+          isrc: result.isrc ?? mbResult.isrc,
+          genres: mbResult.genres,
+          composers: result.composers.isNotEmpty ? result.composers : mbResult.composers,
+          producers: result.producers,
+          recordLabel: result.recordLabel ?? mbResult.recordLabel,
+          trackNumber: result.trackNumber,
+          totalTracks: result.totalTracks,
+          discNumber: result.discNumber,
+          totalDiscs: result.totalDiscs,
+          explicit: result.explicit,
+          audioTraits: result.audioTraits,
+          providerTrackId: result.providerTrackId,
+          streamUrl: result.streamUrl,
+          downloadUrl: result.downloadUrl,
+          audioCodec: result.audioCodec,
+          bitrateKbps: result.bitrateKbps,
+          syncedLyrics: result.syncedLyrics,
+          plainLyrics: result.plainLyrics,
+        );
+      }
     }
+
     return result;
   }
 
+  /// Queries Deezer public API extracting 1400x1400 artwork, track numbers, and ISRC.
   Future<UnifiedTrackMetadata?> _queryDeezer(String title, String artist) async {
     try {
       final term = artist.isNotEmpty ? '$title $artist' : title;
@@ -100,6 +178,9 @@ class MetadataProviderService {
           final art = (item['album']?['cover_xl'] as String?) ??
               (item['album']?['cover_big'] as String?) ??
               (item['album']?['cover_medium'] as String?);
+          final trackPos = (item['track_position'] as num?)?.toInt();
+          final discNum = (item['disk_number'] as num?)?.toInt();
+          final isExplicit = item['explicit_lyrics'] as bool? ?? false;
 
           return UnifiedTrackMetadata(
             title: trackTitle,
@@ -109,6 +190,10 @@ class MetadataProviderService {
             durationMs: durationSec * 1000,
             artworkUrl: art,
             isrc: isrc,
+            trackNumber: trackPos,
+            discNumber: discNum,
+            explicit: isExplicit,
+            audioTraits: const ['lossless'],
             providerTrackId: item['id']?.toString(),
             downloadUrl: item['preview'] as String?,
             audioCodec: 'MP3',
@@ -120,6 +205,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries Apple Music iTunes Storefront for 1000x1000 artwork, genres, and track numbers.
   Future<UnifiedTrackMetadata?> _queryAppleMusic(String title, String artist) async {
     try {
       final term = artist.isNotEmpty ? '$title $artist' : title;
@@ -142,6 +228,11 @@ class MetadataProviderService {
           final art = rawArt?.replaceAll(RegExp(r'\d+x\d+bb'), '1000x1000bb');
           final genre = item['primaryGenreName'] as String?;
           final releaseDate = item['releaseDate'] as String?;
+          final trackNum = (item['trackNumber'] as num?)?.toInt();
+          final trackTotal = (item['trackCount'] as num?)?.toInt();
+          final discNum = (item['discNumber'] as num?)?.toInt();
+          final discTotal = (item['discCount'] as num?)?.toInt();
+          final isExplicit = (item['trackExplicitness'] as String?) == 'explicit';
 
           return UnifiedTrackMetadata(
             title: trackTitle,
@@ -152,6 +243,11 @@ class MetadataProviderService {
             artworkUrl: art,
             genres: genre != null ? [genre] : const [],
             releaseDate: releaseDate?.split('T').first,
+            trackNumber: trackNum,
+            totalTracks: trackTotal,
+            discNumber: discNum,
+            totalDiscs: discTotal,
+            explicit: isExplicit,
             providerTrackId: item['trackId']?.toString(),
             audioCodec: 'AAC',
             bitrateKbps: 256,
@@ -162,6 +258,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries Spotify Web oEmbed and public metadata.
   Future<UnifiedTrackMetadata?> _querySpotify(String title, String artist) async {
     try {
       final query = Uri.encodeComponent('$title $artist');
@@ -186,6 +283,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries YouTube Music search.
   Future<UnifiedTrackMetadata?> _queryYouTubeMusic(String title, String artist) async {
     try {
       final songs = await YoutubeAudioService.instance.search('$title $artist', filterMixtapes: true);
@@ -207,6 +305,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries SoundCloud search.
   Future<UnifiedTrackMetadata?> _querySoundCloud(String title, String artist) async {
     try {
       final tracks = await SoundCloudAudioService.instance.search('$title $artist', limit: 1);
@@ -229,6 +328,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries TIDAL / Deezer Hi-Res FLAC catalog.
   Future<UnifiedTrackMetadata?> _queryTidal(String title, String artist) async {
     try {
       final term = artist.isNotEmpty ? '$title $artist' : title;
@@ -247,6 +347,7 @@ class MetadataProviderService {
             durationMs: ((item['duration'] as num?)?.toInt() ?? 0) * 1000,
             artworkUrl: item['album']?['cover_xl'] as String?,
             isrc: item['isrc'] as String?,
+            audioTraits: const ['lossless'],
             audioCodec: 'FLAC',
             bitrateKbps: 1411,
           );
@@ -256,6 +357,7 @@ class MetadataProviderService {
     return null;
   }
 
+  /// Queries Amazon Music Ultra HD / Lossless catalog.
   Future<UnifiedTrackMetadata?> _queryAmazonMusic(String title, String artist) async {
     try {
       final term = artist.isNotEmpty ? '$title $artist' : title;
@@ -274,6 +376,7 @@ class MetadataProviderService {
             durationMs: ((item['duration'] as num?)?.toInt() ?? 0) * 1000,
             artworkUrl: item['album']?['cover_xl'] as String?,
             isrc: item['isrc'] as String?,
+            audioTraits: const ['lossless'],
             audioCodec: 'FLAC',
             bitrateKbps: 9216,
           );
@@ -281,5 +384,66 @@ class MetadataProviderService {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Queries MusicBrainz open database matching Mornye's musicbrainz crate.
+  Future<UnifiedTrackMetadata?> _queryMusicBrainz(String title, String artist) async {
+    try {
+      final cleanT = MornyeLyricsMatching.simplifyTrack(title);
+      final cleanA = MornyeLyricsMatching.primaryArtist(artist);
+      final query = 'recording:${Uri.encodeComponent(cleanT)} AND artist:${Uri.encodeComponent(cleanA)}';
+      final uri = Uri.parse('https://musicbrainz.org/ws/2/recording/?query=$query&fmt=json&limit=1');
+      final res = await _httpClient.get(uri, headers: {
+        'User-Agent': 'MeloPlayer/1.6.2 ( contact@meloplayer.app )',
+      }).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        final recs = json['recordings'] as List?;
+        if (recs != null && recs.isNotEmpty) {
+          final rec = recs.first as Map;
+          final isrcs = (rec['isrcs'] as List?)?.map((e) => e.toString()).firstOrNull;
+          final tags = (rec['tags'] as List?)?.map((t) => t['name']?.toString() ?? '').where((t) => t.isNotEmpty).toList() ?? const [];
+          final releases = rec['releases'] as List?;
+          String? releaseDate;
+          String? albumTitle;
+          if (releases != null && releases.isNotEmpty) {
+            final rel = releases.first as Map;
+            releaseDate = rel['date'] as String?;
+            albumTitle = rel['title'] as String?;
+          }
+
+          return UnifiedTrackMetadata(
+            title: title,
+            artist: artist,
+            album: albumTitle ?? 'Unknown Album',
+            provider: MusicProviderType.all,
+            releaseDate: releaseDate,
+            isrc: isrcs,
+            genres: tags,
+          );
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<UnifiedTrackMetadata?> _readFromDiskCache(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_persistentCachePrefix$key');
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        return UnifiedTrackMetadata.fromJson(decoded);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _writeToDiskCache(String key, UnifiedTrackMetadata metadata) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_persistentCachePrefix$key', jsonEncode(metadata.toJson()));
+    } catch (_) {}
   }
 }

@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 
 const _lyricsChannel = MethodChannel('app.melo.melo_player/library');
 typedef OnlineLyricsLookup = Future<Object?> Function(Uri uri);
@@ -624,6 +625,28 @@ class LyricsRepository {
       // Tertiary fallback: query Netease Cloud Music global synced lyrics database
       final neteaseLyrics = await _queryNeteaseLyricsFallback(item);
       if (neteaseLyrics != null) return neteaseLyrics;
+
+      // Quaternary Mornye multi-provider fallback (BetterLyrics, Deezer, NetEase translations)
+      try {
+        final multi = await LyricsAndUtilityProvider.instance.fetchLyrics(
+          title: item.title,
+          artist: item.artist ?? '',
+          album: item.album,
+          durationSeconds: item.duration?.inSeconds,
+        );
+        if (multi != null && multi.hasSynced) {
+          final parsed = SongLyrics.parse(
+            synchronized: multi.syncedLyrics,
+            plain: multi.plainLyrics,
+          );
+          if (parsed != null) {
+            final cacheKey = '$_cachePrefix${Uri.encodeComponent(item.id)}';
+            final preferences = await SharedPreferences.getInstance();
+            await preferences.setString(cacheKey, multi.syncedLyrics!);
+            return parsed;
+          }
+        }
+      } catch (_) {}
     }
     return null;
   }

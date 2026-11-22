@@ -4,10 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
+import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
+import 'package:melo_player/features/sources/multi_metadata_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
 
@@ -344,6 +347,129 @@ void main() {
 
       expect(tapped, isNotNull);
       expect(tapped!.id, 'feat_1');
+    });
+
+    test('MornyeLyricsMatching normalizes titles, artists and tolerances correctly', () {
+      expect(MornyeLyricsMatching.simplifyTrack('Blinding Lights (feat. Rosalía) [Official Audio]'), 'blinding lights');
+      expect(MornyeLyricsMatching.simplifyTrack('Hotel California - 2013 Remaster'), 'hotel california');
+      expect(MornyeLyricsMatching.primaryArtist('Drake feat. 21 Savage & Project Pat'), 'Drake');
+      expect(MornyeLyricsMatching.primaryArtist('Kendrick Lamar, SZA'), 'Kendrick Lamar');
+      expect(MornyeLyricsMatching.durationMatches(200.0, 204.0), isTrue);
+      expect(MornyeLyricsMatching.durationMatches(200.0, 220.0), isFalse);
+      expect(MornyeLyricsMatching.titlesMatch('Espresso (Radio Edit)', 'Espresso'), isTrue);
+      expect(MornyeLyricsMatching.artistsMatch('Billie Eilish feat. Khalid', 'Billie Eilish'), isTrue);
+    });
+
+    test('LyricsLookupResult serializes and deserializes rich translation & romanization data', () {
+      const res = LyricsLookupResult(
+        provider: MusicProviderType.appleMusic,
+        plainLyrics: 'Hello world',
+        syncedLyrics: '[00:10.00]Hello world',
+        isWordSynced: true,
+        translation: 'Bonjour le monde',
+        romanization: 'Konnichiwa sekai',
+        writers: 'Songwriter A, Songwriter B',
+        source: 'BetterLyrics (Apple Music TTML)',
+      );
+
+      final json = res.toJson();
+      final fromJson = LyricsLookupResult.fromJson(json);
+      expect(fromJson.provider, MusicProviderType.appleMusic);
+      expect(fromJson.plainLyrics, 'Hello world');
+      expect(fromJson.syncedLyrics, '[00:10.00]Hello world');
+      expect(fromJson.isWordSynced, isTrue);
+      expect(fromJson.translation, 'Bonjour le monde');
+      expect(fromJson.romanization, 'Konnichiwa sekai');
+      expect(fromJson.writers, 'Songwriter A, Songwriter B');
+      expect(fromJson.source, 'BetterLyrics (Apple Music TTML)');
+    });
+
+    test('UnifiedTrackMetadata serializes and deserializes Mornye studio fields', () {
+      const meta = UnifiedTrackMetadata(
+        title: 'Starboy',
+        artist: 'The Weeknd',
+        album: 'Starboy',
+        provider: MusicProviderType.deezer,
+        albumArtist: 'The Weeknd',
+        durationMs: 230000,
+        artworkUrl: 'https://e-cdns-images.dzcdn.net/images/cover/1400x1400.jpg',
+        releaseDate: '2016-11-25',
+        isrc: 'USUM71607007',
+        genres: ['R&B', 'Pop'],
+        composers: ['Abel Tesfaye', 'Thomas Bangalter', 'Guy-Manuel de Homem-Christo'],
+        recordLabel: 'Republic Records',
+        trackNumber: 1,
+        totalTracks: 18,
+        discNumber: 1,
+        totalDiscs: 1,
+        explicit: true,
+        audioTraits: ['lossless'],
+        audioCodec: 'FLAC',
+        bitrateKbps: 1411,
+      );
+
+      final json = meta.toJson();
+      final fromJson = UnifiedTrackMetadata.fromJson(json);
+      expect(fromJson.title, 'Starboy');
+      expect(fromJson.artist, 'The Weeknd');
+      expect(fromJson.isrc, 'USUM71607007');
+      expect(fromJson.trackNumber, 1);
+      expect(fromJson.totalTracks, 18);
+      expect(fromJson.discNumber, 1);
+      expect(fromJson.explicit, isTrue);
+      expect(fromJson.audioTraits.contains('lossless'), isTrue);
+      expect(fromJson.qualityBadge, 'HI-RES LOSSLESS · 24-BIT');
+    });
+
+    testWidgets('SongDetailsSheet mounts cleanly and displays comprehensive metadata', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      const meta = UnifiedTrackMetadata(
+        title: 'Blinding Lights',
+        artist: 'The Weeknd',
+        album: 'After Hours',
+        provider: MusicProviderType.appleMusic,
+        isrc: 'USUG11904206',
+        releaseDate: '2020-03-20',
+        trackNumber: 9,
+        totalTracks: 14,
+        composers: ['Abel Tesfaye', 'Ahmad Balshe', 'Jason Quenneville', 'Max Martin', 'Oscar Holter'],
+        recordLabel: 'XO / Republic Records',
+      );
+
+      final track = ImportedTrack(
+        id: 'weeknd_blinding_lights',
+        path: '/storage/emulated/0/Music/blinding_lights.mp3',
+        title: meta.title,
+        artist: meta.artist,
+        album: meta.album,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SongDetailsSheet(
+              track: track,
+              mediaItem: null,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Duration'), findsOneWidget);
+      expect(find.text('Album'), findsOneWidget);
+      expect(find.text('Artist'), findsOneWidget);
+      expect(find.text('Origin'), findsOneWidget);
+      expect(find.text('Provider'), findsOneWidget);
+      expect(find.text('Play Now'), findsOneWidget);
+      expect(find.text('Play Next'), findsOneWidget);
+    });
+
+    test('MetadataProviderService gracefully handles empty search queries', () async {
+      SharedPreferences.setMockInitialValues({});
+      final service = MetadataProviderService.instance;
+      final result = await service.fetchMetadata(title: '', artist: '');
+      expect(result, isNull);
     });
   });
 }

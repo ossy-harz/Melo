@@ -40,13 +40,14 @@ enum MusicProviderType {
   }
 }
 
-/// Unified, cross-provider song metadata model.
+/// Unified, cross-provider song metadata model matching Mornye's TrackMetadata.
 class UnifiedTrackMetadata {
   const UnifiedTrackMetadata({
     required this.title,
     required this.artist,
     required this.album,
     required this.provider,
+    this.albumArtist,
     this.durationMs,
     this.artworkUrl,
     this.releaseDate,
@@ -55,6 +56,12 @@ class UnifiedTrackMetadata {
     this.composers = const [],
     this.producers = const [],
     this.recordLabel,
+    this.trackNumber,
+    this.totalTracks,
+    this.discNumber,
+    this.totalDiscs,
+    this.explicit,
+    this.audioTraits = const [],
     this.providerTrackId,
     this.streamUrl,
     this.downloadUrl,
@@ -68,6 +75,7 @@ class UnifiedTrackMetadata {
   final String artist;
   final String album;
   final MusicProviderType provider;
+  final String? albumArtist;
   final int? durationMs;
   final String? artworkUrl;
   final String? releaseDate;
@@ -76,6 +84,12 @@ class UnifiedTrackMetadata {
   final List<String> composers;
   final List<String> producers;
   final String? recordLabel;
+  final int? trackNumber;
+  final int? totalTracks;
+  final int? discNumber;
+  final int? totalDiscs;
+  final bool? explicit;
+  final List<String> audioTraits;
   final String? providerTrackId;
   final String? streamUrl;
   final String? downloadUrl;
@@ -93,6 +107,9 @@ class UnifiedTrackMetadata {
   }
 
   String get qualityBadge {
+    if (audioTraits.contains('lossless')) {
+      return 'HI-RES LOSSLESS · 24-BIT';
+    }
     if (audioCodec != null && bitrateKbps != null) {
       return '${audioCodec!.toUpperCase()} · $bitrateKbps KBPS';
     }
@@ -101,6 +118,64 @@ class UnifiedTrackMetadata {
     }
     return '${provider.displayName.toUpperCase()} · VERIFIED';
   }
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'provider': provider.id,
+    if (albumArtist != null) 'album_artist': albumArtist,
+    if (durationMs != null) 'duration_ms': durationMs,
+    if (artworkUrl != null) 'artwork_url': artworkUrl,
+    if (releaseDate != null) 'release_date': releaseDate,
+    if (isrc != null) 'isrc': isrc,
+    if (genres.isNotEmpty) 'genres': genres,
+    if (composers.isNotEmpty) 'composers': composers,
+    if (producers.isNotEmpty) 'producers': producers,
+    if (recordLabel != null) 'record_label': recordLabel,
+    if (trackNumber != null) 'track_number': trackNumber,
+    if (totalTracks != null) 'total_tracks': totalTracks,
+    if (discNumber != null) 'disc_number': discNumber,
+    if (totalDiscs != null) 'total_discs': totalDiscs,
+    if (explicit != null) 'explicit': explicit,
+    if (audioTraits.isNotEmpty) 'audio_traits': audioTraits,
+    if (providerTrackId != null) 'provider_track_id': providerTrackId,
+    if (streamUrl != null) 'stream_url': streamUrl,
+    if (downloadUrl != null) 'download_url': downloadUrl,
+    if (audioCodec != null) 'audio_codec': audioCodec,
+    if (bitrateKbps != null) 'bitrate_kbps': bitrateKbps,
+    if (syncedLyrics != null) 'synced_lyrics': syncedLyrics,
+    if (plainLyrics != null) 'plain_lyrics': plainLyrics,
+  };
+
+  factory UnifiedTrackMetadata.fromJson(Map<String, dynamic> json) => UnifiedTrackMetadata(
+    title: json['title'] as String? ?? '',
+    artist: json['artist'] as String? ?? '',
+    album: json['album'] as String? ?? '',
+    provider: MusicProviderType.fromId(json['provider'] as String? ?? 'all'),
+    albumArtist: json['album_artist'] as String?,
+    durationMs: json['duration_ms'] as int?,
+    artworkUrl: json['artwork_url'] as String?,
+    releaseDate: json['release_date'] as String?,
+    isrc: json['isrc'] as String?,
+    genres: (json['genres'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    composers: (json['composers'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    producers: (json['producers'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    recordLabel: json['record_label'] as String?,
+    trackNumber: json['track_number'] as int?,
+    totalTracks: json['total_tracks'] as int?,
+    discNumber: json['disc_number'] as int?,
+    totalDiscs: json['total_discs'] as int?,
+    explicit: json['explicit'] as bool?,
+    audioTraits: (json['audio_traits'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    providerTrackId: json['provider_track_id'] as String?,
+    streamUrl: json['stream_url'] as String?,
+    downloadUrl: json['download_url'] as String?,
+    audioCodec: json['audio_codec'] as String?,
+    bitrateKbps: json['bitrate_kbps'] as int?,
+    syncedLyrics: json['synced_lyrics'] as String?,
+    plainLyrics: json['plain_lyrics'] as String?,
+  );
 }
 
 /// Global settings controller for Home Feed & Discovery Provider.
