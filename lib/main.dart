@@ -4,11 +4,13 @@ import 'package:melo_player/app/melo_appearance.dart';
 import 'package:melo_player/app/melo_services.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/app/melo_app.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await MeloAppearanceController.instance.load();
   await MeloThemeService.instance.load();
+  await HomeFeedProviderSettings.instance.init();
   const requestedDiagnosticMode = bool.fromEnvironment(
     'TONE_AUTOMIX_DIAGNOSTICS',
   );

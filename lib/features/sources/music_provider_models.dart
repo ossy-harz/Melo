@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Supported external music & metadata service providers.
 enum MusicProviderType {
@@ -101,3 +102,53 @@ class UnifiedTrackMetadata {
     return '${provider.displayName.toUpperCase()} · VERIFIED';
   }
 }
+
+/// Global settings controller for Home Feed & Discovery Provider.
+///
+/// Keeps user preference in persistent storage and provides a reactive
+/// [ValueNotifier] that adapts the Home Screen editorial shelves, top picks,
+/// and quick picks to the selected provider without cluttering the main UI.
+class HomeFeedProviderSettings {
+  HomeFeedProviderSettings._();
+  static final HomeFeedProviderSettings instance = HomeFeedProviderSettings._();
+
+  static const String _prefKey = 'tone_home_feed_provider';
+
+  final ValueNotifier<MusicProviderType> activeProvider =
+      ValueNotifier<MusicProviderType>(MusicProviderType.all);
+
+  bool _initialized = false;
+
+  /// Loads the persisted provider selection from SharedPreferences.
+  Future<void> init([SharedPreferences? injectedPrefs]) async {
+    if (_initialized && injectedPrefs == null) return;
+    try {
+      final prefs = injectedPrefs ?? await SharedPreferences.getInstance();
+      final savedId = prefs.getString(_prefKey);
+      if (savedId != null && savedId.isNotEmpty) {
+        activeProvider.value = MusicProviderType.fromId(savedId);
+      }
+    } catch (_) {}
+    _initialized = true;
+  }
+
+  /// Sets and persists the selected discovery provider.
+  Future<void> setProvider(
+    MusicProviderType provider, [
+    SharedPreferences? injectedPrefs,
+  ]) async {
+    if (activeProvider.value == provider) return;
+    activeProvider.value = provider;
+    try {
+      final prefs = injectedPrefs ?? await SharedPreferences.getInstance();
+      await prefs.setString(_prefKey, provider.id);
+    } catch (_) {}
+  }
+
+  /// Resets back to default 'all' (useful in tests or clear data).
+  void resetForTesting() {
+    activeProvider.value = MusicProviderType.all;
+    _initialized = false;
+  }
+}
+

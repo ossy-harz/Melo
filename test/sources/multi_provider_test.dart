@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/settings/you_screen.dart';
 import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
@@ -112,12 +113,72 @@ void main() {
     });
   });
 
-  group('Home Screen Provider Switcher UI', () {
-    testWidgets('renders minimalist provider switcher bar and toggles provider', (tester) async {
+  group('Home Feed Provider Settings & Discovery UI', () {
+    test('persists and restores selected provider', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      HomeFeedProviderSettings.instance.resetForTesting();
+
+      expect(HomeFeedProviderSettings.instance.activeProvider.value, MusicProviderType.all);
+
+      await HomeFeedProviderSettings.instance.setProvider(MusicProviderType.appleMusic, prefs);
+      expect(HomeFeedProviderSettings.instance.activeProvider.value, MusicProviderType.appleMusic);
+      expect(prefs.getString('tone_home_feed_provider'), 'apple_music');
+
+      // Re-initialize from prefs
+      HomeFeedProviderSettings.instance.resetForTesting();
+      await HomeFeedProviderSettings.instance.init(prefs);
+      expect(HomeFeedProviderSettings.instance.activeProvider.value, MusicProviderType.appleMusic);
+
+      HomeFeedProviderSettings.instance.resetForTesting();
+    });
+
+    testWidgets('renders provider row in Settings and shows bottom sheet picker', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      HomeFeedProviderSettings.instance.resetForTesting();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: YouScreen(
+              onOpenLibrary: _noop,
+              onOpenMix: _noop,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify row exists under APP PREFERENCES
+      final providerRow = find.text('Home feed & discovery provider');
+      expect(providerRow, findsOneWidget);
+      expect(find.textContaining('All Curated'), findsOneWidget);
+
+      // Tap settings row to open bottom sheet
+      await tester.tap(providerRow);
+      await tester.pumpAndSettle();
+
+      // Verify bottom sheet title and options
+      expect(find.text('Home Feed & Discovery Provider'), findsOneWidget);
+      expect(find.text('Apple Music'), findsOneWidget);
+      expect(find.text('Spotify Web'), findsOneWidget);
+      expect(find.text('YouTube Music'), findsOneWidget);
+
+      // Select Apple Music
+      await tester.tap(find.text('Apple Music'));
+      await tester.pumpAndSettle();
+
+      expect(HomeFeedProviderSettings.instance.activeProvider.value, MusicProviderType.appleMusic);
+      HomeFeedProviderSettings.instance.resetForTesting();
+    });
+
+    testWidgets('HomeScreen adapts editorial header to active provider', (tester) async {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
+      HomeFeedProviderSettings.instance.resetForTesting();
+
       final directory = await tester.runAsync(
-        () => Directory.systemTemp.createTemp('tone_provider_switcher_test_'),
+        () => Directory.systemTemp.createTemp('tone_provider_home_test_'),
       );
       if (directory == null) fail('Failed to create temp dir');
       addTearDown(() => directory.deleteSync(recursive: true));
@@ -141,24 +202,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify first providers visible
-      expect(find.text('All Curated'), findsOneWidget);
-      expect(find.text('Apple Music'), findsOneWidget);
-      expect(find.text('Spotify Web'), findsOneWidget);
+      // Clean home UI: no switcher pills exposed in the open
+      expect(find.text('Listen Now'), findsOneWidget);
 
-      // Tap Apple Music provider pill
-      await tester.tap(find.text('Apple Music'));
+      // Change provider in settings
+      await HomeFeedProviderSettings.instance.setProvider(MusicProviderType.appleMusic);
       await tester.pumpAndSettle();
 
-      // Scroll to view trailing providers
-      await tester.scrollUntilVisible(
-        find.text('SoundCloud'),
-        100,
-        scrollable: find.byType(Scrollable).at(1),
-      );
-      expect(find.text('SoundCloud'), findsOneWidget);
+      // Verify eyebrow adapted specifically
+      expect(find.textContaining('APPLE MUSIC FEED'), findsOneWidget);
 
+      HomeFeedProviderSettings.instance.resetForTesting();
       expect(tester.takeException(), isNull);
     });
   });
 }
+
+void _noop() {}

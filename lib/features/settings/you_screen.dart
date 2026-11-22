@@ -19,6 +19,7 @@ import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/youtube_settings_screen.dart';
 import 'package:melo_player/features/sources/addons_screen.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/updates/app_update_service.dart';
@@ -83,6 +84,17 @@ class YouScreen extends StatelessWidget {
               const SizedBox(height: 26),
               Text('APP PREFERENCES', style: _sectionLabel(context)),
               const SizedBox(height: 8),
+              ValueListenableBuilder<MusicProviderType>(
+                valueListenable: HomeFeedProviderSettings.instance.activeProvider,
+                builder: (context, activeProvider, _) {
+                  return _SettingsRow(
+                    icon: Icons.hub_outlined,
+                    title: 'Home feed & discovery provider',
+                    subtitle: '${activeProvider.displayName} · Tap to change provider',
+                    onTap: () => _showProviderSelectionSheet(context),
+                  );
+                },
+              ),
               _SettingsRow(
                 icon: Icons.tune_rounded,
                 title: 'Sound & playback',
@@ -2221,3 +2233,224 @@ class _RepositoryEditDialogState extends State<_RepositoryEditDialog> {
     );
   }
 }
+
+void _showProviderSelectionSheet(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final colors = Theme.of(context).colorScheme;
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) {
+      return Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF161618) : colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : colors.outlineVariant.withValues(alpha: 0.3),
+            width: 0.8,
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: MeloColors.cherry.withValues(alpha: 0.15),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.hub_rounded,
+                        color: MeloColors.cherry,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Home Feed & Discovery Provider',
+                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Select which music ecosystem shapes your Home shelves',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    for (final p in const [
+                      MusicProviderType.all,
+                      MusicProviderType.appleMusic,
+                      MusicProviderType.spotify,
+                      MusicProviderType.youtubeMusic,
+                      MusicProviderType.deezer,
+                      MusicProviderType.soundcloud,
+                    ])
+                      ValueListenableBuilder<MusicProviderType>(
+                        valueListenable: HomeFeedProviderSettings.instance.activeProvider,
+                        builder: (c, current, _) {
+                          final isSelected = current == p;
+                          final subtitle = switch (p) {
+                            MusicProviderType.all =>
+                              'Balanced curation from Apple Music, Spotify & YouTube',
+                            MusicProviderType.appleMusic =>
+                              'Apple Music 1 Live, Spatial Audio & Global Top 100',
+                            MusicProviderType.spotify =>
+                              'Spotify Top 50, Today\'s Top Hits & RapCaviar',
+                            MusicProviderType.youtubeMusic =>
+                              'YouTube Music Trending, viral videos & charts',
+                            MusicProviderType.deezer =>
+                              'Deezer Flow, Hi-Fi editorial & worldwide charts',
+                            MusicProviderType.soundcloud =>
+                              'SoundCloud Next Wave, underground gems & VIP flips',
+                            _ => p.displayName,
+                          };
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Material(
+                              color: isSelected
+                                  ? (isDark
+                                      ? MeloColors.qledElevated
+                                      : colors.surfaceContainerHighest)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () async {
+                                  await HomeFeedProviderSettings.instance.setProvider(p);
+                                  if (ctx.mounted) Navigator.of(ctx).pop();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context)
+                                      ..hideCurrentSnackBar()
+                                      ..showSnackBar(
+                                        SnackBar(
+                                          content: Text('Switched Home feed to ${p.displayName}'),
+                                          behavior: SnackBarBehavior.floating,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? p.brandColor.withValues(alpha: 0.6)
+                                          : Colors.white.withValues(alpha: 0.06),
+                                      width: isSelected ? 1.2 : 0.8,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: BoxDecoration(
+                                          color: p.brandColor.withValues(alpha: 0.16),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Icon(
+                                            p.icon,
+                                            color: p.brandColor,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              p.displayName,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: isSelected
+                                                    ? FontWeight.w800
+                                                    : FontWeight.w600,
+                                                color: colors.onSurface,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              subtitle,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        Icon(
+                                          Icons.check_circle_rounded,
+                                          color: p.brandColor,
+                                          size: 22,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+

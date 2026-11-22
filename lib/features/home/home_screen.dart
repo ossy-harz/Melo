@@ -59,18 +59,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late String _greeting = HomeScreen.timeOfDayGreeting();
   int _refreshGeneration = 0;
   final String _selectedMood = 'All';
-  MusicProviderType _selectedProvider = MusicProviderType.all;
   Timer? _clockTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    HomeFeedProviderSettings.instance.activeProvider.addListener(_onProviderChanged);
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       _clockTimer = Timer.periodic(
         const Duration(seconds: 60),
         (_) => _syncGreeting(),
       );
+    }
+  }
+
+  void _onProviderChanged() {
+    if (mounted) {
+      setState(() {
+        _refreshGeneration++;
+      });
     }
   }
 
@@ -104,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    HomeFeedProviderSettings.instance.activeProvider.removeListener(_onProviderChanged);
     _clockTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -113,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeProvider = HomeFeedProviderSettings.instance.activeProvider.value;
     final currentGreeting = HomeScreen.timeOfDayGreeting();
     if (currentGreeting != _greeting) {
       _greeting = currentGreeting;
@@ -163,13 +173,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       height: 6,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: isDark
-                                            ? MeloColors.cherry
-                                            : colors.primary,
+                                        color: activeProvider == MusicProviderType.all
+                                            ? (isDark ? MeloColors.cherry : colors.primary)
+                                            : activeProvider.brandColor,
                                         boxShadow: isDark
                                             ? [
                                                 BoxShadow(
-                                                  color: MeloColors.cherry
+                                                  color: (activeProvider == MusicProviderType.all
+                                                          ? MeloColors.cherry
+                                                          : activeProvider.brandColor)
                                                       .withValues(alpha: 0.7),
                                                   blurRadius: 6,
                                                 ),
@@ -180,7 +192,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
-                                        '${HomeScreen._todayDateFormatted().toUpperCase()} · ${_greeting.toUpperCase()}',
+                                        activeProvider == MusicProviderType.all
+                                            ? '${HomeScreen._todayDateFormatted().toUpperCase()} · ${_greeting.toUpperCase()}'
+                                            : '${activeProvider.displayName.toUpperCase()} FEED · ${_greeting.toUpperCase()}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
@@ -339,16 +353,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 22),
 
-                      // Provider Switcher Pill Bar (All, Apple Music, Spotify, YouTube Music, Deezer, SoundCloud)
-                      _buildProviderSwitcher(colors, isDark),
-                      const SizedBox(height: 20),
-
-                      // Shelf 1: Apple Music Editorial Showcase (Hero Banners & Curated Highlights)
+                      // Shelf 1: Editorial Showcase (Hero Banners & Curated Highlights)
                       TopPicksShelf(
                         library: widget.library,
                         refreshGeneration: _refreshGeneration,
+                        provider: activeProvider,
                         onPlayVibe: (vibe) => _openStation(context, vibe),
                         onPlayPreset: (preset) =>
                             _openCuratedPreset(context, preset),
@@ -362,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         audioHandler: widget.audioHandler,
                         library: widget.library,
                         activeMood: _selectedMood,
-                        provider: _selectedProvider,
+                        provider: activeProvider,
                       ),
                       const SizedBox(height: 32),
 
@@ -374,8 +385,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 32),
 
-                      // Shelf 4: Live TV & Broadcast Channels (Trace & Soundcity Countdown Charts)
+                      // Shelf 4: Broadcast Channels & Top Charts
                       BroadcastChannelsShelf(
+                        provider: activeProvider,
                         onPlayPreset: (preset) =>
                             _openCuratedPreset(context, preset),
                       ),
@@ -450,90 +462,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           audioHandler: widget.audioHandler,
           library: widget.library,
         ),
-      ),
-    );
-  }
-
-  Widget _buildProviderSwitcher(ColorScheme colors, bool isDark) {
-    const providers = [
-      MusicProviderType.all,
-      MusicProviderType.appleMusic,
-      MusicProviderType.spotify,
-      MusicProviderType.youtubeMusic,
-      MusicProviderType.deezer,
-      MusicProviderType.soundcloud,
-    ];
-
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        itemCount: providers.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, idx) {
-          final p = providers[idx];
-          final isSelected = _selectedProvider == p;
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () {
-                if (_selectedProvider != p) {
-                  setState(() => _selectedProvider = p);
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: isSelected
-                      ? (isDark ? MeloColors.qledElevated : colors.surfaceContainerHighest)
-                      : (isDark ? const Color(0xFF121214) : colors.surfaceContainerLow),
-                  border: Border.all(
-                    color: isSelected
-                        ? p.brandColor.withValues(alpha: 0.65)
-                        : Colors.white.withValues(alpha: 0.08),
-                    width: isSelected ? 1.2 : 0.8,
-                  ),
-                  boxShadow: isSelected && isDark
-                      ? [
-                          BoxShadow(
-                            color: p.brandColor.withValues(alpha: 0.22),
-                            blurRadius: 8,
-                            spreadRadius: 0.5,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: p.brandColor,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      p.displayName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                        color: isSelected ? Colors.white : colors.onSurfaceVariant,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

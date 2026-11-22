@@ -1936,34 +1936,79 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (item.id.startsWith('youtube:') ||
         item.extras?['downloadProvider'] == 'YouTube' ||
         item.extras?['source'] == 'youtube') {
+      final videoId = item.extras?['providerTrackId'] as String? ??
+          item.id.replaceFirst('youtube:', '');
+      final isCanonicalYoutubeId =
+          RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(videoId);
+
+      if (isCanonicalYoutubeId) {
+        try {
+          final streamDetails =
+              await YoutubeAudioService.instance.getStreamDetails(videoId);
+          final resolvedItem = item.copyWith(
+            extras: {
+              ...?item.extras,
+              'streamUrl': streamDetails.url,
+              'mimeType': streamDetails.mimeType,
+              'bitRate': streamDetails.bitrate,
+              'sampleRate': streamDetails.sampleRate,
+              'channelCount': streamDetails.channelCount,
+              'codec': streamDetails.codec,
+              'userAgent': streamDetails.headers['User-Agent'],
+              'source': 'youtube',
+              'isLiveStream': true,
+              'providerTrackId': videoId,
+            },
+          );
+          _updateQueueItem(resolvedItem);
+          return AudioDeckSource(
+            uri: Uri.parse(streamDetails.url),
+            tag: resolvedItem,
+            headers: streamDetails.headers,
+          );
+        } catch (e) {
+          debugPrint('Direct YouTube stream lookup failed for $videoId: $e; falling back to query search');
+        }
+      }
+
+      // Fallback: search YouTube by title + artist for external IDs or unresolvable IDs
       try {
-        final videoId = item.extras?['providerTrackId'] as String? ??
-            item.id.replaceFirst('youtube:', '');
-        final streamDetails =
-            await YoutubeAudioService.instance.getStreamDetails(videoId);
-        final resolvedItem = item.copyWith(
-          extras: {
-            ...?item.extras,
-            'streamUrl': streamDetails.url,
-            'mimeType': streamDetails.mimeType,
-            'bitRate': streamDetails.bitrate,
-            'sampleRate': streamDetails.sampleRate,
-            'channelCount': streamDetails.channelCount,
-            'codec': streamDetails.codec,
-            'userAgent': streamDetails.headers['User-Agent'],
-            'source': 'youtube',
-            'isLiveStream': true,
-            'providerTrackId': videoId,
-          },
+        final query = '${item.title} ${item.artist ?? ''}'.trim();
+        final ytTracks = await YoutubeAudioService.instance.search(
+          query,
+          filterMixtapes: true,
         );
-        _updateQueueItem(resolvedItem);
-        return AudioDeckSource(
-          uri: Uri.parse(streamDetails.url),
-          tag: resolvedItem,
-          headers: streamDetails.headers,
-        );
+        if (ytTracks.isNotEmpty) {
+          final matched = ytTracks.first;
+          final streamDetails =
+              await YoutubeAudioService.instance.getStreamDetails(matched.id);
+          final resolvedItem = item.copyWith(
+            extras: {
+              ...?item.extras,
+              'streamUrl': streamDetails.url,
+              'mimeType': streamDetails.mimeType,
+              'bitRate': streamDetails.bitrate,
+              'sampleRate': streamDetails.sampleRate,
+              'channelCount': streamDetails.channelCount,
+              'codec': streamDetails.codec,
+              'userAgent': streamDetails.headers['User-Agent'],
+              'source': 'youtube',
+              'isLiveStream': true,
+              'matchedYoutubeId': matched.id,
+              'providerTrackId': matched.id,
+            },
+          );
+          _updateQueueItem(resolvedItem);
+          return AudioDeckSource(
+            uri: Uri.parse(streamDetails.url),
+            tag: resolvedItem,
+            headers: streamDetails.headers,
+          );
+        } else {
+          throw StateError('No audio stream found for "${item.title}" by "${item.artist}".');
+        }
       } catch (e, st) {
-        debugPrint('Could not resolve YouTube stream: $e\n$st');
+        debugPrint('Could not resolve YouTube stream fallback: $e\n$st');
         throw StateError('Could not resolve YouTube stream for "${item.title}": $e');
       }
     }
