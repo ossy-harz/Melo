@@ -18,6 +18,7 @@ import 'package:melo_player/features/auto_mix/transition_plan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_metadata_enricher.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
@@ -2743,8 +2744,29 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           excludeIds: excludeIds,
           excludeTitleKeys: excludeTitleKeys,
         );
+        final scoredRelated = <(YoutubeTrack, double)>[];
+        final seedBpm = (currentItem.extras?['bpm'] as num?)?.toDouble();
+        final seedKey = currentItem.extras?['musicalKey'] as String?;
+        final seedGenre = currentItem.genre ?? (currentItem.extras?['genre'] as String?);
+
         for (final t in related) {
-          final item = t.toMediaItem();
+          if (excludeIds.contains('youtube:${t.id}') || excludeIds.contains(t.id)) continue;
+          final score = SpotifyRecommendationEngine.scoreCandidate(
+            seedTitle: currentItem.title,
+            seedArtist: currentItem.artist ?? '',
+            seedGenre: seedGenre,
+            seedBpm: seedBpm,
+            seedMusicalKey: seedKey,
+            candidateTitle: t.title,
+            candidateArtist: t.author,
+            relatedArtists: recentArtists,
+          );
+          scoredRelated.add((t, score));
+        }
+
+        scoredRelated.sort((a, b) => b.$2.compareTo(a.$2));
+        for (final pair in scoredRelated) {
+          final item = pair.$1.toMediaItem(genre: seedGenre);
           if (!excludeIds.contains(item.id)) {
             excludeIds.add(item.id);
             newItems.add(item);

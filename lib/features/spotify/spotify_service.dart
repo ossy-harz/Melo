@@ -12,6 +12,7 @@ import 'package:spotify/spotify.dart' as sp;
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/music_playlist.dart';
+import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 class SpotifyTrack {
   const SpotifyTrack({
@@ -1383,11 +1384,26 @@ class SpotifyService {
       }
 
       final body = await response.transform(utf8.decoder).join();
-      final nextDataMatch = RegExp(
-        r'<script id="__NEXT_DATA__"[^>]*>([^<]+)</script>',
+      String? rawJson;
+      final scriptMatch = RegExp(
+        r'<script id="(?:__NEXT_DATA__|initial-state|embed-state)"[^>]*>([^<]+)</script>',
       ).firstMatch(body);
+      if (scriptMatch != null) {
+        rawJson = scriptMatch.group(1);
+      } else {
+        final anyJsonScript = RegExp(
+          r'<script type="application/json"[^>]*>([^<]+)</script>',
+        ).allMatches(body);
+        for (final m in anyJsonScript) {
+          final content = m.group(1)!;
+          if (content.contains('trackList') || content.contains('tracks') || content.contains('entity')) {
+            rawJson = content;
+            break;
+          }
+        }
+      }
 
-      if (nextDataMatch == null) {
+      if (rawJson == null) {
         return await _fallbackTracksSearch(
           entityId,
           oembedTitle,
@@ -1396,9 +1412,11 @@ class SpotifyService {
         );
       }
 
-      final jsonData = jsonDecode(nextDataMatch.group(1)!) as Map<String, dynamic>;
+      final jsonData = jsonDecode(rawJson) as Map<String, dynamic>;
       final entity =
-          jsonData['props']?['pageProps']?['state']?['data']?['entity']
+          (jsonData['props']?['pageProps']?['state']?['data']?['entity'] ??
+           jsonData['entity'] ??
+           jsonData['data']?['entity'])
               as Map<String, dynamic>?;
 
       if (entity == null) {
@@ -1534,6 +1552,33 @@ class SpotifyService {
         }
       }
     } catch (_) {}
+
+    // Resilient fallback 2: YouTube Audio Service search
+    if (tracks.isEmpty) {
+      try {
+        final ytQuery = query.toLowerCase().contains('playlist')
+            ? query
+            : '$query songs playlist official audio';
+        final ytHits = await YoutubeAudioService.instance.search(
+          ytQuery,
+          filterMixtapes: true,
+        );
+        for (final y in ytHits.take(30)) {
+          if (y.duration.inSeconds >= 45 && y.duration.inSeconds <= 720) {
+            tracks.add(
+              SpotifyTrack(
+                id: 'youtube:${y.id}',
+                title: y.title,
+                artist: y.author,
+                album: title,
+                durationMs: y.duration.inMilliseconds,
+                artworkUrl: y.thumbnailUrl ?? artworkUrl,
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
 
     if (tracks.isNotEmpty) {
       return SpotifyPlaylistData(

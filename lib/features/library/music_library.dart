@@ -1542,13 +1542,14 @@ class MusicLibrary extends ChangeNotifier {
     return newTracks;
   }
 
-  Future<int> scanDeviceMusic() async {
+  Future<int> scanDeviceMusic({bool forceFullScan = false}) async {
     if (_isImporting) return 0;
     _setImporting(true);
     try {
       final now = DateTime.now();
       final lastFullScan = await _repository?.lastFullDeviceScanAt();
       final needsFullScan =
+          forceFullScan ||
           lastFullScan == null ||
           now.difference(lastFullScan) >= const Duration(hours: 24) ||
           _repository == null;

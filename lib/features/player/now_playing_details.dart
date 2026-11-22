@@ -188,10 +188,6 @@ class _AudioQualityBadges extends StatelessWidget {
               ? item.genre!.trim()
               : studioMeta?.genres.firstOrNull;
 
-      final resolvedYear = (item.extras?['year'] != null)
-          ? '${item.extras!['year']}'
-          : studioMeta?.releaseDate?.split('-').first;
-
       final sourceProvider = item.extras?['downloadProvider'] as String? ??
           (item.id.startsWith('spotify:') || item.extras?['source'] == 'spotify'
               ? 'Spotify'

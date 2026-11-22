@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/multi_metadata_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
@@ -203,6 +204,28 @@ class _SongDetailsSheetState extends State<SongDetailsSheet> {
     }
   }
 
+  Future<void> _startRadio(BuildContext context) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    Navigator.of(context).pop();
+
+    final item = widget.track?.toMediaItem() ?? widget.mediaItem ?? widget.ytTrack?.toMediaItem();
+    if (item != null) {
+      try {
+        final radio = await SmartPlaylistService.instance.generateTrackRadio(
+          seedTrack: item,
+          library: widget.library,
+        );
+        await SmartPlaylistService.instance.playSmartPlaylist(
+          audioHandler: handler,
+          playlist: radio,
+        );
+      } catch (e) {
+        debugPrint('Error starting song radio from details: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
@@ -362,7 +385,7 @@ class _SongDetailsSheetState extends State<SongDetailsSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
@@ -380,6 +403,20 @@ class _SongDetailsSheetState extends State<SongDetailsSheet> {
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: 'Song Radio',
+                    style: IconButton.styleFrom(
+                      backgroundColor: MeloColors.cherry.withValues(alpha: 0.18),
+                      foregroundColor: MeloColors.cherry,
+                      padding: const EdgeInsets.all(14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => _startRadio(context),
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 22),
                   ),
                 ],
               ),

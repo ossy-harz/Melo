@@ -8,6 +8,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
     required this.isFavorite,
     required this.onToggleFavorite,
     required this.onOpenSongInfo,
+    this.onStartSongRadio,
     required this.onStartRadio,
     required this.onOpenArtist,
     required this.onUpgradeQuality,
@@ -26,6 +27,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
   final VoidCallback onOpenSongInfo;
+  final VoidCallback? onStartSongRadio;
   final VoidCallback onStartRadio;
   final VoidCallback onOpenArtist;
   final VoidCallback onUpgradeQuality;
@@ -146,6 +148,16 @@ class NowPlayingMoreSheet extends StatelessWidget {
               _sheetDivider(),
 
               // Group 2: Playback & Queue
+              if (onStartSongRadio != null)
+                _MoreOptionTile(
+                  icon: Icons.auto_awesome_rounded,
+                  title: 'Start song radio',
+                  subtitle: 'Continuous similar tracks',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onStartSongRadio!();
+                  },
+                ),
               _MoreOptionTile(
                 icon: Icons.sensors_rounded,
                 title: 'Start radio',

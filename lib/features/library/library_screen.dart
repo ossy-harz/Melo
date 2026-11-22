@@ -363,6 +363,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         entries,
         library.tracks,
         baseDir: m3uDir,
+        preserveRemoteStreams: true,
       );
       if (tracks.isEmpty) {
         if (!mounted) return;
@@ -388,12 +389,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         );
         if (scanNow != true) return;
-        await library.scanDeviceMusic();
+        await library.scanDeviceMusic(forceFullScan: true);
         if (!mounted) return;
         tracks = MusicPlaylistImport.resolvePlaylistEntries(
           entries,
           library.tracks,
           baseDir: m3uDir,
+          preserveRemoteStreams: true,
         );
         if (tracks.isEmpty) {
           _showMessage(
@@ -413,8 +415,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         initialName: defaultName,
       );
       if (!mounted || name == null) return;
-      final missingCount = entries.length - tracks.length;
-      final confirmed = await showDialog<bool>(
+      var missingCount = entries.length - tracks.length;
+      final confirmed = await showDialog<bool?>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Import playlist?'),
@@ -428,6 +430,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancel'),
             ),
+            if (missingCount > 0)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: const Text('Rescan device'),
+              ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Import'),
@@ -435,7 +442,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
       );
-      if (confirmed != true) return;
+      if (confirmed == false) return;
+      if (confirmed == null) {
+        // User requested a full rescan to catch any recently added songs
+        await library.scanDeviceMusic(forceFullScan: true);
+        if (!mounted) return;
+        tracks = MusicPlaylistImport.resolvePlaylistEntries(
+          entries,
+          library.tracks,
+          baseDir: m3uDir,
+          preserveRemoteStreams: true,
+        );
+        missingCount = entries.length - tracks.length;
+      }
 
       final playlist = await library.createPlaylist(name);
       try {

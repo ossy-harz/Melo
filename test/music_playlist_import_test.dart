@@ -276,4 +276,98 @@ void main() {
       ['copy-2'],
     );
   });
+
+  test('matches filenames with track numbers prefix (e.g. "01 - " or "02. ")', () {
+    const track = ImportedTrack(
+      id: 'track-num-1',
+      path: '/storage/emulated/0/Music/Album/Song Name.mp3',
+      title: 'Song Name',
+      artist: 'Artist',
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: '01 - Song Name.mp3',
+          ),
+        ],
+        [track],
+      ).map((t) => t.id),
+      ['track-num-1'],
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: '02. Song Name.mp3',
+          ),
+        ],
+        [track],
+      ).map((t) => t.id),
+      ['track-num-1'],
+    );
+  });
+
+  test('matches case-insensitively across path suffixes and filenames', () {
+    const track = ImportedTrack(
+      id: 'case-1',
+      path: '/storage/emulated/0/Download/Afrobeats/Burnaboy.MP3',
+      title: 'City Boys',
+      artist: 'Burna Boy',
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: 'download/afrobeats/burnaboy.mp3',
+          ),
+        ],
+        [track],
+      ).map((t) => t.id),
+      ['case-1'],
+    );
+  });
+
+  test('extracts artist and title from filename when EXTINF is missing', () {
+    const track = ImportedTrack(
+      id: 'extinf-missing-1',
+      path: '/storage/emulated/0/Music/Asake/Asake - Lonely At The Top.mp3',
+      title: 'Lonely At The Top',
+      artist: 'Asake',
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: 'Music/Asake - Lonely At The Top.mp3',
+          ),
+        ],
+        [track],
+      ).map((t) => t.id),
+      ['extinf-missing-1'],
+    );
+  });
+
+  test('preserves remote HTTP stream entries as ImportedTracks when requested', () {
+    final resolved = MusicPlaylistImport.resolvePlaylistEntries(
+      const [
+        MusicPlaylistEntry(
+          path: 'https://example.com/audio/live_stream.mp3',
+          title: 'Live Stream Song',
+          artist: 'Web Artist',
+        ),
+      ],
+      [],
+      preserveRemoteStreams: true,
+    );
+
+    expect(resolved.length, 1);
+    expect(resolved.first.path, 'https://example.com/audio/live_stream.mp3');
+    expect(resolved.first.title, 'Live Stream Song');
+    expect(resolved.first.artist, 'Web Artist');
+  });
 }

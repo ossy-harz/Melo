@@ -744,6 +744,31 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
     return bpm != null && bpm > 0 ? bpm : null;
   }
 
+  Future<void> _playSongRadio() async {
+    _showMessage('Starting ${widget.item.title} Radio...');
+    try {
+      final radio = await SmartPlaylistService.instance.generateTrackRadio(
+        seedTrack: widget.item,
+        library: widget.musicLibrary,
+      );
+      await SmartPlaylistService.instance.playSmartPlaylist(
+        audioHandler: widget.audioHandler,
+        playlist: radio,
+      );
+      if (mounted) _showMessage('Playing ${widget.item.title} continuous radio.');
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'tone player',
+          context: ErrorDescription('while starting Now Playing song radio'),
+        ),
+      );
+      if (mounted) _showMessage('Could not start song radio: $error');
+    }
+  }
+
   Future<void> _playArtistRadio() async {
     final artist = widget.item.artist?.trim();
     if (artist == null ||
@@ -1134,6 +1159,9 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         isFavorite: isFav,
         onToggleFavorite: () => _toggleFavorite(widget.item),
         onOpenSongInfo: _openTrackDetails,
+        onStartSongRadio: () async {
+          await _playSongRadio();
+        },
         onStartRadio: () async {
           await _playArtistRadio();
         },

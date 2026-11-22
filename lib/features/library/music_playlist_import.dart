@@ -86,6 +86,7 @@ class MusicPlaylistImport {
     Iterable<MusicPlaylistEntry> entries,
     Iterable<ImportedTrack> tracks, {
     String? baseDir,
+    bool preserveRemoteStreams = false,
   }) {
     final availableTracks = tracks
         .where((track) => track.isAvailable)
@@ -100,6 +101,10 @@ class MusicPlaylistImport {
     ) {
       if (key.isEmpty) return;
       index.putIfAbsent(key, () => []).add(track);
+      final lower = key.toLowerCase();
+      if (lower != key) {
+        index.putIfAbsent(lower, () => []).add(track);
+      }
     }
 
     for (final track in availableTracks) {
@@ -146,9 +151,11 @@ class MusicPlaylistImport {
           entryUri?.scheme == 'http' || entryUri?.scheme == 'https';
 
       final pathKey = normalizedEntry.replaceFirst(RegExp(r'^/+'), '');
+      final lowerPathKey = pathKey.toLowerCase();
       final pathMatches = isRemote
           ? const <ImportedTrack>[]
           : (tracksByPathSuffix[pathKey] ??
+              tracksByPathSuffix[lowerPathKey] ??
               (pathKey.startsWith('storage/emulated/0/')
                   ? tracksByPathSuffix[pathKey.replaceFirst('storage/emulated/0/', 'sdcard/')]
                   : (pathKey.startsWith('sdcard/')
@@ -156,13 +163,43 @@ class MusicPlaylistImport {
                       : null)) ??
               const <ImportedTrack>[]);
 
-      final simplifiedTitle = entry.title != null
-          ? MornyeLyricsMatching.simplifyTrack(entry.title!)
+      // Extract inferred artist & title from entry filename if missing from #EXTINF
+      var effectiveTitle = entry.title;
+      var effectiveArtist = entry.artist;
+      if (effectiveTitle == null && !isRemote) {
+        final base = p.posix.basenameWithoutExtension(normalizedEntry);
+        final cleanBase = _stripTrackPrefix(base);
+        final sepMatch = RegExp(r'\s[-\u2013\u2014]\s').firstMatch(cleanBase);
+        if (sepMatch != null && sepMatch.start > 0) {
+          effectiveArtist ??= cleanBase.substring(0, sepMatch.start).trim();
+          effectiveTitle = cleanBase.substring(sepMatch.end).trim();
+        } else {
+          effectiveTitle = cleanBase;
+        }
+      }
+
+      final simplifiedTitle = effectiveTitle != null
+          ? MornyeLyricsMatching.simplifyTrack(effectiveTitle)
           : null;
+      final rawBasename = p.posix.basename(normalizedEntry);
+      final cleanBasename = _stripTrackPrefix(rawBasename);
+
       final entryAliases = {
-        if (!isRemote) _normalizeTrackName(p.posix.basename(normalizedEntry)),
-        if (entry.title != null) _normalizeTrackName(entry.title!),
+        if (!isRemote) ...[
+          _normalizeTrackName(rawBasename),
+          _normalizeTrackName(cleanBasename),
+        ],
+        if (effectiveTitle != null) ...[
+          _normalizeTrackName(effectiveTitle),
+          _normalizeTrackName(_stripTrackPrefix(effectiveTitle)),
+        ],
         if (simplifiedTitle != null) _normalizeTrackName(simplifiedTitle),
+        if (effectiveArtist != null && effectiveTitle != null) ...[
+          _normalizeTrackName('$effectiveArtist $effectiveTitle'),
+          _normalizeTrackName('$effectiveTitle $effectiveArtist'),
+          _normalizeTrackName('${MornyeLyricsMatching.primaryArtist(effectiveArtist)} $simplifiedTitle'),
+          _normalizeTrackName('$simplifiedTitle ${MornyeLyricsMatching.primaryArtist(effectiveArtist)}'),
+        ],
       }..remove('');
 
       final aliasCandidates = <String, ImportedTrack>{};
@@ -177,6 +214,25 @@ class MusicPlaylistImport {
         ...pathMatches,
         ...aliasCandidates.values,
       };
+
+      // Preserve remote HTTP/HTTPS streaming entries directly if requested
+      if (preserveRemoteStreams && isRemote && candidates.isEmpty) {
+        final remoteTrack = ImportedTrack(
+          id: entry.path,
+          path: entry.path,
+          title: effectiveTitle ?? p.posix.basenameWithoutExtension(entry.path),
+          artist: effectiveArtist ?? 'Streaming Audio',
+          album: 'Imported Playlist',
+          durationMs: entry.durationSeconds != null ? entry.durationSeconds! * 1000 : null,
+          isDeviceMedia: false,
+          isAvailable: true,
+          sourceProvider: 'Stream',
+        );
+        if (includedIds.add(remoteTrack.id)) {
+          resolved.add(remoteTrack);
+        }
+        continue;
+      }
 
       if (candidates.isEmpty) continue;
 
@@ -204,6 +260,9 @@ class MusicPlaylistImport {
               normCandPath.endsWith('/$pathKey') ||
               normCandPath == pathKey) {
             score += 500;
+          } else if (normCandPath.toLowerCase() == normalizedEntry.toLowerCase() ||
+              normCandPath.toLowerCase().endsWith('/$lowerPathKey')) {
+            score += 400;
           } else if (pathMatches.contains(candidate)) {
             score += 250;
           }
@@ -212,32 +271,38 @@ class MusicPlaylistImport {
           final entryBasename = _normalizeTrackName(p.posix.basename(normalizedEntry));
           if (candBasename == entryBasename && candBasename.isNotEmpty) {
             score += 150;
+          } else if (_stripTrackPrefix(candBasename) == _stripTrackPrefix(entryBasename)) {
+            score += 140;
           }
         }
 
         // Title scoring
-        if (entry.title != null) {
-          final entryT = _normalizeTrackName(entry.title!);
+        final activeTitle = effectiveTitle ?? entry.title;
+        if (activeTitle != null) {
+          final entryT = _normalizeTrackName(activeTitle);
           final candT = _normalizeTrackName(candidate.title);
           if (entryT == candT) {
             score += 250;
-          } else if (MornyeLyricsMatching.titlesMatch(candidate.title, entry.title!)) {
+          } else if (MornyeLyricsMatching.titlesMatch(candidate.title, activeTitle)) {
             score += 180;
+          } else if (_stripTrackPrefix(entryT) == _stripTrackPrefix(candT)) {
+            score += 170;
           } else if (entryT.contains(candT) || candT.contains(entryT)) {
             score += 90;
           }
         }
 
         // Artist scoring
-        if (entry.artist != null) {
-          final entryA = _normalizeTrackName(entry.artist!);
+        final activeArtist = effectiveArtist ?? entry.artist;
+        if (activeArtist != null) {
+          final entryA = _normalizeTrackName(activeArtist);
           final candA = _normalizeTrackName(candidate.artist);
           if (entryA == candA) {
             score += 200;
-          } else if (MornyeLyricsMatching.artistsMatch(candidate.artist, entry.artist!)) {
+          } else if (MornyeLyricsMatching.artistsMatch(candidate.artist, activeArtist)) {
             score += 160;
           } else if (MornyeLyricsMatching.primaryArtist(candidate.artist).toLowerCase() ==
-              MornyeLyricsMatching.primaryArtist(entry.artist!).toLowerCase()) {
+              MornyeLyricsMatching.primaryArtist(activeArtist).toLowerCase()) {
             score += 130;
           } else if (entryA.contains(candA) || candA.contains(entryA)) {
             score += 80;
@@ -280,16 +345,38 @@ class MusicPlaylistImport {
     return List.unmodifiable(resolved);
   }
 
+  static String _stripTrackPrefix(String value) {
+    return value
+        .replaceFirst(RegExp(r'^\s*([a-zA-Z]?\d{1,3}[\s._-]+|\(\d{1,3}\)\s*)'), '')
+        .trim();
+  }
+
   static Set<String> _trackAliases(ImportedTrack track) {
     final pathUri = Uri.tryParse(track.path);
     final simplifiedTitle = MornyeLyricsMatching.simplifyTrack(track.title);
-    return {
+    final rawBasename = p.posix.basename(_normalizePath(track.path));
+    final cleanBasename = _stripTrackPrefix(rawBasename);
+    final primaryArt = MornyeLyricsMatching.primaryArtist(track.artist);
+
+    final aliases = <String>{
       _normalizeTrackName(track.sourceName ?? ''),
       _normalizeTrackName(track.title),
       _normalizeTrackName(simplifiedTitle),
-      if (pathUri == null || !pathUri.hasScheme)
-        _normalizeTrackName(p.posix.basename(_normalizePath(track.path))),
-    }..remove('');
+      _normalizeTrackName(_stripTrackPrefix(track.title)),
+      if (pathUri == null || !pathUri.hasScheme) ...[
+        _normalizeTrackName(rawBasename),
+        _normalizeTrackName(cleanBasename),
+      ],
+      if (track.artist.isNotEmpty && track.artist.toLowerCase() != 'unknown artist') ...[
+        _normalizeTrackName('${track.artist} ${track.title}'),
+        _normalizeTrackName('${track.title} ${track.artist}'),
+        _normalizeTrackName('$primaryArt $simplifiedTitle'),
+        _normalizeTrackName('$simplifiedTitle $primaryArt'),
+        _normalizeTrackName('$primaryArt ${_stripTrackPrefix(track.title)}'),
+      ],
+    };
+    aliases.remove('');
+    return aliases;
   }
 
   static String _normalizeTrackName(String value) {
@@ -305,6 +392,21 @@ class MusicPlaylistImport {
         .toLowerCase();
   }
 
+  static String _safeDecode(String input) {
+    try {
+      return Uri.decodeComponent(input);
+    } catch (_) {
+      return input.replaceAllMapped(RegExp(r'%([0-9a-fA-F]{2})'), (match) {
+        try {
+          final charCode = int.parse(match.group(1)!, radix: 16);
+          return String.fromCharCode(charCode);
+        } catch (_) {
+          return match.group(0)!;
+        }
+      });
+    }
+  }
+
   static String _normalizePath(String value) {
     var path = value.trim().replaceAll('\\', '/');
     final uri = Uri.tryParse(path);
@@ -317,13 +419,7 @@ class MusicPlaylistImport {
         path = uri.path;
       }
     } else {
-      try {
-        path = Uri.decodeComponent(path);
-      } on FormatException {
-        // Some playlist producers leave literal percent characters unescaped.
-      } on ArgumentError {
-        // Some playlist producers leave literal percent characters unescaped.
-      }
+      path = _safeDecode(path);
     }
     return p.posix.normalize(path).replaceFirst(RegExp(r'^\./'), '');
   }
