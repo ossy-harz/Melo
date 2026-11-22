@@ -492,6 +492,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
 
   void _selectGenre(String genre) {
     TopPicksShelf.selectedGenreNotifier.value = genre;
+    if (mounted) setState(() {});
     unawaited(_persistVibePrefs());
   }
 
@@ -658,7 +659,9 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     // 'For You': Personalized + Taste-Scored + Seed-Rotated dynamic picks
     final entries = <_TopPickEntry>[];
     final topArtist =
-        library?.topAffinityArtists.firstOrNull ?? spotify.topArtists.firstOrNull;
+        library?.topAffinityArtists.firstOrNull ??
+        library?.tracks.firstOrNull?.artist ??
+        spotify.topArtists.firstOrNull;
     if (topArtist != null) {
       final topArtistCover = SongMetadataEnricher.instance
           .cachedArtistImageUrl(topArtist);
@@ -1405,8 +1408,8 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
             'Morning Boost Radio',
             'Morning flow · Upbeat hits & sunrise energy',
             'MORNING RADIO',
-            'upbeat morning feel good afrobeats pop hits official audio',
-            'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+            'upbeat morning feel good afrobeats pop hits burna boy dua lipa official audio',
+            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
             const [Color(0xFFFA243C), Color(0xFF6B0B1A), Color(0xFF0A0A0C)],
             Icons.wb_sunny_rounded,
           )
@@ -1415,8 +1418,8 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
             'Afternoon Pulse Radio',
             'Midday rhythm · Trending global & local waves',
             'MIDDAY RADIO',
-            'trending afternoon groove dancehall afrobeats official audio',
-            'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+            'trending afternoon groove dancehall afrobeats asake ayra starr official audio',
+            'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80',
             const [Color(0xFFFA243C), Color(0xFF4A0915), Color(0xFF080808)],
             Icons.bolt_rounded,
           )
@@ -1425,8 +1428,8 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
             'Evening Unwind Radio',
             'Golden hour · Smooth vibes & warm anthems',
             'EVENING RADIO',
-            'evening unwind smooth afrobeats rnb hits official audio',
-            'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+            'evening unwind smooth afrobeats rnb hits sza tems giveon official audio',
+            'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80',
             const [Color(0xFF7A0C1E), Color(0xFF140307), Color(0xFF000000)],
             Icons.nights_stay_rounded,
           )
@@ -1434,8 +1437,8 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
             'After Hours Radio',
             'Late night · Slow soul & ambient cuts',
             'MIDNIGHT RADIO',
-            'late night slow jams chill rnb ambient official audio',
-            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+            'late night slow jams chill rnb brent faiyaz daniel caesar official audio',
+            'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
             const [Color(0xFF4A0915), Color(0xFF100306), Color(0xFF000000)],
             Icons.nightlight_round,
           );
@@ -1448,6 +1451,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
       gradient: gradient,
       icon: icon,
       coverUrl: cover,
+      seed: _stationSeed,
     );
     return _StationSpec(
       title: title,
@@ -1486,6 +1490,8 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
         isArtistRadio: !isPodcast,
         genre: activeGenre,
         allowLongEpisodes: isPodcast,
+        coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
+        seed: _stationSeed,
       );
       stations.add(
         _StationSpec(
@@ -1494,8 +1500,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
           gradient: genrePreset.gradient,
           icon: genrePreset.icon,
           preset: genrePreset,
-          defaultArtworkUrl:
-              'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+          defaultArtworkUrl: genrePreset.coverUrl,
           onTap: () => _openPreset(genrePreset),
         ),
       );
@@ -1533,6 +1538,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
         coverUrl: artistArt,
         isArtistRadio: true,
         artistName: pickedArtist,
+        seed: _stationSeed,
       );
       stations.add(
         _StationSpec(
@@ -1544,7 +1550,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
           artworkTrack: matchingTrack,
           defaultArtworkUrl:
               artistArt ??
-              'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+              'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
           onTap: () => _openPreset(artistPreset),
         ),
       );
@@ -1556,28 +1562,28 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
         subtitle: 'Radio Station · Personal flow',
         track: trackAt(1),
         cover:
-            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
       ),
       (
         vibe: SmartVibe.highEnergy,
-        subtitle: 'Radio Station · Exploration',
+        subtitle: 'Radio Station · High Energy',
         track: trackAt(2),
         cover:
-            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+            'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
       ),
       (
         vibe: SmartVibe.deepFocus,
         subtitle: 'Radio Station · Instrumental',
         track: trackAt(3),
         cover:
-            'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80',
+            'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80',
       ),
       (
         vibe: SmartVibe.lateNightChill,
         subtitle: 'Radio Station · Midnight soul',
         track: trackAt(4),
         cover:
-            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+            'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&q=80',
       ),
     ];
     final coreOffset = _stationSeed % coreVibes.length;
@@ -1586,7 +1592,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
       ...coreVibes.take(coreOffset),
     ];
     for (final item in rotatedCore) {
-      final preset = smartVibeStationPreset(item.vibe);
+      final preset = smartVibeStationPreset(item.vibe, seed: _stationSeed);
       stations.add(
         _StationSpec(
           title: preset.title,
@@ -1775,7 +1781,31 @@ class StationTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   child: Stack(
                     children: [
-                      if (artworkTrack != null)
+                      if (defaultArtworkUrl != null && defaultArtworkUrl!.isNotEmpty)
+                        Positioned.fill(
+                          child: CachedNetworkArtwork(
+                            url: defaultArtworkUrl!,
+                            width: 136,
+                            height: 136,
+                            fit: BoxFit.cover,
+                            errorWidget: artworkTrack != null
+                                ? AlbumArtwork(
+                                    size: 136,
+                                    title: artworkTrack!.title,
+                                    artworkUri: artworkTrack!.artworkUri != null
+                                        ? Uri.tryParse(artworkTrack!.artworkUri!)
+                                        : null,
+                                    sourceUri: Uri.tryParse(artworkTrack!.path),
+                                    borderRadius: 0,
+                                  )
+                                : CustomPaint(
+                                    painter: FoldedPrismPainter(
+                                      color: Colors.white.withValues(alpha: 0.14),
+                                    ),
+                                  ),
+                          ),
+                        )
+                      else if (artworkTrack != null)
                         Positioned.fill(
                           child: AlbumArtwork(
                             size: 136,
@@ -1785,20 +1815,6 @@ class StationTile extends StatelessWidget {
                                 : null,
                             sourceUri: Uri.tryParse(artworkTrack!.path),
                             borderRadius: 0,
-                          ),
-                        )
-                      else if (defaultArtworkUrl != null)
-                        Positioned.fill(
-                          child: CachedNetworkArtwork(
-                            url: defaultArtworkUrl!,
-                            width: 136,
-                            height: 136,
-                            fit: BoxFit.cover,
-                            errorWidget: CustomPaint(
-                              painter: FoldedPrismPainter(
-                                color: Colors.white.withValues(alpha: 0.14),
-                              ),
-                            ),
                           ),
                         )
                       else
@@ -5330,16 +5346,20 @@ class BroadcastChannelsShelf extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Trace & Soundcity Live Channels',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                  color: Colors.white,
+              const Expanded(
+                child: Text(
+                  'Trace & Soundcity Live Channels',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(

@@ -19,6 +19,7 @@ import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
+import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/settings/auto_mix_settings_screen.dart';
 import 'package:melo_player/features/settings/support_feedback_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
@@ -1389,16 +1390,11 @@ void main() {
     await tester.tap(find.text('For You'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Spotify Feed'), findsOneWidget);
-    expect(find.text('Sync Account'), findsOneWidget);
     expect(find.text('Stations for You'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text("Today's Top Hits").first,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text("Today's Top Hits").first);
+    final topPickCard = find.byType(TopPickCard).first;
+    expect(topPickCard, findsOneWidget);
+    await tester.tap(topPickCard);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('Cloud Playlist Import'), findsNothing);
@@ -1788,7 +1784,7 @@ void main() {
     );
     await tester.tap(find.text('Appearance'));
     await tester.pumpAndSettle();
-    expect(find.text('Built around the album art.'), findsOneWidget);
+    expect(find.text('Theme & Appearance'), findsOneWidget);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 

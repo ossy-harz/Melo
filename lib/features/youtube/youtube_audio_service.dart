@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/library/music_playlist.dart';
 import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
@@ -91,6 +92,32 @@ class YoutubeTrack {
       'streamUrl': ?streamUrl,
     },
   );
+}
+
+class YoutubePlaylistData {
+  const YoutubePlaylistData({
+    required this.id,
+    required this.title,
+    required this.author,
+    required this.tracks,
+    this.thumbnailUrl,
+  });
+
+  final String id;
+  final String title;
+  final String author;
+  final List<YoutubeTrack> tracks;
+  final String? thumbnailUrl;
+
+  int get totalDurationMs => tracks.fold(0, (sum, t) => sum + t.duration.inMilliseconds);
+
+  String get totalDurationString {
+    final dur = Duration(milliseconds: totalDurationMs);
+    final hours = dur.inHours;
+    final minutes = dur.inMinutes % 60;
+    if (hours > 0) return '${hours}h ${minutes}m';
+    return '${minutes}m';
+  }
 }
 
 class YoutubeStreamDetails {
@@ -358,6 +385,213 @@ class YoutubeAudioService {
       debugPrint('DJ mix search error: $e');
       return const [];
     }
+  }
+
+  /// Extracts the playlist ID from a YouTube or YouTube Music URL or raw ID.
+  static String? extractPlaylistId(String urlOrId) {
+    final clean = urlOrId.trim();
+    if (clean.isEmpty) return null;
+    final match = RegExp(r'(?:list=|/playlist\?list=|/playlist/)([a-zA-Z0-9_-]+)').firstMatch(clean);
+    if (match != null) return match.group(1);
+    if (RegExp(r'^(?:PL|RD|UU|LL|FL|OLAK5uy_)[a-zA-Z0-9_-]+$').hasMatch(clean)) {
+      return clean;
+    }
+    return null;
+  }
+
+  /// Fetches a YouTube or YouTube Music playlist by URL or ID using Innertube with fallback.
+  Future<YoutubePlaylistData?> fetchPlaylist(String urlOrId) async {
+    final playlistId = extractPlaylistId(urlOrId);
+    if (playlistId == null || playlistId.isEmpty) return null;
+
+    final browseId = playlistId.startsWith('VL') ? playlistId : 'VL$playlistId';
+    try {
+      final headers = YoutubeAuthService.instance.getAuthHeaders();
+      final uri = Uri.parse('https://music.youtube.com/youtubei/v1/browse');
+      final payload = {
+        'context': {
+          'client': {
+            'clientName': 'WEB_REMIX',
+            'clientVersion': '1.20241111.01.00',
+            'hl': 'en',
+            'gl': 'US',
+          },
+        },
+        'browseId': browseId,
+      };
+
+      final response = await http
+          .post(uri, headers: headers, body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+
+        String title = 'YouTube Playlist';
+        String author = 'YouTube Music';
+        String? thumbUrl;
+
+        final header = json['header']?['musicDetailHeaderRenderer'] ??
+            json['header']?['musicEditablePlaylistDetailHeaderRenderer']?['header']?['musicDetailHeaderRenderer'];
+        if (header is Map) {
+          final titleRuns = header['title']?['runs'] as List?;
+          if (titleRuns != null && titleRuns.isNotEmpty) {
+            title = titleRuns.map((r) => r['text'] ?? '').join().trim();
+          }
+          final subRuns = header['subtitle']?['runs'] as List?;
+          if (subRuns != null && subRuns.isNotEmpty) {
+            author = subRuns.map((r) => r['text'] ?? '').join().trim();
+          }
+          final headerThumbs = header['thumbnail']?['croppedSquareThumbnailRenderer']?['thumbnail']?['thumbnails'] as List? ??
+              header['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
+          if (headerThumbs != null && headerThumbs.isNotEmpty) {
+            thumbUrl = headerThumbs.last['url'] as String?;
+          }
+        }
+
+        final tracks = <YoutubeTrack>[];
+        final sectionList = json['contents']?['singleColumnBrowseResultsRenderer']
+            ?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+        if (sectionList != null) {
+          for (final section in sectionList) {
+            final shelf = section['musicPlaylistShelfRenderer'] ?? section['musicShelfRenderer'];
+            final items = shelf?['contents'] as List?;
+            if (items == null) continue;
+            for (final item in items) {
+              final renderer = item['musicResponsiveListItemRenderer'] as Map<String, dynamic>?;
+              if (renderer == null) continue;
+              final videoId = renderer['playlistItemData']?['videoId'] as String?;
+              if (videoId == null || videoId.isEmpty) continue;
+
+              final flexCols = renderer['flexColumns'] as List?;
+              if (flexCols == null || flexCols.isEmpty) continue;
+              final col0Runs = flexCols[0]['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs'] as List?;
+              final tTitle = col0Runs?.map((r) => r['text'] ?? '').join().trim() ?? '';
+              if (tTitle.isEmpty) continue;
+
+              var tAuthor = author;
+              String? tAlbum;
+              Duration tDuration = Duration.zero;
+
+              if (flexCols.length > 1) {
+                final col1Runs = flexCols[1]['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs'] as List?;
+                if (col1Runs != null) {
+                  final tokens = col1Runs
+                      .map((r) => (r['text'] as String? ?? '').trim())
+                      .where((t) => t.isNotEmpty && t != '•' && t != '·')
+                      .toList();
+                  if (tokens.isNotEmpty && RegExp(r'^\d+:\d+(?::\d+)?$').hasMatch(tokens.last)) {
+                    tDuration = _parseDuration(tokens.removeLast());
+                  }
+                  if (tokens.isNotEmpty && (tokens.first == 'Song' || tokens.first == 'Video' || tokens.first == 'Single')) {
+                    tokens.removeAt(0);
+                  }
+                  if (tokens.isNotEmpty) {
+                    tAuthor = tokens.first;
+                  }
+                  if (tokens.length >= 2) {
+                    tAlbum = tokens[1];
+                  }
+                }
+              }
+
+              final thumbs = renderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
+              String? trackThumb;
+              if (thumbs != null && thumbs.isNotEmpty) {
+                trackThumb = cleanThumbnailUrl(thumbs.last['url'] as String?, videoId: videoId);
+              }
+              trackThumb ??= cleanThumbnailUrl(null, videoId: videoId);
+
+              tracks.add(
+                YoutubeTrack(
+                  id: videoId,
+                  title: tTitle,
+                  author: tAuthor,
+                  album: tAlbum ?? title,
+                  duration: tDuration,
+                  thumbnailUrl: trackThumb,
+                ),
+              );
+            }
+          }
+        }
+
+        if (tracks.isNotEmpty) {
+          thumbUrl ??= tracks.first.thumbnailUrl;
+          return YoutubePlaylistData(
+            id: playlistId,
+            title: title.isNotEmpty ? title : 'YouTube Playlist',
+            author: author,
+            tracks: tracks,
+            thumbnailUrl: thumbUrl,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Innertube fetchPlaylist error: $e');
+    }
+
+    // Fallback: youtube_explode_dart
+    try {
+      final yt = yte.YoutubeExplode();
+      try {
+        final pl = await yt.playlists.get(playlistId);
+        final rawTracks = await yt.playlists.getVideos(playlistId).take(100).toList();
+        final tracks = rawTracks.map((v) => YoutubeTrack(
+          id: v.id.value,
+          title: v.title,
+          author: v.author,
+          duration: v.duration ?? Duration.zero,
+          thumbnailUrl: v.thumbnails.highResUrl,
+        )).toList();
+        return YoutubePlaylistData(
+          id: playlistId,
+          title: pl.title,
+          author: pl.author,
+          tracks: tracks,
+          thumbnailUrl: pl.thumbnails.highResUrl,
+        );
+      } finally {
+        yt.close();
+      }
+    } catch (e) {
+      debugPrint('youtube_explode fetchPlaylist fallback error: $e');
+    }
+    return null;
+  }
+
+  /// Imports a YouTube playlist into Melo's library so it appears in Library > Playlists.
+  Future<MusicPlaylist> importPlaylistToTone({
+    required YoutubePlaylistData playlist,
+    required MusicLibrary library,
+    bool mergeExisting = false,
+  }) async {
+    var targetName = playlist.title;
+    MusicPlaylist? tonePlaylist;
+    if (mergeExisting) {
+      tonePlaylist = library.playlists
+          .where((p) => p.name.toLowerCase() == targetName.toLowerCase())
+          .firstOrNull;
+    }
+    var suffix = 2;
+    while (tonePlaylist == null) {
+      try {
+        tonePlaylist = await library.createPlaylist(targetName);
+      } catch (_) {
+        targetName = '${playlist.title} ($suffix)';
+        suffix++;
+      }
+    }
+
+    final importedTracks = playlist.tracks.map((t) => t.toImportedTrack()).toList();
+    await library.importExternalTracks(importedTracks);
+
+    await library.addTracksToPlaylist(
+      tonePlaylist.id,
+      importedTracks.map((t) => t.id),
+    );
+
+    return tonePlaylist;
   }
 
   Future<List<YoutubeTrack>> _searchYoutubeMusicSongs(String query) async {

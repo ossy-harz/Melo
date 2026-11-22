@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
@@ -81,7 +82,22 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
     });
 
     try {
-      final data = await SpotifyService.instance.fetchPlaylist(clean);
+      final resolved = await ExternalFeedService.instance.resolveExternalUrl(clean);
+      final data = SpotifyPlaylistData(
+        id: resolved.id,
+        title: resolved.title,
+        description: resolved.description ?? '${resolved.provider} · ${resolved.curator}',
+        artworkUrl: resolved.artworkUrl,
+        owner: resolved.curator,
+        tracks: resolved.tracks.map((t) => SpotifyTrack(
+          id: t.providerTrackId ?? t.id,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          durationMs: t.durationMs ?? 180000,
+          artworkUrl: t.artworkUri,
+        )).toList(),
+      );
       if (!mounted) return;
       setState(() {
         _loadedPlaylist = data;
@@ -445,7 +461,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                         controller: _urlController,
                         onSubmitted: _fetchPlaylist,
                         decoration: InputDecoration(
-                          hintText: 'https://open.spotify.com/playlist/...',
+                          hintText: 'Spotify, YouTube Music, or Apple Music link...',
                           hintStyle: TextStyle(
                             fontSize: 13,
                             color: colors.onSurfaceVariant,

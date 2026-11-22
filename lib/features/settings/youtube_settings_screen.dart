@@ -65,6 +65,115 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
     }
   }
 
+  void _showImportPlaylistDialog() {
+    final messenger = ScaffoldMessenger.of(context);
+    final textController = TextEditingController();
+    bool isImporting = false;
+    String? errorText;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogInnerContext, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.playlist_add_rounded, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Import YouTube Playlist'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Paste any YouTube or YouTube Music playlist link or ID to import its tracks directly into your Library.',
+                      style: TextStyle(fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: textController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'https://music.youtube.com/playlist?list=...',
+                        prefixIcon: const Icon(Icons.link_rounded, size: 18),
+                        border: const OutlineInputBorder(),
+                        errorText: errorText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isImporting ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isImporting
+                      ? null
+                      : () async {
+                          final input = textController.text.trim();
+                          if (input.isEmpty) {
+                            setDialogState(() => errorText = 'Please enter a playlist URL or ID.');
+                            return;
+                          }
+                          setDialogState(() {
+                            isImporting = true;
+                            errorText = null;
+                          });
+
+                          try {
+                            final playlist = await YoutubeAudioService.instance.fetchPlaylist(input);
+                            if (playlist == null || playlist.tracks.isEmpty) {
+                              throw StateError('No tracks found in playlist or playlist is private.');
+                            }
+
+                            if (widget.library != null) {
+                              await YoutubeAudioService.instance.importPlaylistToTone(
+                                playlist: playlist,
+                                library: widget.library!,
+                              );
+                            }
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.of(dialogContext).pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Imported "${playlist.title}" (${playlist.tracks.length} tracks) to your Library!',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                            if (mounted) setState(() {});
+                          } catch (e) {
+                            setDialogState(() {
+                              isImporting = false;
+                              errorText = 'Import failed: $e';
+                            });
+                          }
+                        },
+                  child: isImporting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Import to Library'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showConnectDialog() {
     final messenger = ScaffoldMessenger.of(context);
     final textController = TextEditingController();
@@ -331,6 +440,12 @@ class _YoutubeSettingsScreenState extends State<YoutubeSettingsScreen> {
             ),
             icon: const Icon(Icons.search_rounded),
             label: const Text('Search & Stream YouTube Music'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _showImportPlaylistDialog,
+            icon: const Icon(Icons.playlist_add_rounded, color: Colors.red),
+            label: const Text('Import YouTube Playlist to Library'),
           ),
           const SizedBox(height: 28),
 

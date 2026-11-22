@@ -359,14 +359,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 32),
 
-                      // Shelf 3: Live TV & Broadcast Channels (Trace & Soundcity Countdown Charts)
+                      // Shelf 3: Artist Radio (Curated & Library Artist Stations)
+                      ArtistRadioShelf(
+                        library: widget.library,
+                        onOpenArtistRadio: (artist) =>
+                            _openArtistRadio(context, artist),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Shelf 4: Live TV & Broadcast Channels (Trace & Soundcity Countdown Charts)
                       BroadcastChannelsShelf(
                         onPlayPreset: (preset) =>
                             _openCuratedPreset(context, preset),
                       ),
                       const SizedBox(height: 32),
 
-                      // Shelf 4: Made For You & Editorial Stations (Personal Mix Flow)
+                      // Shelf 5: Made For You & Editorial Stations (Personal Mix Flow)
                       StationsForYouShelf(
                         library: widget.library,
                         audioHandler: widget.audioHandler,
@@ -387,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openStation(BuildContext context, SmartVibe vibe) {
-    final preset = smartVibeStationPreset(vibe);
+    final preset = smartVibeStationPreset(vibe, seed: _refreshGeneration);
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(

@@ -192,7 +192,7 @@ void main() {
       final manager = AudioAddonManager.instance;
       await manager.initialize();
 
-      expect(manager.addons.length, 6);
+      expect(manager.addons.length, 9);
       expect(manager.isAddonActive('youtube_music'), isTrue);
       expect(manager.isAddonActive('spotify_matcher'), isTrue);
       expect(manager.isAddonActive('bit_perfect_dac'), isTrue);
@@ -200,8 +200,8 @@ void main() {
       expect(manager.isAddonActive('lrclib_itunes_metadata'), isTrue);
       expect(manager.isAddonActive('subsonic_navidrome'), isFalse);
 
-      await manager.moveAddonPriority('spotify_matcher', -1);
-      expect(manager.addons.first.id, 'spotify_matcher');
+      await manager.moveAddonPriority('qobuz_lossless', -1);
+      expect(manager.addons.first.id, 'qobuz_lossless');
     });
 
     test('toggles addon status and persists preference', () async {

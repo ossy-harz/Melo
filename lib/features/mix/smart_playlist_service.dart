@@ -193,6 +193,7 @@ class SmartPlaylistService {
   Future<SmartPlaylist> generateVibeMix({
     required SmartVibe vibe,
     MusicLibrary? library,
+    int seed = 0,
   }) async {
     final queueTracks = <MediaItem>[];
     final seenIds = <String>{};
@@ -200,27 +201,52 @@ class SmartPlaylistService {
     String title;
     String subtitle;
     String searchQuery;
+    final String coverArt;
 
     switch (vibe) {
       case SmartVibe.dailyFlow:
         title = 'My Daily Flow';
         subtitle = 'Your favorites blended with smart discoveries';
-        searchQuery = 'popular hits music mix';
+        const queries = [
+          'popular hits afro pop rnb songs official audio',
+          'trending afrobeats amapiano billboard hits official audio',
+          'chart topping global hits burna boy sabrina carpenter official audio',
+        ];
+        searchQuery = queries[seed % queries.length];
+        coverArt = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80';
         break;
       case SmartVibe.highEnergy:
         title = 'High Energy Workout';
         subtitle = 'Driving rhythms & high tempo beats';
-        searchQuery = 'high energy workout motivational music';
+        const queries = [
+          'high energy workout afrobeats amapiano hits official audio',
+          'explosive gym motivation hip hop dance anthems official audio',
+          'uptempo electronic house high energy workout official audio',
+        ];
+        searchQuery = queries[seed % queries.length];
+        coverArt = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80';
         break;
       case SmartVibe.deepFocus:
         title = 'Deep Focus & Study';
         subtitle = 'Calm instrumental & lofi beats';
-        searchQuery = 'lofi hip hop radio beats to relax study to';
+        const queries = [
+          'lofi hip hop chill beats study relax official audio',
+          'ambient study piano gentle chill instrumental official audio',
+          'peaceful coffee shop lofi jazzhop beats official audio',
+        ];
+        searchQuery = queries[seed % queries.length];
+        coverArt = 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80';
         break;
       case SmartVibe.lateNightChill:
         title = 'Late Night Chill';
         subtitle = 'Mellow acoustic & atmospheric vibes';
-        searchQuery = 'chill acoustic late night music';
+        const queries = [
+          'smooth rnb neo soul chill late night official audio',
+          'late night acoustic soul slow jams official audio',
+          'night drive ambient chill rnb mellow hits official audio',
+        ];
+        searchQuery = queries[seed % queries.length];
+        coverArt = 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&q=80';
         break;
     }
 
@@ -284,12 +310,12 @@ class SmartPlaylistService {
     }
 
     return SmartPlaylist(
-      id: 'vibe:${vibe.name}',
+      id: 'vibe:${vibe.name}:$seed',
       title: title,
       subtitle: subtitle,
       tracks: queueTracks,
       isContinuous: true,
-      artworkUri: queueTracks.isNotEmpty ? queueTracks.first.artUri?.toString() : null,
+      artworkUri: coverArt,
     );
   }
 

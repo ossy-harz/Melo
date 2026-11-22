@@ -1094,31 +1094,40 @@ class SpotifyService {
     return syncedCount;
   }
 
-  String? extractPlaylistId(String input) {
+  /// Parses a Spotify URL or raw ID into its unique identifier and entity type ('playlist', 'album', 'track').
+  static (String id, String type)? parseSpotifyUrlOrId(String input) {
     final clean = input.trim();
-    if (clean.startsWith('spotify:playlist:')) {
-      return clean.replaceFirst('spotify:playlist:', '').split('?').first;
+    if (clean.isEmpty) return null;
+    final uriMatch = RegExp(r'spotify:(playlist|album|track):([a-zA-Z0-9]+)').firstMatch(clean);
+    if (uriMatch != null) {
+      return (uriMatch.group(2)!, uriMatch.group(1)!);
     }
-    final urlMatch = RegExp(r'open\.spotify\.com/playlist/([a-zA-Z0-9]+)').firstMatch(clean);
+    final urlMatch = RegExp(r'open\.spotify\.com/(playlist|album|track)/([a-zA-Z0-9]+)').firstMatch(clean);
     if (urlMatch != null) {
-      return urlMatch.group(1);
+      return (urlMatch.group(2)!, urlMatch.group(1)!);
     }
-    // Check if input is a raw 22-character alphanumeric Spotify ID
     if (RegExp(r'^[a-zA-Z0-9]{22}$').hasMatch(clean)) {
-      return clean;
+      return (clean, 'playlist');
     }
     return null;
   }
 
-  /// Fetches a public Spotify playlist without requiring credentials, using
-  /// Spotify's public embed page data. Falls back to official Web API if credentials exist.
-  Future<SpotifyPlaylistData> fetchPlaylist(String urlOrId) async {
-    final playlistId = extractPlaylistId(urlOrId);
-    if (playlistId == null) {
-      throw const FormatException('Invalid Spotify playlist URL or ID.');
-    }
+  String? extractPlaylistId(String input) {
+    final parsed = parseSpotifyUrlOrId(input);
+    return parsed?.$1;
+  }
 
-    final cached = _playlistCache[playlistId];
+  /// Fetches a public Spotify playlist or album without requiring developer credentials,
+  /// using Spotify oEmbed and public embed page data with Deezer/iTunes resilience.
+  Future<SpotifyPlaylistData> fetchPlaylist(String urlOrId) async {
+    final parsed = parseSpotifyUrlOrId(urlOrId);
+    if (parsed == null) {
+      throw const FormatException('Invalid Spotify URL or ID. Please check the link.');
+    }
+    final entityId = parsed.$1;
+    final entityType = parsed.$2;
+
+    final cached = _playlistCache[entityId];
     if (cached != null && cached.tracks.isNotEmpty) {
       return cached;
     }
@@ -1129,17 +1138,17 @@ class SpotifyService {
     final clientSecret = await getSavedClientSecret();
     if (clientId != null && clientSecret != null) {
       try {
-        data = await _fetchViaWebApi(playlistId, clientId, clientSecret);
-        _playlistCache[playlistId] = data;
+        data = await _fetchViaWebApi(entityId, clientId, clientSecret);
+        _playlistCache[entityId] = data;
         return data;
       } catch (e) {
         debugPrint('Spotify Web API failed; falling back to embed parsing: $e');
       }
     }
 
-    // Fast & resilient public embed parsing (no credentials needed)
-    data = await _fetchViaEmbed(playlistId);
-    _playlistCache[playlistId] = data;
+    // Fast, tokenless & resilient public embed + oEmbed parsing
+    data = await _fetchViaEmbed(entityId, entityType: entityType);
+    _playlistCache[entityId] = data;
     return data;
   }
 
@@ -1161,13 +1170,31 @@ class SpotifyService {
     return const [];
   }
 
-  Future<SpotifyPlaylistData> _fetchViaEmbed(String playlistId) async {
+  Future<SpotifyPlaylistData> _fetchViaEmbed(
+    String entityId, {
+    String entityType = 'playlist',
+  }) async {
+    // 1. Fetch Spotify oEmbed for authoritative title, thumbnail, and author
+    String oembedTitle = 'Spotify Playlist';
+    String? oembedThumbnail;
+    try {
+      final oembedUri = Uri.parse(
+        'https://open.spotify.com/oembed?url=https://open.spotify.com/$entityType/$entityId',
+      );
+      final oembedRes = await http.get(oembedUri).timeout(const Duration(seconds: 8));
+      if (oembedRes.statusCode == 200) {
+        final oData = jsonDecode(oembedRes.body) as Map<String, dynamic>;
+        oembedTitle = (oData['title'] as String?)?.trim() ?? oembedTitle;
+        oembedThumbnail = (oData['thumbnail_url'] as String?)?.trim();
+      }
+    } catch (_) {}
+
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
 
     try {
       final request = await client.getUrl(
-        Uri.parse('https://open.spotify.com/embed/playlist/$playlistId'),
+        Uri.parse('https://open.spotify.com/embed/$entityType/$entityId'),
       );
       request.headers.set(
         HttpHeaders.userAgentHeader,
@@ -1197,16 +1224,30 @@ class SpotifyService {
         throw const FormatException('Spotify playlist entity not found.');
       }
 
-      final name = entity['name'] as String? ?? 'Spotify Playlist';
-      final subtitle = entity['subtitle'] as String? ?? '';
-      final trackList = (entity['trackList'] as List?) ?? const [];
+      final name = (entity['name'] as String?) ??
+          (entity['title'] as String?) ??
+          oembedTitle;
+      final subtitle = (entity['subtitle'] as String?) ??
+          (entity['description'] as String?) ??
+          '';
+      final trackList = ((entity['trackList'] ?? entity['tracks']) as List?) ?? const [];
 
-      String? artworkUrl;
-      final visual = entity['visual'] as Map<String, dynamic>?;
-      final images = visual?['avatar']?['sources'] as List? ??
-          visual?['header']?['sources'] as List?;
+      String? artworkUrl = oembedThumbnail;
+      final visualIdentity = entity['visualIdentity'] as Map<String, dynamic>?;
+      final images = visualIdentity?['image'] as List?;
       if (images != null && images.isNotEmpty) {
-        artworkUrl = images.first['url'] as String?;
+        final last = images.last;
+        if (last is Map && last['url'] != null) {
+          artworkUrl = last['url'] as String?;
+        }
+      }
+      if (artworkUrl == null) {
+        final visual = entity['visual'] as Map<String, dynamic>?;
+        final avatarSources = visual?['avatar']?['sources'] as List? ??
+            visual?['header']?['sources'] as List?;
+        if (avatarSources != null && avatarSources.isNotEmpty) {
+          artworkUrl = avatarSources.first['url'] as String?;
+        }
       }
 
       final tracks = <SpotifyTrack>[];
@@ -1214,13 +1255,17 @@ class SpotifyService {
         if (raw is! Map<String, dynamic>) continue;
         final trackUri = raw['uri'] as String? ?? '';
         final trackId = trackUri.replaceFirst('spotify:track:', '');
-        final title = raw['title'] as String? ?? 'Untitled';
-        final artist = raw['subtitle'] as String? ?? 'Unknown Artist';
-        final duration = raw['duration'] as int? ?? 180000;
+        final title = raw['title'] as String? ?? raw['name'] as String? ?? 'Untitled';
+        final artist = raw['subtitle'] as String? ??
+            raw['artist'] as String? ??
+            'Unknown Artist';
+        final duration = (raw['duration'] as num?)?.toInt() ??
+            (raw['duration_ms'] as num?)?.toInt() ??
+            180000;
 
         tracks.add(
           SpotifyTrack(
-            id: trackId,
+            id: trackId.isNotEmpty ? trackId : '$name-$title',
             title: title,
             artist: artist,
             album: name,
@@ -1231,7 +1276,7 @@ class SpotifyService {
       }
 
       return SpotifyPlaylistData(
-        id: playlistId,
+        id: entityId,
         title: name,
         description: subtitle,
         artworkUrl: artworkUrl,

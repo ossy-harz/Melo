@@ -371,6 +371,7 @@ class CuratedPlaylistPreset {
     this.allowLongEpisodes = false,
     this.isBroadcastChannel = false,
     this.broadcastStation,
+    this.seed = 0,
   });
 
   final String title;
@@ -391,30 +392,34 @@ class CuratedPlaylistPreset {
   final bool allowLongEpisodes;
   final bool isBroadcastChannel;
   final String? broadcastStation;
+  final int seed;
 }
 
 /// Builds a canonical [CuratedPlaylistPreset] for a [SmartVibe] station so
 /// Home shelves and background preloading share identical cache keys.
-CuratedPlaylistPreset smartVibeStationPreset(SmartVibe vibe) {
-  final (title, subtitle, badge, gradient, icon) = switch (vibe) {
+CuratedPlaylistPreset smartVibeStationPreset(SmartVibe vibe, {int seed = 0}) {
+  final (title, subtitle, badge, cover, gradient, icon) = switch (vibe) {
     SmartVibe.dailyFlow => (
       'Personal Station',
       'Continuous dynamic stream tailored to your favorites',
       'PERSONAL STATION',
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
       const [Color(0xFFFA243C), Color(0xFF7A0C1E), Color(0xFF0A0A0C)],
       Icons.graphic_eq_rounded,
     ),
     SmartVibe.highEnergy => (
-      'Discovery Station',
-      'Endless exploration & fresh music discoveries',
-      'DISCOVERY',
+      'High Energy Workout',
+      'Driving rhythms, uptempo beats & athletic flow',
+      'HIGH ENERGY',
+      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
       const [Color(0xFF3B0812), Color(0xFFFA243C), Color(0xFF080808)],
-      Icons.radar_rounded,
+      Icons.bolt_rounded,
     ),
     SmartVibe.deepFocus => (
       'Deep Focus & Study',
       'Calm instrumental grooves and ambient lofi beats',
       'INSTRUMENTAL',
+      'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80',
       const [Color(0xFF1C1C1E), Color(0xFF3A0A14), Color(0xFF000000)],
       Icons.headphones_rounded,
     ),
@@ -422,6 +427,7 @@ CuratedPlaylistPreset smartVibeStationPreset(SmartVibe vibe) {
       'Late Night Chill',
       'Mellow acoustic & atmospheric midnight soul',
       'LATE NIGHT',
+      'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&q=80',
       const [Color(0xFF4A0915), Color(0xFF140307), Color(0xFF000000)],
       Icons.nightlight_round,
     ),
@@ -434,7 +440,9 @@ CuratedPlaylistPreset smartVibeStationPreset(SmartVibe vibe) {
     searchQuery: '',
     gradient: gradient,
     icon: icon,
+    coverUrl: cover,
     vibe: vibe,
+    seed: seed,
   );
 }
 
@@ -483,7 +491,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   static final Map<String, Future<List<YoutubeTrack>>> _inFlightPreloads = {};
 
   static String _cacheKeyFor(CuratedPlaylistPreset preset) =>
-      '${preset.spotifyPlaylistId ?? ""}|${preset.title}|${preset.searchQuery}';
+      '${preset.spotifyPlaylistId ?? ""}|${preset.title}|${preset.searchQuery}|${preset.seed}';
 
   List<YoutubeTrack> _tracks = const [];
   bool _loading = true;
@@ -758,6 +766,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       final smart = await SmartPlaylistService.instance.generateVibeMix(
         vibe: preset.vibe!,
         library: library,
+        seed: preset.seed,
       );
       valid = _mapMediaItemsStatic(smart.tracks, fallbackArtist: 'Melo');
     } else if (preset.searchQuery.trim().isNotEmpty) {
