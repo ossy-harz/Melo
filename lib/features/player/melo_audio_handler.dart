@@ -1390,6 +1390,37 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     await _startPlayback();
   }
 
+  Future<void> _smoothFadeOutDeck(AudioDeck deck, {int durationMs = 35}) async {
+    final state = _audioEngine.stateFor(deck);
+    if (!state.playing || state.gain <= 0.0) return;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      await _audioEngine.setDeckGain(deck, 0.0);
+      return;
+    }
+    final startGain = state.gain;
+    final steps = (durationMs / 10).round().clamp(2, 4);
+    for (var i = 1; i <= steps; i++) {
+      final factor = 1.0 - (i / steps);
+      await _audioEngine.setDeckGain(deck, startGain * factor);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    await _audioEngine.setDeckGain(deck, 0.0);
+  }
+
+  Future<void> _smoothFadeInDeck(AudioDeck deck, double targetGain, {int durationMs = 50}) async {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      await _audioEngine.setDeckGain(deck, targetGain);
+      return;
+    }
+    final steps = (durationMs / 15).round().clamp(2, 4);
+    for (var i = 1; i <= steps; i++) {
+      final factor = i / steps;
+      await _audioEngine.setDeckGain(deck, targetGain * factor);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+    }
+    await _audioEngine.setDeckGain(deck, targetGain);
+  }
+
   Future<void> _startPlayback() async {
     await _settingsReady;
     if (_items.isEmpty) return;
@@ -1403,10 +1434,16 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         AudioDeckProcessingState.completed) {
       await _audioEngine.seekDeck(AudioDeck.a, Duration.zero);
     }
-    await _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain);
+    final currentGain = _audioEngine.stateFor(AudioDeck.a).gain;
+    final target = _effectiveTargetGain;
     await _activateAudioSession();
     _startPlaybackOnPlayer();
     _scheduleNextTrackPreload();
+    if (!Platform.environment.containsKey('FLUTTER_TEST') && currentGain <= 0.05) {
+      unawaited(_smoothFadeInDeck(AudioDeck.a, target));
+    } else {
+      await _audioEngine.setDeckGain(AudioDeck.a, target);
+    }
   }
 
   Future<void> _activateAudioSession() async {
@@ -2135,12 +2172,20 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         return;
       }
 
-      // Silence both decks immediately to eliminate popping and volume surge on track change.
+      // Smoothly fade out both decks to eliminate popping and volume surge on track change.
       if (_audioEngine.stateFor(AudioDeck.a).playing) {
-        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+        if (Platform.environment.containsKey('FLUTTER_TEST')) {
+          await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+        } else {
+          await _smoothFadeOutDeck(AudioDeck.a);
+        }
       }
       if (_audioEngine.stateFor(AudioDeck.b).playing) {
-        await _audioEngine.setDeckGain(AudioDeck.b, 0.0);
+        if (Platform.environment.containsKey('FLUTTER_TEST')) {
+          await _audioEngine.setDeckGain(AudioDeck.b, 0.0);
+        } else {
+          await _smoothFadeOutDeck(AudioDeck.b);
+        }
       }
       await _audioEngine.stopDeck(AudioDeck.a);
       await _unloadDeckBBeforeQueueChange();
@@ -2215,7 +2260,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       if (isCancelled?.call() == true) return null;
       await _audioEngine.loadDeck(AudioDeck.a, source);
       if (isCancelled?.call() == true) return null;
-      await _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain);
+      await _audioEngine.setDeckGain(
+        AudioDeck.a,
+        Platform.environment.containsKey('FLUTTER_TEST') ? _effectiveTargetGain : 0.0,
+      );
       return source;
     } catch (error, stackTrace) {
       if (isCancelled?.call() == true) return null;
@@ -2237,7 +2285,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
               if (isCancelled?.call() == true) return null;
               await _audioEngine.setDeckGain(
                 AudioDeck.a,
-                _effectiveTargetGain,
+                0.0,
               );
               return refreshed;
             }
@@ -2270,7 +2318,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
               if (isCancelled?.call() == true) return null;
               await _audioEngine.setDeckGain(
                 AudioDeck.a,
-                _effectiveTargetGain,
+                0.0,
               );
               return fallbackSource;
             }

@@ -107,13 +107,14 @@ class AudioProfile {
     bool applyEqHeadroom = true,
   }) {
     var gain = applyEqHeadroom ? outputHeadroom : 1.0;
-    if (!loudnessNormalization || relativeLoudnessDb == null) return gain;
+    if (!loudnessNormalization) return gain;
+    final effectiveLoudness = relativeLoudnessDb ?? -14.0;
     final levelGain = math
-        .pow(10, (targetLoudnessDb - relativeLoudnessDb) / 20)
+        .pow(10, (targetLoudnessDb - effectiveLoudness) / 20)
         .toDouble();
     gain = math.min(gain, levelGain);
     if (peakToRmsDb != null) {
-      final estimatedPeakDb = relativeLoudnessDb + peakToRmsDb;
+      final estimatedPeakDb = effectiveLoudness + peakToRmsDb;
       final peakCeilingGain = math
           .pow(10, (-1 - estimatedPeakDb) / 20)
           .toDouble();

@@ -188,12 +188,14 @@ class AutoMixController {
       return false;
     } on Object catch (error, stackTrace) {
       try {
-        await _restoreDecks(
-          outgoingGain: outgoingGain,
-          incomingGain: incomingGain,
-          incomingWasPlaying: incomingWasPlaying,
-          incomingPosition: incomingPosition,
-        );
+        if (_restoreDecksOnCancel) {
+          await _restoreDecks(
+            outgoingGain: outgoingGain,
+            incomingGain: incomingGain,
+            incomingWasPlaying: incomingWasPlaying,
+            incomingPosition: incomingPosition,
+          );
+        }
       } on Object catch (restoreError, restoreStackTrace) {
         Error.throwWithStackTrace(
           StateError(

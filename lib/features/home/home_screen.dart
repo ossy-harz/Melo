@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_library.dart';
@@ -31,6 +30,18 @@ class HomeScreen extends StatefulWidget {
   final AudioHandler? audioHandler;
   final MusicLibrary? library;
 
+  static String _todayDateFormatted([DateTime? now]) {
+    final d = now ?? DateTime.now();
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final dayName = days[d.weekday - 1];
+    final monthName = months[d.month - 1];
+    return '$dayName, $monthName ${d.day}';
+  }
+
   static String timeOfDayGreeting([DateTime? now]) {
     final hour = (now ?? DateTime.now()).hour;
     if (hour >= 4 && hour < 12) return 'Good morning';
@@ -46,7 +57,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late String _greeting = HomeScreen.timeOfDayGreeting();
   int _refreshGeneration = 0;
-  String _selectedMood = 'All';
+  final String _selectedMood = 'All';
   Timer? _clockTimer;
 
   @override
@@ -167,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
-                                        _greeting.toUpperCase(),
+                                        '${HomeScreen._todayDateFormatted().toUpperCase()} · ${_greeting.toUpperCase()}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
@@ -184,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Home',
+                                  'Listen Now',
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineMedium
@@ -326,21 +337,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
 
-                      // Mornye-Style Mood & Activity Speed Dial Pills
-                      MornyeMoodFilterBar(
-                        selectedMood: _selectedMood,
-                        onSelectMood: (mood) {
-                          setState(() {
-                            _selectedMood = mood;
-                            _refreshGeneration++;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Shelf 1: Top Picks for You (Hero Editorial Showcase)
+                      // Shelf 1: Apple Music Editorial Showcase (Hero Banners & Curated Highlights)
                       TopPicksShelf(
                         library: widget.library,
                         refreshGeneration: _refreshGeneration,
@@ -350,56 +349,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onOpenArtistRadio: (artist) =>
                             _openArtistRadio(context, artist),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
-                      // Mornye Shelf: Quick Picks (4-Row Multi-Column Swiper)
+                      // Shelf 2: Top Songs & Latest Hits (Unified 4-Row Editorial Swiper)
                       QuickPicksShelf(
                         audioHandler: widget.audioHandler,
                         library: widget.library,
                         activeMood: _selectedMood,
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
-                      // Trace & Soundcity Broadcast Channels
+                      // Shelf 3: Live TV & Broadcast Channels (Trace & Soundcity Countdown Charts)
                       BroadcastChannelsShelf(
                         onPlayPreset: (preset) =>
                             _openCuratedPreset(context, preset),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
-                      // Shelf 2: Popular Songs (Global Hits with 1-Tap Play)
-                      PopularSongsShelf(
-                        audioHandler: widget.audioHandler,
-                        library: widget.library,
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Shelf 3: Live Spotify Feed & Playlist Sync
-                      SpotifyFeedShelf(
-                        audioHandler: widget.audioHandler,
-                        library: widget.library,
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Shelf 4: Recommended Editorial Playlists (Genre Channel Filtering)
-                      if (!kIsWeb && Platform.isAndroid) ...[
-                        RecommendedPlaylistsSection(
-                          audioHandler: widget.audioHandler,
-                          library: widget.library,
-                          refreshGeneration: _refreshGeneration,
-                        ),
-                        const SizedBox(height: 28),
-                      ],
-
-                      // Shelf 5: Dynamic Artist Radio Carousel (Songs & Features by Artist)
-                      ArtistRadioShelf(
-                        library: widget.library,
-                        onOpenArtistRadio: (artist) =>
-                            _openArtistRadio(context, artist),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Shelf 6: Stations for You (Continuous Radio Flow)
+                      // Shelf 4: Made For You & Editorial Stations (Personal Mix Flow)
                       StationsForYouShelf(
                         library: widget.library,
                         audioHandler: widget.audioHandler,
@@ -408,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onPlayPreset: (preset) =>
                             _openCuratedPreset(context, preset),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
