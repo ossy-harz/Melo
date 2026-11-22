@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_playlist_import.dart';
@@ -341,15 +342,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
       if (files.isEmpty) return;
       final file = files.first;
-      final contents = await utf8.decoder.bind(file.readAsByteStream()).join();
+      final bytes = await file.readAsByteStream().fold<List<int>>(<int>[], (p, e) => p..addAll(e));
+      String contents;
+      try {
+        contents = utf8.decode(bytes);
+      } catch (_) {
+        try {
+          contents = latin1.decode(bytes);
+        } catch (_) {
+          contents = utf8.decode(bytes, allowMalformed: true);
+        }
+      }
       final entries = MusicPlaylistImport.parseM3uEntries(contents);
       if (entries.isEmpty) {
         if (mounted) _showMessage('This playlist has no song entries.');
         return;
       }
+      final m3uDir = file.path != null ? p.dirname(file.path!) : null;
       var tracks = MusicPlaylistImport.resolvePlaylistEntries(
         entries,
         library.tracks,
+        baseDir: m3uDir,
       );
       if (tracks.isEmpty) {
         if (!mounted) return;
@@ -380,6 +393,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         tracks = MusicPlaylistImport.resolvePlaylistEntries(
           entries,
           library.tracks,
+          baseDir: m3uDir,
         );
         if (tracks.isEmpty) {
           _showMessage(

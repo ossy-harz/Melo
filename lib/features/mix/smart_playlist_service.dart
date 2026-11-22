@@ -61,35 +61,78 @@ class SmartPlaylistService {
     final queueTracks = <MediaItem>[seedTrack];
     final seenIds = <String>{seedTrack.id};
 
-    // 1. Add matching local tracks from the same artist/genre if available
+    // 1. Add matching local tracks with Spotify-grade Camelot harmonic mixing & BPM tempo matching
     if (library != null) {
-      final localTracks = library.tracks;
-      final matchingLocal = localTracks.where((t) {
-        if (!t.isAvailable) return false;
-        final isArtistMatch = t.artist.trim().toLowerCase() == artist.trim().toLowerCase();
-        final isGenreMatch = seedTrack.genre != null &&
-            t.genre != null &&
-            t.genre!.toLowerCase() == seedTrack.genre!.toLowerCase();
-        return isArtistMatch || isGenreMatch;
-      }).toList();
+      final localTracks = library.tracks.where((t) => t.isAvailable).toList();
+      final seedBpm = (seedTrack.extras?['bpm'] as num?)?.toDouble();
+      final seedKey = seedTrack.extras?['musicalKey'] as String?;
 
-      for (final track in matchingLocal) {
-        final mediaItem = track.toMediaItem();
-        if (!seenIds.contains(mediaItem.id)) {
-          seenIds.add(mediaItem.id);
+      final scoredLocal = <(ImportedTrack, double)>[];
+      for (final t in localTracks) {
+        if (t.id == seedTrack.id) continue;
+        var score = 0.0;
+        final isArtistMatch =
+            t.artist.trim().toLowerCase() == artist.trim().toLowerCase();
+        if (isArtistMatch) score += 50.0;
+
+        if (seedTrack.genre != null &&
+            t.genre != null &&
+            t.genre!.toLowerCase() == seedTrack.genre!.toLowerCase()) {
+          score += 30.0;
+        }
+
+        // Spotify BPM tempo matching (within +-8%)
+        if (seedBpm != null && t.bpm != null && seedBpm > 0 && t.bpm! > 0) {
+          final bpmDiffPercent = (t.bpm! - seedBpm).abs() / seedBpm;
+          if (bpmDiffPercent <= 0.08) {
+            score += 40.0;
+          } else if (bpmDiffPercent <= 0.16) {
+            score += 20.0;
+          }
+        }
+
+        // Camelot harmonic key matching
+        if (seedKey != null && t.musicalKey != null) {
+          if (seedKey.trim().toLowerCase() == t.musicalKey!.trim().toLowerCase()) {
+            score += 35.0;
+          }
+        }
+
+        if (score > 0) {
+          scoredLocal.add((t, score));
+        }
+      }
+
+      scoredLocal.sort((a, b) => b.$2.compareTo(a.$2));
+      for (final pair in scoredLocal.take(6)) {
+        final mediaItem = pair.$1.toMediaItem();
+        if (seenIds.add(mediaItem.id)) {
           queueTracks.add(mediaItem);
         }
-        if (queueTracks.length >= 6) break;
       }
     }
 
-    // 2. Fetch streaming recommendations from YouTube/Invidious
-    final videoId = seedTrack.extras?['providerTrackId'] as String? ??
-        (seedTrack.id.startsWith('youtube:') ? seedTrack.id.substring(8) : 'dQw4w9WgXcQ');
+    // 2. Fetch authentic streaming recommendations using YouTube Music's RDAMVM model
+    var videoId = seedTrack.extras?['providerTrackId'] as String?;
+    if (videoId == null || videoId.isEmpty) {
+      if (seedTrack.id.startsWith('youtube:')) {
+        videoId = seedTrack.id.substring(8);
+      } else {
+        try {
+          final searchHit = await YoutubeAudioService.instance.search(
+            '${seedTrack.title} ${seedTrack.artist ?? ''} official audio',
+            filterMixtapes: true,
+          );
+          if (searchHit.isNotEmpty) {
+            videoId = searchHit.first.id;
+          }
+        } catch (_) {}
+      }
+    }
 
     try {
       final related = await YoutubeAudioService.instance.getRelatedTracks(
-        videoId,
+        videoId ?? '',
         artist: artist,
         title: seedTrack.title,
         recentArtists: library?.topAffinityArtists ?? const [],
@@ -98,8 +141,7 @@ class SmartPlaylistService {
 
       for (final ytTrack in related) {
         final mediaItem = ytTrack.toMediaItem();
-        if (!seenIds.contains(mediaItem.id)) {
-          seenIds.add(mediaItem.id);
+        if (seenIds.add(mediaItem.id)) {
           queueTracks.add(mediaItem);
         }
       }

@@ -375,64 +375,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 22),
 
-                      // Shelf 1: Editorial Showcase (Hero Banners & Curated Highlights)
-                      if (_exploreSections != null &&
-                          _exploreSections!.any((s) => s.isFeatured)) ...[
-                        ExploreFeaturedSection(
-                          section: _exploreSections!.firstWhere((s) => s.isFeatured),
-                          onItemTap: (item) => _openExploreItem(context, item),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Shelf 2: Vibe & Genre Customizer (Tune Mix + Genre Chips + Dynamic Picks)
-                      TopPicksShelf(
-                        library: widget.library,
-                        refreshGeneration: _refreshGeneration,
-                        provider: activeProvider,
-                        onPlayVibe: (vibe) => _openStation(context, vibe),
-                        onPlayPreset: (preset) =>
-                            _openCuratedPreset(context, preset),
-                        onOpenArtistRadio: (artist) =>
-                            _openArtistRadio(context, artist),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Shelf 2: Top Songs & Latest Hits (Unified 4-Row Editorial Swiper)
-                      QuickPicksShelf(
-                        audioHandler: widget.audioHandler,
-                        library: widget.library,
-                        activeMood: _selectedMood,
-                        provider: activeProvider,
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Shelf 3: Artist Radio (Curated & Library Artist Stations)
-                      ArtistRadioShelf(
-                        library: widget.library,
-                        onOpenArtistRadio: (artist) =>
-                            _openArtistRadio(context, artist),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Shelf 4: Broadcast Channels & Top Charts
-                      BroadcastChannelsShelf(
-                        provider: activeProvider,
-                        onPlayPreset: (preset) =>
-                            _openCuratedPreset(context, preset),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Shelf 5: Made For You & Editorial Stations (Personal Mix Flow)
-                      StationsForYouShelf(
-                        library: widget.library,
-                        audioHandler: widget.audioHandler,
-                        refreshGeneration: _refreshGeneration,
-                        onPlayVibe: (vibe) => _openStation(context, vibe),
-                        onPlayPreset: (preset) =>
-                            _openCuratedPreset(context, preset),
-                      ),
-                      const SizedBox(height: 28),
+                      // Dynamic, Provider-Authentic Home Feed Hierarchy
+                      ..._buildShelvesForProvider(context, activeProvider),
                     ],
                   ),
                 ),
@@ -441,6 +385,154 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       );
+  }
+
+  List<Widget> _buildShelvesForProvider(
+    BuildContext context,
+    MusicProviderType activeProvider,
+  ) {
+    final heroSection = (_exploreSections != null &&
+            _exploreSections!.any((s) => s.isFeatured))
+        ? ExploreFeaturedSection(
+            section: _exploreSections!.firstWhere((s) => s.isFeatured),
+            onItemTap: (item) => _openExploreItem(context, item),
+          )
+        : null;
+
+    final vibeCustomizer = TopPicksShelf(
+      library: widget.library,
+      refreshGeneration: _refreshGeneration,
+      provider: activeProvider,
+      onPlayVibe: (vibe) => _openStation(context, vibe),
+      onPlayPreset: (preset) => _openCuratedPreset(context, preset),
+      onOpenArtistRadio: (artist) => _openArtistRadio(context, artist),
+    );
+
+    final quickPicks = QuickPicksShelf(
+      audioHandler: widget.audioHandler,
+      library: widget.library,
+      activeMood: _selectedMood,
+      provider: activeProvider,
+    );
+
+    final artistRadio = ArtistRadioShelf(
+      library: widget.library,
+      onOpenArtistRadio: (artist) => _openArtistRadio(context, artist),
+    );
+
+    final broadcasts = BroadcastChannelsShelf(
+      provider: activeProvider,
+      onPlayPreset: (preset) => _openCuratedPreset(context, preset),
+    );
+
+    final stationsForYou = StationsForYouShelf(
+      library: widget.library,
+      audioHandler: widget.audioHandler,
+      refreshGeneration: _refreshGeneration,
+      onPlayVibe: (vibe) => _openStation(context, vibe),
+      onPlayPreset: (preset) => _openCuratedPreset(context, preset),
+    );
+
+    switch (activeProvider) {
+      case MusicProviderType.youtubeMusic:
+        // YouTube Music Architecture: Quick Picks swipeable rows first, then Automix & Video Charts
+        return [
+          quickPicks,
+          const SizedBox(height: 32),
+          stationsForYou,
+          const SizedBox(height: 32),
+          broadcasts,
+          const SizedBox(height: 32),
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 28),
+        ];
+
+      case MusicProviderType.spotify:
+        // Spotify Architecture: Made For You / Daily Mixes, Top Charts & Playlists first
+        return [
+          stationsForYou,
+          const SizedBox(height: 32),
+          broadcasts,
+          const SizedBox(height: 32),
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          quickPicks,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 28),
+        ];
+
+      case MusicProviderType.appleMusic:
+        // Apple Music Architecture: Large Editorial Hero Showcase, Apple Music 1 Live Radio, Spatial Audio
+        return [
+          if (heroSection != null) ...[
+            heroSection,
+            const SizedBox(height: 24),
+          ],
+          broadcasts,
+          const SizedBox(height: 32),
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          quickPicks,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 32),
+          stationsForYou,
+          const SizedBox(height: 28),
+        ];
+
+      case MusicProviderType.deezer:
+        // Deezer Architecture: Deezer Infinite Flow & Mood Mixes first, Worldwide 100 Charts
+        return [
+          stationsForYou,
+          const SizedBox(height: 32),
+          broadcasts,
+          const SizedBox(height: 32),
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          quickPicks,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 28),
+        ];
+
+      case MusicProviderType.soundcloud:
+        // SoundCloud Architecture: Underground sessions, VIP edits, and indie discoveries
+        return [
+          broadcasts,
+          const SizedBox(height: 32),
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          quickPicks,
+          const SizedBox(height: 32),
+          stationsForYou,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 28),
+        ];
+
+      case MusicProviderType.all:
+      default:
+        // Melo Unified Apple-Style Aesthetic: Editorial Hero, Vibe Customizer, Quick Picks, Radio, Charts
+        return [
+          if (heroSection != null) ...[
+            heroSection,
+            const SizedBox(height: 24),
+          ],
+          vibeCustomizer,
+          const SizedBox(height: 32),
+          quickPicks,
+          const SizedBox(height: 32),
+          artistRadio,
+          const SizedBox(height: 32),
+          broadcasts,
+          const SizedBox(height: 32),
+          stationsForYou,
+          const SizedBox(height: 28),
+        ];
+    }
   }
 
   void _openExploreItem(BuildContext context, ExploreItem item) {

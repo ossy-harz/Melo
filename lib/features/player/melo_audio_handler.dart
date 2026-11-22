@@ -2708,15 +2708,27 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
         }
       }
 
-      final rawId = currentItem.extras?['providerTrackId'] as String? ??
+      var rawId = currentItem.extras?['providerTrackId'] as String? ??
           (currentItem.id.startsWith('youtube:') ? currentItem.id.substring(8) : null);
+
+      if (rawId == null && currentItem.title.isNotEmpty) {
+        try {
+          final hits = await YoutubeAudioService.instance.search(
+            '${currentItem.title} ${currentItem.artist ?? ''} official audio',
+            filterMixtapes: true,
+          );
+          if (hits.isNotEmpty) {
+            rawId = hits.first.id;
+          }
+        } catch (_) {}
+      }
 
       final newItems = <MediaItem>[];
 
-      // 1. Fetch context-aware related tracks from YouTube/Deezer artist graph
+      // 1. Fetch authentic YouTube Music Radio recommendations (RDAMVM) with artist graph fallback
       if (rawId != null || (currentItem.artist != null && currentItem.title.isNotEmpty)) {
         final related = await YoutubeAudioService.instance.getRelatedTracks(
-          rawId ?? 'dQw4w9WgXcQ',
+          rawId ?? '',
           artist: currentItem.artist,
           title: currentItem.title,
           recentArtists: [

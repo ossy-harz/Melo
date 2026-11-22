@@ -1463,10 +1463,130 @@ class YoutubeAudioService {
     }
   }
 
-  /// Fetches continuous related / radio recommendations using multi-signal
-  /// Spotify-style similarity: related artists from the artist graph, session
-  /// taste artists, deduplication by video ID and normalized song title, and
-  /// round-robin artist diversity interleaving.
+  /// Direct YouTube Music Radio (RDAMVM) client hitting YouTube Music's native
+  /// recommendation engine. Returns genuine algorithmic radio matches.
+  Future<List<YoutubeTrack>> fetchYoutubeMusicRadio(String videoId) async {
+    final cleanId = videoId.replaceFirst('youtube:', '').trim();
+    if (cleanId.isEmpty || cleanId.length < 10) return const [];
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('https://music.youtube.com/youtubei/v1/next'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': _visionOsUserAgent,
+            },
+            body: jsonEncode({
+              'context': {
+                'client': {
+                  'clientName': 'WEB_REMIX',
+                  'clientVersion': '1.20231204.01.00',
+                  'hl': 'en',
+                },
+              },
+              'videoId': cleanId,
+              'playlistId': 'RDAMVM$cleanId',
+              'isAudioOnly': true,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode != 200) return const [];
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final tabs = data['contents']?['singleColumnMusicWatchNextResultsRenderer']
+          ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs'] as List?;
+      if (tabs == null || tabs.isEmpty) return const [];
+
+      final contents = tabs[0]?['tabRenderer']?['content']?['musicQueueRenderer']
+          ?['content']?['playlistPanelRenderer']?['contents'] as List?;
+      if (contents == null || contents.isEmpty) return const [];
+
+      final results = <YoutubeTrack>[];
+      for (final item in contents) {
+        final panel = item?['playlistPanelVideoRenderer'] as Map<String, dynamic>?;
+        if (panel == null) continue;
+        final vId = panel['videoId'] as String?;
+        if (vId == null || vId.isEmpty || vId == cleanId) continue;
+
+        final titleRuns = panel['title']?['runs'] as List?;
+        var title = 'Unknown Title';
+        if (titleRuns != null && titleRuns.isNotEmpty) {
+          final first = titleRuns[0];
+          if (first is Map) {
+            title = first['text'] as String? ?? 'Unknown Title';
+          }
+        }
+
+        final bylineRuns = panel['longBylineText']?['runs'] as List?;
+        var author = 'Unknown Artist';
+        String? album;
+        if (bylineRuns != null && bylineRuns.isNotEmpty) {
+          final first = bylineRuns[0];
+          if (first is Map) {
+            author = first['text'] as String? ?? 'Unknown Artist';
+          }
+          if (bylineRuns.length >= 3) {
+            final third = bylineRuns[2];
+            if (third is Map) {
+              album = third['text'] as String?;
+            }
+          }
+        }
+
+        final lengthRuns = panel['lengthText']?['runs'] as List?;
+        String? lengthStr;
+        if (lengthRuns != null && lengthRuns.isNotEmpty) {
+          final first = lengthRuns[0];
+          if (first is Map) {
+            lengthStr = first['text'] as String?;
+          }
+        }
+        var duration = Duration.zero;
+        if (lengthStr != null) {
+          final parts = lengthStr.split(':');
+          if (parts.length == 2) {
+            final m = int.tryParse(parts[0]) ?? 0;
+            final s = int.tryParse(parts[1]) ?? 0;
+            duration = Duration(minutes: m, seconds: s);
+          } else if (parts.length == 3) {
+            final h = int.tryParse(parts[0]) ?? 0;
+            final m = int.tryParse(parts[1]) ?? 0;
+            final s = int.tryParse(parts[2]) ?? 0;
+            duration = Duration(hours: h, minutes: m, seconds: s);
+          }
+        }
+
+        final thumbs = panel['thumbnail']?['thumbnails'] as List?;
+        String? thumbUrl;
+        if (thumbs != null && thumbs.isNotEmpty) {
+          final last = thumbs.last;
+          if (last is Map) {
+            thumbUrl = last['url'] as String?;
+          }
+        }
+
+        results.add(
+          YoutubeTrack(
+            id: vId,
+            title: title,
+            author: author,
+            album: album,
+            duration: duration,
+            thumbnailUrl: thumbUrl,
+          ),
+        );
+      }
+      return results;
+    } catch (e) {
+      debugPrint('fetchYoutubeMusicRadio error: $e');
+      return const [];
+    }
+  }
+
+  /// Fetches continuous related / radio recommendations using YouTube Music's
+  /// authentic Radio Automix (RDAMVM) neural recommendation model, with multi-signal
+  /// fallback to Deezer artist graph and session taste interleaving.
   Future<List<YoutubeTrack>> getRelatedTracks(
     String videoId, {
     String? artist,
@@ -1493,8 +1613,37 @@ class YoutubeAudioService {
       ...excludeTitleKeys,
     };
 
+    // 1. First attempt YouTube Music's native Radio Automix recommendation (RDAMVM)
+    final cleanVideoId = videoId.replaceFirst('youtube:', '').trim();
+    if (cleanVideoId.isNotEmpty && cleanVideoId.length >= 10) {
+      final nativeRadio = await fetchYoutubeMusicRadio(cleanVideoId);
+      final qualified = <YoutubeTrack>[];
+      for (final t in nativeRadio) {
+        if (seenIds.contains(t.id)) continue;
+        if (t.duration.inSeconds > 0 &&
+            (t.duration.inSeconds < 45 || t.duration.inSeconds > 660)) {
+          continue;
+        }
+        if (isMixtapeOrNonstop(t.title, t.duration)) continue;
+
+        final normTitle = SongMetadataEnricher.cleanTitle(
+          t.title,
+          rawArtist: t.author,
+        ).trim().toLowerCase();
+        if (normTitle.isEmpty || seenTitleKeys.contains(normTitle)) continue;
+
+        seenIds.add(t.id);
+        seenTitleKeys.add(normTitle);
+        qualified.add(t);
+        if (qualified.length >= 15) break;
+      }
+      if (qualified.isNotEmpty) {
+        return qualified;
+      }
+    }
+
     try {
-      // 1. Resolve related artists from Deezer's artist graph + session taste
+      // 2. Fallback: Resolve related artists from Deezer's artist graph + session taste
       final graphArtists = hasValidArtist
           ? await SongMetadataEnricher.instance.fetchRelatedArtists(
               cleanSeedArtist,

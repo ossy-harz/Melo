@@ -196,4 +196,84 @@ void main() {
       ['percent'],
     );
   });
+
+  test('resolves relative M3U paths using baseDir', () {
+    const relativeTrack = ImportedTrack(
+      id: 'rel-1',
+      path: '/storage/emulated/0/Music/Rock/Numb.mp3',
+      title: 'Numb',
+      artist: 'Linkin Park',
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: '../Rock/Numb.mp3',
+            title: 'Numb',
+            artist: 'Linkin Park',
+          ),
+        ],
+        [relativeTrack],
+        baseDir: '/storage/emulated/0/Music/Playlists',
+      ).map((track) => track.id),
+      ['rel-1'],
+    );
+  });
+
+  test('matches featured artists and simplified titles with duration tolerance', () {
+    const track = ImportedTrack(
+      id: 'feat-1',
+      path: '/storage/emulated/0/Music/Pop/Blinding Lights.mp3',
+      title: 'Blinding Lights',
+      artist: 'The Weeknd',
+      durationMs: 200000,
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: 'custom_file.mp3',
+            title: 'Blinding Lights (feat. Rosalía) [Official Audio]',
+            artist: 'The Weeknd feat. Rosalía',
+            durationSeconds: 205, // 5s difference tolerated
+          ),
+        ],
+        [track],
+      ).map((t) => t.id),
+      ['feat-1'],
+    );
+  });
+
+  test('selects best candidate when multiple copies exist', () {
+    const genericCopy = ImportedTrack(
+      id: 'copy-1',
+      path: '/storage/emulated/0/Download/Song.mp3',
+      title: 'Song',
+      artist: 'Unknown artist',
+    );
+    const perfectCopy = ImportedTrack(
+      id: 'copy-2',
+      path: '/storage/emulated/0/Music/Artist/Song.mp3',
+      title: 'Song',
+      artist: 'Real Artist',
+      durationMs: 180000,
+    );
+
+    expect(
+      MusicPlaylistImport.resolvePlaylistEntries(
+        const [
+          MusicPlaylistEntry(
+            path: 'Artist/Song.mp3',
+            title: 'Song',
+            artist: 'Real Artist',
+            durationSeconds: 180,
+          ),
+        ],
+        [genericCopy, perfectCopy],
+      ).map((t) => t.id),
+      ['copy-2'],
+    );
+  });
 }

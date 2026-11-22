@@ -5144,6 +5144,62 @@ final List<CuratedPlaylistPreset> kSoundCloudBroadcastPlaylists = [
     broadcastStation: 'UNDERGROUND',
   ),
 ];
+/// Global Top Hitlists & Broadcasts for Unified Provider Mode
+final List<CuratedPlaylistPreset> kGlobalCuratedBroadcastPlaylists = [
+  CuratedPlaylistPreset(
+    title: 'Global Top 50',
+    curatorSubtitle: 'Most streamed tracks worldwide right now',
+    badge: 'TOP 50',
+    searchQuery: 'Global Top 50 hits 2025 2026 official audio',
+    gradient: [const Color(0xFF1DB954), const Color(0xFF07210C), const Color(0xFF000000)],
+    icon: Icons.graphic_eq_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    genre: 'Pop',
+    isBroadcastChannel: true,
+    broadcastStation: 'GLOBAL CHARTS',
+    spotifyPlaylistId: '37i9dQZF1DXcBWIGoYBM5M',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Today\'s Hits',
+    curatorSubtitle: 'The biggest songs across the globe',
+    badge: 'TODAY\'S HITS',
+    searchQuery: 'Today\'s Hits global top official audio',
+    gradient: [const Color(0xFFFA233B), const Color(0xFF4C0519), const Color(0xFF000000)],
+    icon: Icons.apple_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    genre: 'Pop',
+    isBroadcastChannel: true,
+    broadcastStation: 'HITLIST',
+    applePlaylistId: 'pl.f4d106fed2bd41149aaacabb233eb5eb',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Top 100 Worldwide',
+    curatorSubtitle: 'Official worldwide chart countdown',
+    badge: 'WORLDWIDE 100',
+    searchQuery: 'Deezer Top 100 Worldwide hits official audio',
+    gradient: [const Color(0xFFA238FF), const Color(0xFF2E0854), const Color(0xFF000000)],
+    icon: Icons.album_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+    genre: 'Global',
+    isBroadcastChannel: true,
+    broadcastStation: 'COUNTDOWN',
+    deezerPlaylistId: '3155776842',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Viral 50',
+    curatorSubtitle: 'Viral breakout songs and social sensations',
+    badge: 'VIRAL 50',
+    searchQuery: 'Viral 50 Global 2025 2026 official audio',
+    gradient: [const Color(0xFF1ED760), const Color(0xFF062B0E), const Color(0xFF000000)],
+    icon: Icons.bolt_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+    genre: 'Pop',
+    isBroadcastChannel: true,
+    broadcastStation: 'VIRAL HITS',
+    spotifyPlaylistId: '37i9dQZF1DX2L0iB23Enbq',
+  ),
+];
+
 class MornyeMoodFilterBar extends StatelessWidget {
   const MornyeMoodFilterBar({
     required this.selectedMood,
@@ -5738,7 +5794,7 @@ class BroadcastChannelsShelf extends StatelessWidget {
       MusicProviderType.youtubeMusic => kYoutubeBroadcastPlaylists,
       MusicProviderType.deezer => kDeezerBroadcastPlaylists,
       MusicProviderType.soundcloud => kSoundCloudBroadcastPlaylists,
-      _ => kTraceSoundcityBroadcastPlaylists,
+      _ => kGlobalCuratedBroadcastPlaylists,
     };
     final headerTitle = switch (provider) {
       MusicProviderType.appleMusic => 'Live Radio & Broadcasts',
@@ -5746,7 +5802,7 @@ class BroadcastChannelsShelf extends StatelessWidget {
       MusicProviderType.youtubeMusic => 'Spotlight Video & Audio Stations',
       MusicProviderType.deezer => 'Worldwide Flow & Stations',
       MusicProviderType.soundcloud => 'Underground Sessions & Radio',
-      _ => 'Live Broadcast Channels',
+      _ => 'Global Hitlists & Broadcasts',
     };
     final headerBadge = 'LIVE ON AIR';
     final brandColor = provider == MusicProviderType.all
