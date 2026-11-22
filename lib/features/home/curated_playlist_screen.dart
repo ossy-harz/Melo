@@ -13,6 +13,7 @@ import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
@@ -367,6 +368,10 @@ class CuratedPlaylistPreset {
     this.artistName,
     this.spotifyPlaylistId,
     this.initialSpotifyTracks,
+    this.deezerPlaylistId,
+    this.applePlaylistId,
+    this.externalUrl,
+    this.initialTracks,
     this.initialMediaItems,
     this.allowLongEpisodes = false,
     this.isBroadcastChannel = false,
@@ -388,6 +393,10 @@ class CuratedPlaylistPreset {
   final String? artistName;
   final String? spotifyPlaylistId;
   final List<SpotifyTrack>? initialSpotifyTracks;
+  final String? deezerPlaylistId;
+  final String? applePlaylistId;
+  final String? externalUrl;
+  final List<ImportedTrack>? initialTracks;
   final List<MediaItem>? initialMediaItems;
   final bool allowLongEpisodes;
   final bool isBroadcastChannel;
@@ -491,7 +500,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   static final Map<String, Future<List<YoutubeTrack>>> _inFlightPreloads = {};
 
   static String _cacheKeyFor(CuratedPlaylistPreset preset) =>
-      '${preset.spotifyPlaylistId ?? ""}|${preset.title}|${preset.searchQuery}|${preset.seed}';
+      '${preset.spotifyPlaylistId ?? ""}|${preset.deezerPlaylistId ?? ""}|${preset.applePlaylistId ?? ""}|${preset.externalUrl ?? ""}|${preset.title}|${preset.searchQuery}|${preset.seed}';
 
   List<YoutubeTrack> _tracks = const [];
   bool _loading = true;
@@ -711,7 +720,52 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                   .trim()
             : null);
 
-    if (spotifyId != null && spotifyId.isNotEmpty) {
+    if (preset.initialTracks != null && preset.initialTracks!.isNotEmpty) {
+      valid = preset.initialTracks!
+          .map(_importedTrackToYoutubeTrack)
+          .toList(growable: false);
+    } else if (preset.externalUrl != null && preset.externalUrl!.isNotEmpty) {
+      try {
+        final resolved = await ExternalFeedService.instance.resolveExternalUrl(preset.externalUrl!);
+        if (resolved.tracks.isNotEmpty) {
+          if (resolved.artworkUrl != null && resolved.artworkUrl!.isNotEmpty) {
+            _coverCache[key] = resolved.artworkUrl!;
+            onCoverResolved?.call(resolved.artworkUrl!);
+          }
+          valid = resolved.tracks
+              .map(_importedTrackToYoutubeTrack)
+              .toList(growable: false);
+        }
+      } catch (e) {
+        debugPrint('External playlist resolve failed (${preset.externalUrl}): $e');
+      }
+    } else if (preset.deezerPlaylistId != null && preset.deezerPlaylistId!.isNotEmpty) {
+      try {
+        final resolved = await ExternalFeedService.instance.resolveExternalUrl('https://www.deezer.com/playlist/${preset.deezerPlaylistId}');
+        if (resolved.tracks.isNotEmpty) {
+          if (resolved.artworkUrl != null && resolved.artworkUrl!.isNotEmpty) {
+            _coverCache[key] = resolved.artworkUrl!;
+            onCoverResolved?.call(resolved.artworkUrl!);
+          }
+          valid = resolved.tracks
+              .map(_importedTrackToYoutubeTrack)
+              .toList(growable: false);
+        }
+      } catch (e) {
+        debugPrint('Deezer playlist resolve failed (${preset.deezerPlaylistId}): $e');
+      }
+    } else if (preset.applePlaylistId != null && preset.applePlaylistId!.isNotEmpty) {
+      try {
+        final appleTracks = await ExternalFeedService.instance.fetchAppleMusicCharts(limit: 50);
+        if (appleTracks.isNotEmpty) {
+          valid = appleTracks
+              .map(_importedTrackToYoutubeTrack)
+              .toList(growable: false);
+        }
+      } catch (e) {
+        debugPrint('Apple playlist resolve failed (${preset.applePlaylistId}): $e');
+      }
+    } else if (spotifyId != null && spotifyId.isNotEmpty) {
       if (spotifyId == 'liked') {
         final spotifyTracks = SpotifyService.instance.likedTracks.isNotEmpty
             ? SpotifyService.instance.likedTracks
@@ -792,6 +846,12 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     CuratedPlaylistPreset preset, {
     MusicLibrary? library,
   }) async {
+    if (preset.initialTracks != null &&
+        preset.initialTracks!.isNotEmpty) {
+      return preset.initialTracks!
+          .map(_importedTrackToYoutubeTrack)
+          .toList(growable: false);
+    }
     if (preset.initialMediaItems != null &&
         preset.initialMediaItems!.isNotEmpty) {
       return _mapMediaItemsStatic(
@@ -835,6 +895,23 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   }
 
   Future<void> _loadTracks() async {
+    final initialTracks = widget.preset.initialTracks;
+    if (initialTracks != null && initialTracks.isNotEmpty) {
+      final mapped = initialTracks
+          .map(_importedTrackToYoutubeTrack)
+          .toList(growable: false);
+      if (mounted) {
+        setState(() {
+          _tracks = mapped;
+          _loading = false;
+          _errorMessage = null;
+        });
+      }
+      _syncSavedPlaylistIfNeeded(mapped);
+      unawaited(_enrichTrackArtworks(mapped));
+      return;
+    }
+
     final initialItems = widget.preset.initialMediaItems;
     if (initialItems != null && initialItems.isNotEmpty) {
       final mapped = _mapMediaItemsStatic(

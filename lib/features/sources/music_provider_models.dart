@@ -116,7 +116,7 @@ class UnifiedTrackMetadata {
     if (bitrateKbps != null && bitrateKbps! >= 320) {
       return 'HI-RES · 320 KBPS';
     }
-    return '${provider.displayName.toUpperCase()} · VERIFIED';
+    return 'STUDIO MASTER · VERIFIED';
   }
 
   Map<String, dynamic> toJson() => {

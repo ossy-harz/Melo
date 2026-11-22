@@ -1894,6 +1894,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Tune Vibe'));
       await tester.pumpAndSettle();
       expect(find.text('Influence Your Top Picks'), findsOneWidget);
@@ -1919,6 +1921,8 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // Re-open and cancel while keyboard insets are open.
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Tune Vibe'));
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 1050);

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/library/imported_track.dart';
@@ -214,8 +215,12 @@ void main() {
       await HomeFeedProviderSettings.instance.setProvider(MusicProviderType.appleMusic);
       await tester.pumpAndSettle();
 
-      // Verify eyebrow adapted specifically
-      expect(find.textContaining('APPLE MUSIC FEED'), findsOneWidget);
+      // Verify clean home header without corporate provider branding
+      expect(find.text('Listen Now'), findsOneWidget);
+      expect(find.textContaining('APPLE MUSIC FEED'), findsNothing);
+      expect(find.textContaining('SPOTIFY FEED'), findsNothing);
+      // Verify Tune Vibe genre customization is accessible directly on Home
+      expect(find.text('Tune Vibe'), findsOneWidget);
 
       HomeFeedProviderSettings.instance.resetForTesting();
       expect(tester.takeException(), isNull);
@@ -470,6 +475,54 @@ void main() {
       final service = MetadataProviderService.instance;
       final result = await service.fetchMetadata(title: '', artist: '');
       expect(result, isNull);
+    });
+
+    testWidgets('CuratedPlaylistScreen renders actual catalog tracks directly from preset', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preset = CuratedPlaylistPreset(
+        title: "Today's Top Hits",
+        curatorSubtitle: 'The hottest 50 tracks worldwide',
+        badge: 'TOP 50',
+        searchQuery: '',
+        gradient: const [Color(0xFF1DB954), Color(0xFF000000)],
+        icon: Icons.graphic_eq_rounded,
+        deezerPlaylistId: '3155776842',
+        initialTracks: const [
+          ImportedTrack(
+            id: 'sp_1',
+            path: 'spotify:track1',
+            title: 'Starboy',
+            artist: 'The Weeknd',
+            album: 'Starboy',
+            durationMs: 230000,
+          ),
+          ImportedTrack(
+            id: 'sp_2',
+            path: 'spotify:track2',
+            title: 'As It Was',
+            artist: 'Harry Styles',
+            album: "Harry's House",
+            durationMs: 167000,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CuratedPlaylistScreen(
+              preset: preset,
+              audioHandler: null,
+              library: null,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text("Today's Top Hits"), findsWidgets);
+      expect(find.text('Starboy'), findsOneWidget);
+      expect(find.text('As It Was'), findsOneWidget);
     });
   });
 }

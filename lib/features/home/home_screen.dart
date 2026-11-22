@@ -214,9 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
-                                        activeProvider == MusicProviderType.all
-                                            ? '${HomeScreen._todayDateFormatted().toUpperCase()} · ${_greeting.toUpperCase()}'
-                                            : '${activeProvider.displayName.toUpperCase()} FEED · ${_greeting.toUpperCase()}',
+                                        '${HomeScreen._todayDateFormatted().toUpperCase()} · ${_greeting.toUpperCase()}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
@@ -378,27 +376,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 22),
 
                       // Shelf 1: Editorial Showcase (Hero Banners & Curated Highlights)
-                      if (activeProvider != MusicProviderType.all &&
-                          _exploreSections != null &&
+                      if (_exploreSections != null &&
                           _exploreSections!.any((s) => s.isFeatured)) ...[
                         ExploreFeaturedSection(
                           section: _exploreSections!.firstWhere((s) => s.isFeatured),
                           onItemTap: (item) => _openExploreItem(context, item),
                         ),
-                        const SizedBox(height: 32),
-                      ] else ...[
-                        TopPicksShelf(
-                          library: widget.library,
-                          refreshGeneration: _refreshGeneration,
-                          provider: activeProvider,
-                          onPlayVibe: (vibe) => _openStation(context, vibe),
-                          onPlayPreset: (preset) =>
-                              _openCuratedPreset(context, preset),
-                          onOpenArtistRadio: (artist) =>
-                              _openArtistRadio(context, artist),
-                        ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
                       ],
+
+                      // Shelf 2: Vibe & Genre Customizer (Tune Mix + Genre Chips + Dynamic Picks)
+                      TopPicksShelf(
+                        library: widget.library,
+                        refreshGeneration: _refreshGeneration,
+                        provider: activeProvider,
+                        onPlayVibe: (vibe) => _openStation(context, vibe),
+                        onPlayPreset: (preset) =>
+                            _openCuratedPreset(context, preset),
+                        onOpenArtistRadio: (artist) =>
+                            _openArtistRadio(context, artist),
+                      ),
+                      const SizedBox(height: 32),
 
                       // Shelf 2: Top Songs & Latest Hits (Unified 4-Row Editorial Swiper)
                       QuickPicksShelf(
@@ -468,6 +466,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
 
+    String? spotifyId;
+    String? deezerId;
+    String? appleId;
+    String? extUrl;
+
+    if (item.uri.startsWith('spotify:playlist:')) {
+      spotifyId = item.uri.replaceFirst('spotify:playlist:', '');
+    } else if (item.uri.startsWith('deezer:playlist:')) {
+      deezerId = item.uri.replaceFirst('deezer:playlist:', '');
+    } else if (item.uri.startsWith('apple:playlist:')) {
+      appleId = item.uri.replaceFirst('apple:playlist:', '');
+    } else if (item.uri.startsWith('http://') || item.uri.startsWith('https://')) {
+      extUrl = item.uri;
+    }
+
     final preset = CuratedPlaylistPreset(
       title: item.name,
       curatorSubtitle: item.description ?? item.artists,
@@ -482,6 +495,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ],
       icon: Icons.album_rounded,
       coverUrl: item.featuredCoverUrl ?? item.coverUrl,
+      spotifyPlaylistId: spotifyId,
+      deezerPlaylistId: deezerId,
+      applePlaylistId: appleId,
+      externalUrl: extUrl,
     );
 
     Navigator.of(context).push(

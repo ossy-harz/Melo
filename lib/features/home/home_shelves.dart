@@ -822,34 +822,37 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     switch (provider) {
       case MusicProviderType.appleMusic:
         final p1 = CuratedPlaylistPreset(
-          title: 'Apple Music 1 Worldwide',
-          curatorSubtitle: 'Live global hits & premier releases direct from Apple Music',
-          badge: 'APPLE MUSIC 1',
+          title: 'Worldwide Radio 1',
+          curatorSubtitle: 'Live global hits, premieres & artist interviews',
+          badge: 'LIVE ON AIR',
           searchQuery: 'Apple Music 1 global hits songs official audio',
           gradient: const [Color(0xFFFC3C44), Color(0xFF1E0508)],
-          icon: Icons.apple_rounded,
+          icon: Icons.sensors_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
           genre: 'Pop',
+          applePlaylistId: '1',
         );
         final p2 = CuratedPlaylistPreset(
           title: 'Spatial Audio Masters',
-          curatorSubtitle: 'Dolby Atmos & spatial soundscapes curated by Apple Music',
+          curatorSubtitle: 'Dolby Atmos & spatial soundscapes in pristine master quality',
           badge: 'SPATIAL AUDIO',
           searchQuery: 'Spatial Audio Dolby Atmos hits official audio',
           gradient: const [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
           icon: Icons.surround_sound_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
           genre: 'Electronic',
+          applePlaylistId: 'spatial',
         );
         final p3 = CuratedPlaylistPreset(
-          title: 'Today at Apple Top 100',
-          curatorSubtitle: 'The 100 most played tracks worldwide on Apple Music',
-          badge: 'APPLE CHARTS',
+          title: 'Top 100 Global Hits',
+          curatorSubtitle: 'The 100 most played tracks worldwide right now',
+          badge: 'GLOBAL CHARTS',
           searchQuery: 'Apple Music Top 100 Global 2025 2026 official audio',
           gradient: const [Color(0xFFFC3C44), Color(0xFF0D0205)],
           icon: Icons.local_fire_department_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
           genre: 'Pop',
+          applePlaylistId: 'top100',
         );
         return [
           _TopPickEntry(categoryBadge: p1.badge, title: p1.title, description: p1.curatorSubtitle, gradient: p1.gradient, icon: p1.icon, coverUrl: p1.coverUrl, preset: p1, onTap: () => widget.onPlayPreset(p1)),
@@ -859,23 +862,25 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
       case MusicProviderType.spotify:
         final p1 = CuratedPlaylistPreset(
           title: "Today's Top Hits",
-          curatorSubtitle: 'The hottest 50 tracks on Spotify worldwide right now',
-          badge: 'SPOTIFY TOP 50',
+          curatorSubtitle: 'The hottest 50 tracks worldwide across digital streams',
+          badge: 'TOP 50',
           searchQuery: 'Top Pop Global Hits Spotify 2025 official audio',
           gradient: const [Color(0xFF1DB954), Color(0xFF07210C)],
           icon: Icons.graphic_eq_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80',
           genre: 'Pop',
+          spotifyPlaylistId: '37i9dQZF1DXcBWIGoYBM5M',
         );
         final p2 = CuratedPlaylistPreset(
           title: 'RapCaviar Anthem',
           curatorSubtitle: 'Heavyweight hip-hop bangers and new rap anthems',
-          badge: 'RAPCAVIAR',
+          badge: 'RAP ANTHEMS',
           searchQuery: 'RapCaviar Hip Hop hits 2025 official audio',
           gradient: const [Color(0xFF1C1C1E), Color(0xFF000000)],
           icon: Icons.mic_external_on_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80',
           genre: 'Hip-Hop',
+          spotifyPlaylistId: '37i9dQZF1DX0XUsuxWHRQd',
         );
         return [
           _TopPickEntry(categoryBadge: p1.badge, title: p1.title, description: p1.curatorSubtitle, gradient: p1.gradient, icon: p1.icon, coverUrl: p1.coverUrl, preset: p1, onTap: () => widget.onPlayPreset(p1)),
@@ -883,9 +888,9 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         ];
       case MusicProviderType.youtubeMusic:
         final p1 = CuratedPlaylistPreset(
-          title: 'YouTube Trending Hits',
-          curatorSubtitle: 'Global viral hits & breakthrough music videos on YouTube',
-          badge: 'YT TRENDING',
+          title: 'Global Trending Hits',
+          curatorSubtitle: 'Global viral hits & breakthrough music videos worldwide',
+          badge: 'TRENDING NOW',
           searchQuery: 'YouTube Music trending viral songs 2025 2026 official audio',
           gradient: const [Color(0xFFFF0000), Color(0xFF260000)],
           icon: Icons.play_circle_fill_rounded,
@@ -897,23 +902,24 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         ];
       case MusicProviderType.deezer:
         final p1 = CuratedPlaylistPreset(
-          title: 'Deezer Infinite Flow',
+          title: 'Infinite Flow & Top Hits',
           curatorSubtitle: 'Non-stop personalized stream with fresh releases & timeless classics',
-          badge: 'DEEZER FLOW',
+          badge: 'INFINITE FLOW',
           searchQuery: 'Deezer Flow Top hits songs official audio',
           gradient: const [Color(0xFFA238FF), Color(0xFF16042B)],
           icon: Icons.album_rounded,
           coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
           genre: 'Pop',
+          deezerPlaylistId: '3155776842',
         );
         return [
           _TopPickEntry(categoryBadge: p1.badge, title: p1.title, description: p1.curatorSubtitle, gradient: p1.gradient, icon: p1.icon, coverUrl: p1.coverUrl, preset: p1, onTap: () => widget.onPlayPreset(p1)),
         ];
       case MusicProviderType.soundcloud:
         final p1 = CuratedPlaylistPreset(
-          title: 'SoundCloud Next Wave',
+          title: 'Next Wave & Underground',
           curatorSubtitle: 'Emerging underground artists, remixes, future bass & lo-fi flips',
-          badge: 'SC NEXT WAVE',
+          badge: 'FUTURE SOUNDS',
           searchQuery: 'SoundCloud next wave viral tracks official audio',
           gradient: const [Color(0xFFFF5500), Color(0xFF290E00)],
           icon: Icons.cloud_queue_rounded,
@@ -4970,59 +4976,63 @@ final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
 /// Apple Music Live Broadcast Stations
 final List<CuratedPlaylistPreset> kAppleMusicBroadcastPlaylists = [
   CuratedPlaylistPreset(
-    title: 'Apple Music 1 Worldwide',
-    curatorSubtitle: 'Zane Lowe & Ebro Darden · Live Global Broadcast',
-    badge: 'APPLE MUSIC 1',
+    title: 'Worldwide Radio 1',
+    curatorSubtitle: 'Live premier releases, artist interviews & daily charts',
+    badge: 'LIVE ON AIR',
     searchQuery: 'Apple Music 1 hits live songs official audio',
     gradient: [const Color(0xFFFC3C44), const Color(0xFF3B0007), const Color(0xFF000000)],
-    icon: Icons.apple_rounded,
+    icon: Icons.sensors_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'APPLE MUSIC 1',
+    broadcastStation: 'WORLDWIDE LIVE 1',
+    applePlaylistId: '1',
   ),
   CuratedPlaylistPreset(
-    title: 'Apple Music Hits',
+    title: 'Hits & Rewind',
     curatorSubtitle: 'The biggest pop, rap & rock favorites from 80s to 2000s',
-    badge: 'APPLE HITS',
+    badge: 'TIMELESS POP',
     searchQuery: 'Apple Music Hits retro pop songs official audio',
     gradient: [const Color(0xFFFF9500), const Color(0xFF4A2000), const Color(0xFF000000)],
     icon: Icons.album_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'APPLE MUSIC HITS',
+    broadcastStation: 'TIMELESS HITS',
+    applePlaylistId: 'top100',
   ),
   CuratedPlaylistPreset(
-    title: 'Apple Music Country',
+    title: 'Nashville Sessions',
     curatorSubtitle: "Today's country music live from Nashville studios",
-    badge: 'APPLE COUNTRY',
+    badge: 'NASHVILLE SESSIONS',
     searchQuery: 'Apple Music Country hits official audio',
     gradient: [const Color(0xFF34C759), const Color(0xFF0A2B11), const Color(0xFF000000)],
     icon: Icons.music_note_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
     genre: 'Country',
     isBroadcastChannel: true,
-    broadcastStation: 'APPLE MUSIC COUNTRY',
+    broadcastStation: 'STUDIO LIVE',
+    applePlaylistId: 'spatial',
   ),
 ];
 
 /// Spotify Live & Editorial Broadcasts
 final List<CuratedPlaylistPreset> kSpotifyBroadcastPlaylists = [
   CuratedPlaylistPreset(
-    title: 'Spotify Global Top 50',
+    title: 'Global Top 50',
     curatorSubtitle: 'Most streamed tracks worldwide right now',
-    badge: 'SPOTIFY TOP 50',
+    badge: 'TOP 50',
     searchQuery: 'Spotify Global Top 50 hits 2025 2026 official audio',
     gradient: [const Color(0xFF1DB954), const Color(0xFF07210C), const Color(0xFF000000)],
     icon: Icons.graphic_eq_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'SPOTIFY CHARTS',
+    broadcastStation: 'GLOBAL CHARTS',
+    spotifyPlaylistId: '37i9dQZF1DXcBWIGoYBM5M',
   ),
   CuratedPlaylistPreset(
-    title: 'Spotify Viral 50',
+    title: 'Viral 50',
     curatorSubtitle: 'Viral breakout songs and social sensations',
     badge: 'VIRAL 50',
     searchQuery: 'Spotify Viral 50 Global 2025 2026 official audio',
@@ -5031,10 +5041,11 @@ final List<CuratedPlaylistPreset> kSpotifyBroadcastPlaylists = [
     coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'SPOTIFY VIRAL',
+    broadcastStation: 'VIRAL HITS',
+    spotifyPlaylistId: '37i9dQZF1DX2L0iB23Enbq',
   ),
   CuratedPlaylistPreset(
-    title: 'Spotify Fresh Finds',
+    title: 'Fresh Finds',
     curatorSubtitle: 'Discover tomorrow\'s stars & indie breakthroughs',
     badge: 'FRESH FINDS',
     searchQuery: 'Spotify Fresh Finds indie hits official audio',
@@ -5043,26 +5054,27 @@ final List<CuratedPlaylistPreset> kSpotifyBroadcastPlaylists = [
     coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
     genre: 'Indie',
     isBroadcastChannel: true,
-    broadcastStation: 'SPOTIFY DISCOVERY',
+    broadcastStation: 'DISCOVERY',
+    spotifyPlaylistId: '37i9dQZF1DX3u9TSYrV1nG',
   ),
 ];
 
 /// YouTube Music Live Trends & Charts
 final List<CuratedPlaylistPreset> kYoutubeBroadcastPlaylists = [
   CuratedPlaylistPreset(
-    title: 'YouTube Trending Hits',
+    title: 'Global Trending Hits',
     curatorSubtitle: 'Number 1 trending music & breakthrough videos',
-    badge: 'YT TRENDING',
+    badge: 'TRENDING NOW',
     searchQuery: 'YouTube Music trending viral songs 2025 2026 official audio',
     gradient: [const Color(0xFFFF0000), const Color(0xFF330000), const Color(0xFF000000)],
     icon: Icons.play_circle_fill_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'YOUTUBE CHARTS',
+    broadcastStation: 'TOP VIDEO CHARTS',
   ),
   CuratedPlaylistPreset(
-    title: 'YouTube Viral 100',
+    title: 'Viral 100 Anthems',
     curatorSubtitle: 'Breakthrough shorts & viral audio anthems worldwide',
     badge: 'VIRAL 100',
     searchQuery: 'YouTube Viral 100 songs official audio',
@@ -5071,63 +5083,65 @@ final List<CuratedPlaylistPreset> kYoutubeBroadcastPlaylists = [
     coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'YOUTUBE SHORTS',
+    broadcastStation: 'VIRAL SHORTS',
   ),
 ];
 
 /// Deezer Live & Worldwide Flow
 final List<CuratedPlaylistPreset> kDeezerBroadcastPlaylists = [
   CuratedPlaylistPreset(
-    title: 'Deezer Infinite Flow',
+    title: 'Infinite Flow & Top Hits',
     curatorSubtitle: 'Non-stop personalized high-fidelity stream',
-    badge: 'DEEZER FLOW',
+    badge: 'INFINITE FLOW',
     searchQuery: 'Deezer Flow Top hits songs official audio',
     gradient: [const Color(0xFFA238FF), const Color(0xFF21053B), const Color(0xFF000000)],
     icon: Icons.album_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'DEEZER FLOW',
+    broadcastStation: 'STUDIO FLOW',
+    deezerPlaylistId: '3155776842',
   ),
   CuratedPlaylistPreset(
-    title: 'Deezer Top Worldwide',
-    curatorSubtitle: 'Top 100 international tracks on Deezer',
-    badge: 'DEEZER CHARTS',
+    title: 'Top 100 Worldwide',
+    curatorSubtitle: 'Top 100 international tracks in master quality',
+    badge: 'WORLDWIDE 100',
     searchQuery: 'Deezer Top Worldwide hits 2025 official audio',
     gradient: [const Color(0xFF7928CA), const Color(0xFF130224), const Color(0xFF000000)],
     icon: Icons.waves_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
     genre: 'Pop',
     isBroadcastChannel: true,
-    broadcastStation: 'DEEZER GLOBAL',
+    broadcastStation: 'GLOBAL MASTER',
+    deezerPlaylistId: '1116190041',
   ),
 ];
 
 /// SoundCloud Live Sets & Radio
 final List<CuratedPlaylistPreset> kSoundCloudBroadcastPlaylists = [
   CuratedPlaylistPreset(
-    title: 'SoundCloud Next Wave',
+    title: 'Next Wave & Future Bass',
     curatorSubtitle: 'Emerging artists, future bass and bedroom pop',
-    badge: 'SC NEXT WAVE',
+    badge: 'FUTURE SOUNDS',
     searchQuery: 'SoundCloud next wave viral tracks official audio',
     gradient: [const Color(0xFFFF5500), const Color(0xFF3D1400), const Color(0xFF000000)],
     icon: Icons.cloud_queue_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
     genre: 'Electronic',
     isBroadcastChannel: true,
-    broadcastStation: 'SOUNDCLOUD LIVE',
+    broadcastStation: 'INDIE SESSIONS',
   ),
   CuratedPlaylistPreset(
-    title: 'SoundCloud VIP Flips',
-    curatorSubtitle: 'Underground edits, club flips & festival bootlegs',
-    badge: 'SC BOOTLEGS',
-    searchQuery: 'SoundCloud club edit remix flip official audio',
-    gradient: [const Color(0xFFFF7700), const Color(0xFF290C00), const Color(0xFF000000)],
-    icon: Icons.speaker_group_rounded,
+    title: 'VIP Flips & Underground Edits',
+    curatorSubtitle: 'Underground club edits, bootlegs and house flips',
+    badge: 'CLUB EDITS',
+    searchQuery: 'SoundCloud VIP club edits official audio',
+    gradient: [const Color(0xFFFF7700), const Color(0xFF331100), const Color(0xFF000000)],
+    icon: Icons.headphones_rounded,
     coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
-    genre: 'Dance',
+    genre: 'Electronic',
     isBroadcastChannel: true,
-    broadcastStation: 'SOUNDCLOUD UNDERGROUND',
+    broadcastStation: 'UNDERGROUND',
   ),
 ];
 class MornyeMoodFilterBar extends StatelessWidget {
@@ -5488,17 +5502,11 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ShelfHeader(
-          icon: widget.provider == MusicProviderType.all
-              ? Icons.trending_up_rounded
-              : widget.provider.icon,
-          title: widget.provider == MusicProviderType.all
-              ? 'Top Hits & Heavy Rotation'
-              : '${widget.provider.displayName} Hits',
-          badgeLabel: widget.provider == MusicProviderType.all
-              ? (widget.activeMood == 'All'
-                  ? 'LATEST CHART SINGLES'
-                  : widget.activeMood.toUpperCase())
-              : widget.provider.displayName.toUpperCase(),
+          icon: Icons.trending_up_rounded,
+          title: 'Top Hits & Heavy Rotation',
+          badgeLabel: widget.activeMood == 'All'
+              ? 'LATEST CHART SINGLES'
+              : widget.activeMood.toUpperCase(),
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -5733,21 +5741,14 @@ class BroadcastChannelsShelf extends StatelessWidget {
       _ => kTraceSoundcityBroadcastPlaylists,
     };
     final headerTitle = switch (provider) {
-      MusicProviderType.appleMusic => 'Apple Music Live Stations',
-      MusicProviderType.spotify => 'Spotify Editorial Broadcasts',
-      MusicProviderType.youtubeMusic => 'YouTube Music Live & Charts',
-      MusicProviderType.deezer => 'Deezer Live & Worldwide Flow',
-      MusicProviderType.soundcloud => 'SoundCloud Live Sets & Radio',
-      _ => 'Trace & Soundcity Live Channels',
+      MusicProviderType.appleMusic => 'Live Radio & Broadcasts',
+      MusicProviderType.spotify => 'Curated Broadcasts',
+      MusicProviderType.youtubeMusic => 'Spotlight Video & Audio Stations',
+      MusicProviderType.deezer => 'Worldwide Flow & Stations',
+      MusicProviderType.soundcloud => 'Underground Sessions & Radio',
+      _ => 'Live Broadcast Channels',
     };
-    final headerBadge = switch (provider) {
-      MusicProviderType.appleMusic => 'APPLE LIVE',
-      MusicProviderType.spotify => 'SPOTIFY LIVE',
-      MusicProviderType.youtubeMusic => 'YOUTUBE CHARTS',
-      MusicProviderType.deezer => 'HI-FI FLOW',
-      MusicProviderType.soundcloud => 'UNDERGROUND',
-      _ => 'LIVE ON AIR',
-    };
+    final headerBadge = 'LIVE ON AIR';
     final brandColor = provider == MusicProviderType.all
         ? const Color(0xFFEF4444)
         : provider.brandColor;
@@ -5984,7 +5985,6 @@ class ExploreFeaturedSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (section.items.isEmpty) return const SizedBox.shrink();
     final colors = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6031,13 +6031,11 @@ class ExploreFeaturedSection extends StatelessWidget {
                             item.heading!.toUpperCase(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: const TextStyle(
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,
-                              color: item.providerId != null
-                                  ? MusicProviderType.fromId(item.providerId!).brandColor
-                                  : (isDark ? MeloColors.cherry : colors.primary),
+                              color: MeloColors.cherry,
                             ),
                           ),
                           const SizedBox(height: 3),
