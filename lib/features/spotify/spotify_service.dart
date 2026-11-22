@@ -1133,7 +1133,21 @@ class SpotifyService {
     }
 
     SpotifyPlaylistData data;
-    // Try custom Web API credentials if user saved them
+    // 1. If user is logged in with active token, fetch directly from Web API.
+    // This allows importing personal, private, and collaborative user playlists cleanly.
+    if (_accessToken != null && _accessToken!.isNotEmpty) {
+      try {
+        final apiData = await _fetchViaAccessToken(entityId, entityType: entityType);
+        if (apiData != null && apiData.tracks.isNotEmpty) {
+          _playlistCache[entityId] = apiData;
+          return apiData;
+        }
+      } catch (e) {
+        debugPrint('Spotify access token fetch error: $e');
+      }
+    }
+
+    // 2. Try custom Web API credentials if user saved them
     final clientId = await getSavedClientId();
     final clientSecret = await getSavedClientSecret();
     if (clientId != null && clientSecret != null) {
@@ -1146,10 +1160,83 @@ class SpotifyService {
       }
     }
 
-    // Fast, tokenless & resilient public embed + oEmbed parsing
+    // 3. Fast, tokenless & resilient public embed parsing
     data = await _fetchViaEmbed(entityId, entityType: entityType);
     _playlistCache[entityId] = data;
     return data;
+  }
+
+  Future<SpotifyPlaylistData?> _fetchViaAccessToken(
+    String entityId, {
+    String entityType = 'playlist',
+  }) async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) return null;
+    final path = entityType == 'album'
+        ? '/v1/albums/$entityId'
+        : '/v1/playlists/$entityId';
+    var json = await _spotifyApiGet(path, token);
+    if (json == null) {
+      if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+        if (await _refreshWithRefreshToken() && _accessToken != null) {
+          json = await _spotifyApiGet(path, _accessToken!);
+        }
+      } else if (_cookie != null && _cookie!.isNotEmpty) {
+        if (await _exchangeCookieForToken() && _accessToken != null) {
+          json = await _spotifyApiGet(path, _accessToken!);
+        }
+      }
+    }
+    if (json == null) return null;
+
+    final title = (json['name'] as String?) ?? 'Spotify Playlist';
+    final description = (json['description'] as String?) ?? '';
+    final owner = (json['owner'] as Map?)?['display_name'] as String?;
+    final images = json['images'] as List?;
+    String? artworkUrl;
+    if (images != null && images.isNotEmpty) {
+      final first = images.first;
+      if (first is Map) {
+        artworkUrl = first['url'] as String?;
+      }
+    }
+
+    final rawTracks = json['tracks'];
+    final items = rawTracks is Map ? (rawTracks['items'] as List?) : (rawTracks as List?);
+    final tracks = <SpotifyTrack>[];
+    if (items != null) {
+      for (final item in items) {
+        if (item is! Map) continue;
+        final trackMap = entityType == 'album' ? item : (item['track'] as Map?);
+        final t = _parseApiTrack(trackMap);
+        if (t != null) {
+          tracks.add(
+            artworkUrl != null && (t.artworkUrl == null || t.artworkUrl!.isEmpty)
+                ? SpotifyTrack(
+                    id: t.id,
+                    title: t.title,
+                    artist: t.artist,
+                    album: t.album.isEmpty ? title : t.album,
+                    durationMs: t.durationMs,
+                    artworkUrl: artworkUrl,
+                  )
+                : t,
+          );
+        }
+      }
+    }
+
+    if (tracks.isNotEmpty) {
+      return SpotifyPlaylistData(
+        id: entityId,
+        title: title,
+        description: description,
+        artworkUrl: artworkUrl,
+        owner: owner,
+        tracks: tracks,
+      );
+    }
+    return null;
   }
 
   /// Fetches live tracks from Spotify's featured charts playlist feed for Home discovery.

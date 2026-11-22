@@ -1201,9 +1201,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     value: 'import_link',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.playlist_add_rounded, size: 20),
+                                        Icon(Icons.cloud_download_rounded, size: 20),
                                         SizedBox(width: 10),
-                                        Text('Import Online Playlist'),
+                                        Text('Pick & Import Cloud Playlists'),
                                       ],
                                     ),
                                   ),

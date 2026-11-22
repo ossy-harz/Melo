@@ -8,6 +8,38 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
+class YoutubePlaylistSummary {
+  const YoutubePlaylistSummary({
+    required this.id,
+    required this.title,
+    this.subtitle,
+    this.thumbnailUrl,
+    this.trackCount = 0,
+  });
+
+  final String id;
+  final String title;
+  final String? subtitle;
+  final String? thumbnailUrl;
+  final int trackCount;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'subtitle': subtitle,
+    'thumbnailUrl': thumbnailUrl,
+    'trackCount': trackCount,
+  };
+
+  factory YoutubePlaylistSummary.fromJson(Map<String, dynamic> json) => YoutubePlaylistSummary(
+    id: json['id'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    subtitle: json['subtitle'] as String?,
+    thumbnailUrl: json['thumbnailUrl'] as String?,
+    trackCount: (json['trackCount'] as num?)?.toInt() ?? 0,
+  );
+}
+
 class YoutubeAuthService {
   YoutubeAuthService._();
   static final YoutubeAuthService instance = YoutubeAuthService._();
@@ -16,10 +48,12 @@ class YoutubeAuthService {
   static const String _namePrefKey = 'tone_yt_account_name';
   static const String _avatarPrefKey = 'tone_yt_account_avatar';
   static const String _genresPrefKey = 'tone_yt_favorite_genres';
+  static const String _userPlaylistsPrefKey = 'tone_yt_user_playlists';
 
   String? _cookie;
   String? _accountName;
   String? _avatarUrl;
+  List<YoutubePlaylistSummary> _userPlaylists = const [];
   List<String> _favoriteGenres = [
     'Hip-Hop',
     'Electronic',
@@ -34,6 +68,7 @@ class YoutubeAuthService {
   String? get avatarUrl => _avatarUrl;
   String? get rawCookie => _cookie;
   List<String> get favoriteGenres => List.unmodifiable(_favoriteGenres);
+  List<YoutubePlaylistSummary> get userPlaylists => List.unmodifiable(_userPlaylists);
 
   final ValueNotifier<bool> authState = ValueNotifier<bool>(false);
 
@@ -45,6 +80,19 @@ class YoutubeAuthService {
     final savedGenres = prefs.getStringList(_genresPrefKey);
     if (savedGenres != null && savedGenres.isNotEmpty) {
       _favoriteGenres = savedGenres;
+    }
+    final rawPlaylists = prefs.getString(_userPlaylistsPrefKey);
+    if (rawPlaylists != null && rawPlaylists.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawPlaylists);
+        if (decoded is List) {
+          _userPlaylists = decoded
+              .whereType<Map>()
+              .map((m) => YoutubePlaylistSummary.fromJson(Map<String, dynamic>.from(m)))
+              .where((p) => p.id.isNotEmpty)
+              .toList(growable: false);
+        }
+      } catch (_) {}
     }
     authState.value = isLoggedIn;
   }
@@ -161,6 +209,7 @@ class YoutubeAuthService {
       }
 
       authState.value = true;
+      unawaited(getUserPlaylists(forceRefresh: true));
       return true;
     } catch (e) {
       debugPrint('YouTube cookie login error: $e');
@@ -173,11 +222,13 @@ class YoutubeAuthService {
     _cookie = null;
     _accountName = null;
     _avatarUrl = null;
+    _userPlaylists = const [];
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cookiePrefKey);
     await prefs.remove(_namePrefKey);
     await prefs.remove(_avatarPrefKey);
+    await prefs.remove(_userPlaylistsPrefKey);
     authState.value = false;
   }
 
@@ -201,11 +252,133 @@ class YoutubeAuthService {
       }
 
       authState.value = true;
+      unawaited(getUserPlaylists(forceRefresh: true));
       return true;
     } catch (e) {
       debugPrint('Error syncing channel handle: $e');
       return false;
     }
+  }
+
+  /// Fetches the user's saved/created YouTube Music playlists from their library.
+  Future<List<YoutubePlaylistSummary>> getUserPlaylists({bool forceRefresh = false}) async {
+    if (!forceRefresh && _userPlaylists.isNotEmpty) return _userPlaylists;
+    if (!isLoggedIn) return const [];
+
+    final list = <YoutubePlaylistSummary>[];
+
+    // 1. Add Liked Music as a permanent, special primary entry
+    list.add(
+      const YoutubePlaylistSummary(
+        id: 'LM',
+        title: 'Liked Music',
+        subtitle: 'Auto-synced from YouTube Music',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+      ),
+    );
+
+    // 2. Fetch from FEmusic_liked_playlists if cookie is present
+    if (_cookie != null && !_cookie!.startsWith('HANDLE_AUTH_')) {
+      try {
+        final uri = Uri.parse('https://music.youtube.com/youtubei/v1/browse');
+        final payload = {
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': '1.20231201.01.00',
+              'hl': 'en',
+              'gl': 'US',
+            },
+          },
+          'browseId': 'FEmusic_liked_playlists',
+        };
+
+        final response = await http
+            .post(uri, headers: getAuthHeaders(), body: jsonEncode(payload))
+            .timeout(const Duration(seconds: 12));
+
+        if (response.statusCode == 200) {
+          final json = jsonDecode(response.body) as Map<String, dynamic>;
+          final sectionList = json['contents']?['singleColumnBrowseResultsRenderer']
+              ?['tabs']?[0]?['tabRenderer']?['content']
+              ?['sectionListRenderer']?['contents'] as List?;
+          if (sectionList != null && sectionList.isNotEmpty) {
+            for (final section in sectionList) {
+              final itemSection = section['itemSectionRenderer'];
+              final contents = itemSection?['contents'] as List?;
+              if (contents == null) continue;
+              for (final content in contents) {
+                final grid = content['gridRenderer'] ??
+                    content['musicCarouselShelfRenderer'] ??
+                    content['musicShelfRenderer'];
+                final items = (grid?['items'] ?? grid?['contents']) as List?;
+                if (items == null) continue;
+                for (final item in items) {
+                  final rend = item['musicTwoRowItemRenderer'] ??
+                      item['musicResponsiveListItemRenderer'];
+                  if (rend is! Map) continue;
+                  final titleRuns = rend['title']?['runs'] as List?;
+                  final title = titleRuns?.map((r) => r['text'] ?? '').join().trim() ?? '';
+                  if (title.isEmpty) continue;
+
+                  final subRuns = rend['subtitle']?['runs'] as List?;
+                  final subtitle = subRuns?.map((r) => r['text'] ?? '').join().trim() ?? '';
+
+                  final nav = rend['navigationEndpoint']?['browseEndpoint'];
+                  var rawBrowseId = (nav?['browseId'] as String?) ?? '';
+                  if (rawBrowseId.startsWith('VL')) rawBrowseId = rawBrowseId.substring(2);
+                  if (rawBrowseId.isEmpty) continue;
+
+                  final thumbs = rend['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List? ??
+                      rend['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
+                  final thumbUrl = (thumbs?.isNotEmpty == true) ? thumbs!.last['url'] as String? : null;
+
+                  final match = RegExp(r'(\d+)\s*(?:tracks|songs|videos)', caseSensitive: false).firstMatch(subtitle);
+                  final count = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+
+                  list.add(
+                    YoutubePlaylistSummary(
+                      id: rawBrowseId,
+                      title: title,
+                      subtitle: subtitle.isNotEmpty ? subtitle : 'YouTube Music Playlist',
+                      thumbnailUrl: thumbUrl,
+                      trackCount: count,
+                    ),
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching YouTube user playlists: $e');
+      }
+    } else if (_accountName != null && _accountName!.startsWith('@')) {
+      // Channel handle mode: search for curated playlists by that channel
+      try {
+        final query = 'playlist ${_accountName!}';
+        final tracks = await YoutubeAudioService.instance.search(query);
+        if (tracks.isNotEmpty) {
+          list.add(
+            YoutubePlaylistSummary(
+              id: 'RDCLAK5uy_${tracks.first.id}',
+              title: '${_accountName!} Mix',
+              subtitle: '${tracks.length} tracks',
+              thumbnailUrl: tracks.first.thumbnailUrl,
+              trackCount: tracks.length,
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+
+    _userPlaylists = List.unmodifiable(list);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _userPlaylistsPrefKey,
+      jsonEncode(_userPlaylists.map((p) => p.toJson()).toList()),
+    );
+    return _userPlaylists;
   }
 
   /// Updates user favorite vibe/genre tags to shape personalized taste recommendations.

@@ -290,6 +290,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     try {
       await session.configure(
         const AudioSessionConfiguration.music().copyWith(
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
           androidWillPauseWhenDucked: false,
         ),
       );
@@ -1407,12 +1408,13 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     await _audioEngine.setDeckGain(deck, 0.0);
   }
 
-  Future<void> _smoothFadeInDeck(AudioDeck deck, double targetGain, {int durationMs = 50}) async {
+  Future<void> _smoothFadeInDeck(AudioDeck deck, double targetGain, {int durationMs = 60}) async {
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       await _audioEngine.setDeckGain(deck, targetGain);
       return;
     }
-    final steps = (durationMs / 15).round().clamp(2, 4);
+    await _audioEngine.setDeckGain(deck, 0.0);
+    final steps = (durationMs / 15).round().clamp(3, 5);
     for (var i = 1; i <= steps; i++) {
       final factor = i / steps;
       await _audioEngine.setDeckGain(deck, targetGain * factor);
@@ -2303,6 +2305,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           ? await _resolveSourceFor(targetItem)
           : _sourceFor(targetItem);
       if (isCancelled?.call() == true) return null;
+      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+        await _audioEngine.setDeckGain(AudioDeck.a, 0.0);
+      }
       await _audioEngine.loadDeck(AudioDeck.a, source);
       if (isCancelled?.call() == true) return null;
       await _audioEngine.setDeckGain(

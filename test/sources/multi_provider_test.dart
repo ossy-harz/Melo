@@ -14,6 +14,9 @@ import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/multi_metadata_provider.dart';
 import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/sources/soundcloud_audio_service.dart';
+import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
+import 'package:melo_player/features/spotify/spotify_service.dart';
+import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -523,6 +526,63 @@ void main() {
       expect(find.text("Today's Top Hits"), findsWidgets);
       expect(find.text('Starboy'), findsOneWidget);
       expect(find.text('As It Was'), findsOneWidget);
+    });
+
+    testWidgets('SpotifyImportSheet mounts cleanly with modern segmented cloud tabs', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SpotifyImportSheet(initialTab: 0),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Cloud & Online Playlists'), findsOneWidget);
+      expect(find.text('Spotify'), findsOneWidget);
+      expect(find.text('YouTube'), findsOneWidget);
+      expect(find.text('Direct Link'), findsOneWidget);
+
+      // Tap YouTube tab
+      await tester.tap(find.text('YouTube'));
+      await tester.pump();
+
+      expect(find.text('Connect Your YouTube Account'), findsOneWidget);
+
+      // Tap Direct Link tab
+      await tester.tap(find.text('Direct Link'));
+      await tester.pump();
+
+      expect(find.text('Load'), findsOneWidget);
+    });
+
+    test('YoutubePlaylistSummary serializes and deserializes properly', () {
+      const summary = YoutubePlaylistSummary(
+        id: 'PL123456',
+        title: 'My Top Afrobeats',
+        subtitle: '50 tracks · Curated by Melo',
+        thumbnailUrl: 'https://images.unsplash.com/cover.jpg',
+        trackCount: 50,
+      );
+
+      final json = summary.toJson();
+      expect(json['id'], 'PL123456');
+      expect(json['title'], 'My Top Afrobeats');
+      expect(json['trackCount'], 50);
+
+      final restored = YoutubePlaylistSummary.fromJson(json);
+      expect(restored.id, summary.id);
+      expect(restored.title, summary.title);
+      expect(restored.subtitle, summary.subtitle);
+      expect(restored.thumbnailUrl, summary.thumbnailUrl);
+      expect(restored.trackCount, summary.trackCount);
+    });
+
+    test('SpotifyService exposes userPlaylists and featuredPlaylists cleanly', () {
+      expect(SpotifyService.featuredPlaylists.isNotEmpty, isTrue);
+      expect(SpotifyService.featuredPlaylists.first.id, '37i9dQZF1DXcBWIGoYBM5M');
+      expect(SpotifyService.instance.userPlaylists, isNotNull);
+      expect(YoutubeAuthService.instance.userPlaylists, isNotNull);
     });
   });
 }

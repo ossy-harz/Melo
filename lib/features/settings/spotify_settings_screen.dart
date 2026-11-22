@@ -407,9 +407,10 @@ class _SpotifySettingsScreenState extends State<SpotifySettingsScreen> {
                     context,
                     library: widget.library,
                     audioHandler: widget.audioHandler,
+                    initialTab: 0,
                   ),
-                  icon: const Icon(Icons.download_rounded),
-                  label: const Text('Open Playlist Importer'),
+                  icon: const Icon(Icons.playlist_play_rounded),
+                  label: const Text('Browse & Pick Spotify Playlists'),
                 ),
                 const SizedBox(height: 28),
                 Text(
