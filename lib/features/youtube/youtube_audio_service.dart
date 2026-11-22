@@ -60,7 +60,7 @@ class YoutubeTrack {
     return author;
   }
 
-  ImportedTrack toImportedTrack({String? streamUrl}) => ImportedTrack(
+  ImportedTrack toImportedTrack({String? streamUrl, String? genre}) => ImportedTrack(
     id: 'youtube:$id',
     path: streamUrl ?? 'youtube:$id',
     title: title,
@@ -72,16 +72,18 @@ class YoutubeTrack {
     artworkUri: thumbnailUrl,
     sourceProvider: 'YouTube',
     providerTrackId: id,
+    genre: genre,
     isAvailable: true,
   );
 
-  MediaItem toMediaItem({String? streamUrl}) => MediaItem(
+  MediaItem toMediaItem({String? streamUrl, String? genre}) => MediaItem(
     id: streamUrl ?? 'youtube:$id',
     title: title,
     artist: author,
     album: (album != null && album!.trim().isNotEmpty)
         ? album!.trim()
         : 'YouTube Music',
+    genre: genre,
     duration: duration > Duration.zero ? duration : null,
     artUri: thumbnailUrl == null ? null : Uri.tryParse(thumbnailUrl!),
     extras: {
@@ -90,6 +92,7 @@ class YoutubeTrack {
       'providerTrackId': id,
       'videoId': id,
       'streamUrl': ?streamUrl,
+      'genre': ?genre,
     },
   );
 }

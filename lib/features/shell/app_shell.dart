@@ -13,6 +13,7 @@ import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/library_screen.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/mix/personal_mix.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/search/search_screen.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
@@ -263,6 +264,18 @@ class MixSetupScreen extends StatefulWidget {
 }
 
 class _MixSetupScreenState extends State<MixSetupScreen> {
+  static const _genres = [
+    'All Music',
+    'Dancehall',
+    'Afrobeats',
+    'Amapiano',
+    'Kenyan & Bongo',
+    'Reggae',
+    'Hip-Hop',
+    'R&B & Soul',
+  ];
+  String _selectedGenre = 'All Music';
+
   static const _sessionLengths = [15, 30, 45, 60];
   int _sessionLength = 30;
   double _discovery = 0.35;
@@ -293,11 +306,28 @@ class _MixSetupScreenState extends State<MixSetupScreen> {
     }
     if (mounted) setState(() => _isGenerating = true);
     try {
-      final picks = library.generatePersonalMix(
+      var picks = library.generatePersonalMix(
         targetDuration: Duration(minutes: _sessionLength),
         discovery: _discovery,
         randomSeed: _seed,
+        genre: _selectedGenre,
       );
+      if (_selectedGenre != 'All Music' && picks.length < 5) {
+        try {
+          final smart = await SmartPlaylistService.instance.generateGenreMix(
+            genre: _selectedGenre,
+            library: library,
+            seed: _seed,
+          );
+          if (smart.tracks.isNotEmpty) {
+            final smartPicks = smart.tracks.map((item) => MixPick(
+              track: ImportedTrack.fromMediaItem(item),
+              reason: 'Authentic $_selectedGenre hit',
+            )).toList();
+            picks = [...picks, ...smartPicks];
+          }
+        } catch (_) {}
+      }
       if (!mounted || request != _previewRequest) return;
       setState(() {
         _picks = picks
@@ -446,6 +476,29 @@ class _MixSetupScreenState extends State<MixSetupScreen> {
                 ?.copyWith(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
+          Text('GENRE & VIBE', style: _eyebrowStyle(colors)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final g in _genres)
+                ChoiceChip(
+                  label: Text(g),
+                  selected: _selectedGenre == g,
+                  onSelected: (selected) {
+                    if (selected && _selectedGenre != g) {
+                      setState(() {
+                        _selectedGenre = g;
+                        _removedFromPreview.clear();
+                      });
+                      unawaited(_refreshMix());
+                    }
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
           Text('SESSION LENGTH', style: _eyebrowStyle(colors)),
           const SizedBox(height: 10),
           Wrap(

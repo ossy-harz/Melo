@@ -403,6 +403,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       library: widget.library,
       refreshGeneration: _refreshGeneration,
       provider: activeProvider,
+      audioHandler: widget.audioHandler,
       onPlayVibe: (vibe) => _openStation(context, vibe),
       onPlayPreset: (preset) => _openCuratedPreset(context, preset),
       onOpenArtistRadio: (artist) => _openArtistRadio(context, artist),

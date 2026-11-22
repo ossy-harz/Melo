@@ -492,6 +492,272 @@ class SmartPlaylistService {
     );
   }
 
+  static const Map<String, ({List<String> artists, List<String> queries, String coverArt})>
+      _genreArchetypes = {
+    'dancehall': (
+      artists: [
+        'Vybz Kartel',
+        'Popcaan',
+        'Sean Paul',
+        'Shenseea',
+        'Skillibeng',
+        'Masicka',
+        'Alkaline',
+        'Dexta Daps',
+        'Beenie Man',
+        'Ding Dong',
+        'Spice',
+        'Kranium',
+        'Busy Signal',
+        'Govana',
+        'Teejay',
+        'Aidonia',
+        'Charly Black',
+        'Konshens',
+      ],
+      queries: [
+        'best dancehall songs hits official audio',
+        'top dancehall anthems vybz kartel popcaan sean paul official audio',
+        'dancehall riddim mix hits official audio',
+        'new dancehall songs 2024 2025 official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80',
+    ),
+    'afrobeats': (
+      artists: [
+        'Burna Boy',
+        'Wizkid',
+        'Asake',
+        'Rema',
+        'Tems',
+        'Davido',
+        'Ayra Starr',
+        'Omah Lay',
+        'Fireboy DML',
+        'Tiwa Savage',
+        'Kizz Daniel',
+        'Runtown',
+      ],
+      queries: [
+        'afrobeats top hits burna boy asake rema official audio',
+        'best afrobeats songs anthems official audio',
+        'afrobeats global charts official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
+    ),
+    'amapiano': (
+      artists: [
+        'Kabza De Small',
+        'DJ Maphorisa',
+        'Tyler ICU',
+        'Focalistic',
+        'Uncle Waffles',
+        'Young Stunna',
+        'Daliwonga',
+        'Musa Keys',
+        'De Mthuda',
+      ],
+      queries: [
+        'amapiano hits kabza de small tyler icu official audio',
+        'top amapiano groove anthems official audio',
+        'new amapiano hits 2024 2025 official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
+    ),
+    'reggae': (
+      artists: [
+        'Bob Marley',
+        'Chronixx',
+        'Koffee',
+        'Protoje',
+        'Damian Marley',
+        'Tarrus Riley',
+        'Buju Banton',
+        'Beres Hammond',
+        'Morgan Heritage',
+      ],
+      queries: [
+        'reggae classics anthems bob marley chronixx official audio',
+        'roots reggae consciousness hits official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80',
+    ),
+    'kenyan & bongo': (
+      artists: [
+        'Diamond Platnumz',
+        'Sauti Sol',
+        'Nyashinski',
+        'Harmonize',
+        'Alikiba',
+        'Rayvanny',
+        'Otile Brown',
+        'Wakadinali',
+        'Bien',
+      ],
+      queries: [
+        'bongo flava top hits diamond platnumz alikiba official audio',
+        'kenyan music hits sauti sol nyashinski official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&q=80',
+    ),
+    'hip-hop': (
+      artists: [
+        'Kendrick Lamar',
+        'Drake',
+        'Travis Scott',
+        'J. Cole',
+        '21 Savage',
+        'Future',
+        'Metro Boomin',
+      ],
+      queries: [
+        'hip hop top hits rap anthems kendrick drake official audio',
+        'best hip hop songs official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80',
+    ),
+    'r&b & soul': (
+      artists: [
+        'SZA',
+        'The Weeknd',
+        'Chris Brown',
+        'Brent Faiyaz',
+        'Summer Walker',
+        'Frank Ocean',
+        'Daniel Caesar',
+      ],
+      queries: [
+        'smooth rnb neo soul hits sza weeknd official audio',
+        'contemporary rnb slow jams official audio',
+      ],
+      coverArt:
+          'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&q=80',
+    ),
+  };
+
+  /// Generates a curated, authentic Genre & Tune Mix (e.g. Dancehall, Afrobeats, Amapiano, etc.)
+  /// with definitive flagship artists, harmonic flow, and full genre metadata stamping on every track.
+  Future<SmartPlaylist> generateGenreMix({
+    required String genre,
+    MusicLibrary? library,
+    int seed = 0,
+  }) async {
+    final cleanGenre = genre.trim();
+    final lowerKey = cleanGenre.toLowerCase();
+    final archetype = _genreArchetypes[lowerKey];
+    final queueTracks = <MediaItem>[];
+    final seenIds = <String>{};
+
+    final title = '$cleanGenre Tune Mix';
+    final subtitle = 'Curated $cleanGenre vibe & top anthems';
+    final coverArt = archetype?.coverArt ??
+        'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80';
+
+    // 1. Gather local tracks matching the genre or genre artists
+    if (library != null) {
+      final matchingLocal = library.tracks.where((t) {
+        if (!t.isAvailable) return false;
+        final tGenre = t.genre?.toLowerCase() ?? '';
+        final tArtist = t.artist.toLowerCase();
+        final isGenreMatch = tGenre.contains(lowerKey) || lowerKey.contains(tGenre);
+        final isArtistMatch = archetype?.artists.any(
+              (a) => tArtist.contains(a.toLowerCase()),
+            ) ??
+            false;
+        return isGenreMatch || isArtistMatch;
+      }).toList();
+
+      for (final t in matchingLocal.take(10)) {
+        final item = t.toMediaItem().copyWith(
+          genre: cleanGenre,
+          extras: {
+            ...?t.toMediaItem().extras,
+            'genre': cleanGenre,
+            'source': 'tune_mix',
+          },
+        );
+        if (seenIds.add(item.id)) {
+          queueTracks.add(item);
+        }
+      }
+    }
+
+    // 2. Fetch authentic online tracks from archetypal queries or search
+    final queries = archetype?.queries ?? [
+      'best $cleanGenre top hits official audio',
+      'top $cleanGenre songs anthems official audio',
+      'new $cleanGenre music official audio',
+    ];
+
+    try {
+      final q = queries[seed % queries.length];
+      final onlineTracks = await YoutubeAudioService.instance.search(
+        q,
+        filterMixtapes: true,
+      );
+
+      for (final t in onlineTracks) {
+        if (t.duration.inSeconds > 660) continue;
+        if (YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration)) continue;
+        final item = t.toMediaItem(genre: cleanGenre).copyWith(
+          genre: cleanGenre,
+          extras: {
+            ...?t.toMediaItem(genre: cleanGenre).extras,
+            'genre': cleanGenre,
+            'source': 'tune_mix',
+          },
+        );
+        if (seenIds.add(item.id)) {
+          queueTracks.add(item);
+        }
+        if (queueTracks.length >= 35) break;
+      }
+
+      // If we still need more tracks, query flagship artists
+      if (queueTracks.length < 15 && archetype != null) {
+        for (final artist in archetype.artists.take(4)) {
+          final artistResults = await YoutubeAudioService.instance.search(
+            '$artist $cleanGenre official audio',
+            filterMixtapes: true,
+          );
+          for (final t in artistResults.take(3)) {
+            if (t.duration.inSeconds > 660) continue;
+            final item = t.toMediaItem(genre: cleanGenre).copyWith(
+              genre: cleanGenre,
+              extras: {
+                ...?t.toMediaItem(genre: cleanGenre).extras,
+                'genre': cleanGenre,
+                'source': 'tune_mix',
+              },
+            );
+            if (seenIds.add(item.id)) {
+              queueTracks.add(item);
+            }
+          }
+          if (queueTracks.length >= 30) break;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error generating genre mix: $e');
+    }
+
+    return SmartPlaylist(
+      id: 'genre_mix:${cleanGenre.toLowerCase()}:$seed',
+      title: title,
+      subtitle: '$subtitle · ${queueTracks.length} tracks',
+      tracks: queueTracks,
+      isContinuous: true,
+      artworkUri: coverArt,
+      seedArtist: cleanGenre,
+    );
+  }
+
   /// Plays a smart playlist on Tone's audio handler with continuous queue active.
   Future<void> playSmartPlaylist({
     required AudioHandler audioHandler,

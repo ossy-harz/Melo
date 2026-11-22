@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,7 @@ import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
+import 'package:melo_player/features/mix/personal_mix.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 import 'package:melo_player/features/sources/external_feed_service.dart';
@@ -844,6 +846,69 @@ void main() {
       final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
       expect(scaffold.backgroundColor, MeloColors.paper);
       expect(scaffold.backgroundColor, isNot(MeloColors.amoled));
+    });
+
+    test('ImportedTrack.fromMediaItem correctly copies genre and metadata', () {
+      const item = MediaItem(
+        id: 'test_track_1',
+        title: 'Clarks',
+        artist: 'Vybz Kartel',
+        genre: 'Dancehall',
+        extras: {'genre': 'Dancehall', 'year': 2010},
+      );
+      final track = ImportedTrack.fromMediaItem(item);
+      expect(track.id, 'test_track_1');
+      expect(track.title, 'Clarks');
+      expect(track.artist, 'Vybz Kartel');
+      expect(track.genre, 'Dancehall');
+      expect(track.year, 2010);
+    });
+
+    test('PersonalMixGenerator filters and prioritizes by genre', () {
+      final tracks = [
+        const ImportedTrack(
+          id: '1',
+          path: '/music/1.mp3',
+          title: 'Fever',
+          artist: 'Vybz Kartel',
+          album: 'King of the Dancehall',
+          durationMs: 180000,
+          genre: 'Dancehall',
+        ),
+        const ImportedTrack(
+          id: '2',
+          path: '/music/2.mp3',
+          title: 'Midnight Sky',
+          artist: 'Miley Cyrus',
+          album: 'Plastic Hearts',
+          durationMs: 200000,
+          genre: 'Pop',
+        ),
+      ];
+
+      final mix = PersonalMixGenerator.generate(
+        tracks: tracks,
+        favoriteTrackIds: {},
+        excludedTrackIds: {},
+        targetDuration: const Duration(minutes: 5),
+        discovery: 0.5,
+        genre: 'Dancehall',
+      );
+
+      expect(mix.isNotEmpty, isTrue);
+      expect(mix.first.track.genre, 'Dancehall');
+      expect(mix.first.track.artist, 'Vybz Kartel');
+    });
+
+    test('SmartPlaylistService generateGenreMix generates stamped genre items', () async {
+      final mix = await SmartPlaylistService.instance.generateGenreMix(
+        genre: 'Dancehall',
+        seed: 42,
+      );
+
+      expect(mix.title, contains('Dancehall'));
+      expect(mix.isContinuous, isTrue);
+      expect(mix.seedArtist, 'Dancehall');
     });
   });
 }

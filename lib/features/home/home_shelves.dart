@@ -224,6 +224,7 @@ class TopPicksShelf extends StatefulWidget {
     this.onOpenArtistRadio,
     this.refreshGeneration = 0,
     this.provider = MusicProviderType.all,
+    this.audioHandler,
     super.key,
   });
 
@@ -236,6 +237,7 @@ class TopPicksShelf extends StatefulWidget {
   final ValueChanged<String>? onOpenArtistRadio;
   final int refreshGeneration;
   final MusicProviderType provider;
+  final AudioHandler? audioHandler;
 
   @override
   State<TopPicksShelf> createState() => _TopPicksShelfState();
@@ -305,6 +307,12 @@ class _TopPickEntry {
   final CuratedPlaylistPreset? preset;
 }
 
+class _TuneMixResult {
+  const _TuneMixResult({required this.vibe, this.playNow = false});
+  final String vibe;
+  final bool playNow;
+}
+
 /// Stateful vibe-tuning dialog so [_controller] survives route pop & IME close animations.
 class _TuneVibeDialog extends StatefulWidget {
   const _TuneVibeDialog();
@@ -333,9 +341,14 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
     super.dispose();
   }
 
-  void _submit([String? explicitValue]) {
+  void _submit([String? explicitValue, bool playNow = false]) {
     FocusScope.of(context).unfocus();
-    Navigator.of(context).pop((explicitValue ?? _controller.text).trim());
+    final text = (explicitValue ?? _controller.text).trim();
+    if (text.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    Navigator.of(context).pop(_TuneMixResult(vibe: text, playNow: playNow));
   }
 
   @override
@@ -352,7 +365,7 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Enter any genre, mood, artist, or playlist vibe to generate dynamic Top Picks.',
+            'Enter any genre, vibe, or artist to personalize your Top Picks or play an authentic continuous mix.',
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -361,7 +374,7 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
             autofocus: true,
             textCapitalization: TextCapitalization.words,
             style: const TextStyle(color: Colors.white),
-            onSubmitted: _submit,
+            onSubmitted: (val) => _submit(val, false),
             decoration: InputDecoration(
               hintText: 'e.g. Dancehall, Arbantone, Rhumba...',
               hintStyle: const TextStyle(color: Colors.white38),
@@ -374,6 +387,43 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
             ),
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Quick Genres:',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () => _submit(null, true),
+                borderRadius: BorderRadius.circular(99),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, size: 15, color: MeloColors.cherry),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Play mix now',
+                        style: TextStyle(
+                          color: MeloColors.cherry,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -389,7 +439,10 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
                         fontSize: 11.5,
                       ),
                     ),
-                    onPressed: () => _submit(idea),
+                    onPressed: () {
+                      _controller.text = idea;
+                      _submit(idea, false);
+                    },
                   ),
                 )
                 .toList(growable: false),
@@ -409,7 +462,7 @@ class _TuneVibeDialogState extends State<_TuneVibeDialog> {
             backgroundColor: MeloColors.cherry,
             foregroundColor: Colors.white,
           ),
-          onPressed: _submit,
+          onPressed: () => _submit(null, false),
           child: const Text('Tune Mix'),
         ),
       ],
@@ -519,23 +572,101 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
     unawaited(_persistVibePrefs());
   }
 
+  Future<void> _playGenreTuneMix(String genre) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Starting authentic $genre mix...',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF18181B),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final playlist = await SmartPlaylistService.instance.generateGenreMix(
+        genre: genre,
+        library: widget.library,
+        seed: _rotationSeed,
+      );
+
+      if (!mounted) return;
+
+      if (playlist.tracks.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('No tracks found for $genre'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      final handler = widget.audioHandler;
+      if (handler != null) {
+        await SmartPlaylistService.instance.playSmartPlaylist(
+          audioHandler: handler,
+          playlist: playlist,
+        );
+      } else {
+        final preset = CuratedPlaylistPreset(
+          title: '$genre Mix',
+          curatorSubtitle: 'Hand-picked $genre hits',
+          badge: genre.toUpperCase(),
+          searchQuery: '$genre songs official audio',
+          gradient: [MeloColors.cherry, MeloColors.cherryDeep],
+          icon: Icons.graphic_eq_rounded,
+          genre: genre,
+        );
+        widget.onPlayPreset(preset);
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to play $genre mix: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showTuneVibeDialog() async {
-    final result = await showDialog<String>(
+    final result = await showDialog<_TuneMixResult>(
       context: context,
       builder: (_) => const _TuneVibeDialog(),
     );
-    if (!mounted || result == null || result.isEmpty) return;
+    if (!mounted || result == null || result.vibe.isEmpty) return;
 
+    final vibe = result.vibe;
     final existingMatch = [..._defaultGenres, ..._customVibes]
-        .where((g) => g.toLowerCase() == result.toLowerCase())
+        .where((g) => g.toLowerCase() == vibe.toLowerCase())
         .firstOrNull;
-    if (existingMatch != null) {
-      _selectGenre(existingMatch);
-      return;
+    final genreToApply = existingMatch ?? vibe;
+    if (existingMatch == null) {
+      setState(() => _customVibes = [vibe, ..._customVibes]);
     }
+    _selectGenre(genreToApply);
 
-    setState(() => _customVibes = [result, ..._customVibes]);
-    _selectGenre(result);
+    if (result.playNow) {
+      unawaited(_playGenreTuneMix(genreToApply));
+    }
   }
 
   List<_TopPickEntry> _buildDynamicTopPicks() {

@@ -54,6 +54,28 @@ class ImportedTrack {
   final int? fileSizeBytes;
   final String? sourceName;
 
+  factory ImportedTrack.fromMediaItem(MediaItem item) {
+    final extras = item.extras ?? const <String, dynamic>{};
+    return ImportedTrack(
+      id: item.id,
+      path: item.id,
+      title: item.title,
+      artist: item.artist ?? 'Unknown Artist',
+      album: item.album ?? 'Single Track',
+      durationMs: item.duration?.inMilliseconds,
+      artworkUri: item.artUri?.toString(),
+      genre: (extras['genre'] as String?) ?? item.genre,
+      bpm: (extras['bpm'] as num?)?.toDouble(),
+      musicalKey: extras['key'] as String?,
+      year: extras['year'] as int?,
+      trackNumber: extras['trackNumber'] as int?,
+      sourceProvider: extras['sourceProvider'] as String? ?? extras['source'] as String?,
+      providerTrackId: extras['providerTrackId'] as String?,
+      licenseUrl: extras['licenseUrl'] as String?,
+      sourceName: extras['sourceName'] as String?,
+    );
+  }
+
   String get displayArtist {
     final normalized = artist.trim();
     return normalized.isEmpty || normalized.toLowerCase() == 'unknown artist'
@@ -66,6 +88,7 @@ class ImportedTrack {
     title: title,
     artist: displayArtistName(artist),
     album: album,
+    genre: genre,
     duration: durationMs == null ? null : Duration(milliseconds: durationMs!),
     artUri: artworkUri == null ? null : Uri.tryParse(artworkUri!),
     extras: {

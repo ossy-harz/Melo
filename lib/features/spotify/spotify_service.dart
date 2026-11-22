@@ -37,7 +37,7 @@ class SpotifyTrack {
     return '$minutes:$seconds';
   }
 
-  ImportedTrack toImportedTrack() => ImportedTrack(
+  ImportedTrack toImportedTrack({String? genre}) => ImportedTrack(
     id: 'spotify:$id',
     path: 'spotify:$id',
     title: title,
@@ -47,6 +47,7 @@ class SpotifyTrack {
     artworkUri: artworkUrl,
     sourceProvider: 'Spotify',
     providerTrackId: id,
+    genre: genre,
     isAvailable: true,
   );
 

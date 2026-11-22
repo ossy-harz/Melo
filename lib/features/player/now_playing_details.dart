@@ -130,16 +130,30 @@ String _audioQualityLabel(Map<String, Object?> details) {
   ].join(' · ');
 }
 
+Future<(Map<String, Object?>?, UnifiedTrackMetadata?)> _loadBadgesData(MediaItem item) async {
+  final audioFuture = _audioQualityFor(item);
+  final metaFuture = MetadataProviderService.instance.fetchMetadata(
+    title: item.title,
+    artist: item.artist ?? '',
+  );
+  final results = await Future.wait([audioFuture, metaFuture]);
+  return (
+    results[0] as Map<String, Object?>?,
+    results[1] as UnifiedTrackMetadata?,
+  );
+}
+
 class _AudioQualityBadges extends StatelessWidget {
   const _AudioQualityBadges({required this.item});
 
   final MediaItem item;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Map<String, Object?>?>(
-    future: _audioQualityFor(item),
+  Widget build(BuildContext context) => FutureBuilder<(Map<String, Object?>?, UnifiedTrackMetadata?)>(
+    future: _loadBadgesData(item),
     builder: (context, snapshot) {
-      final details = snapshot.data;
+      final details = snapshot.data?.$1;
+      final studioMeta = snapshot.data?.$2;
       final quality = (details != null) ? _audioQualityLabel(details) : 'Unavailable';
       final mime = (details?['mimeType'] as String?)?.toLowerCase() ?? '';
       final path = item.id.toLowerCase();
@@ -168,12 +182,60 @@ class _AudioQualityBadges extends StatelessWidget {
         }
       }
 
+      final resolvedGenre = (item.extras?['genre'] as String?)?.trim().isNotEmpty == true
+          ? (item.extras!['genre'] as String).trim()
+          : item.genre?.trim().isNotEmpty == true
+              ? item.genre!.trim()
+              : studioMeta?.genres.firstOrNull;
+
+      final resolvedYear = (item.extras?['year'] != null)
+          ? '${item.extras!['year']}'
+          : studioMeta?.releaseDate?.split('-').first;
+
+      final sourceProvider = item.extras?['downloadProvider'] as String? ??
+          (item.id.startsWith('spotify:') || item.extras?['source'] == 'spotify'
+              ? 'Spotify'
+              : item.id.startsWith('youtube:') || item.extras?['source'] == 'youtube'
+                  ? 'YouTube Music'
+                  : item.id.startsWith('deezer:')
+                      ? 'Deezer'
+                      : item.id.startsWith('soundcloud:')
+                          ? 'SoundCloud'
+                          : item.extras?['source'] == 'device'
+                              ? 'Local Audio'
+                              : studioMeta?.provider.displayName);
+
       return InkWell(
         onTap: () => TrackDetailsSheet.show(context, item),
         borderRadius: BorderRadius.circular(MeloRadii.pill),
-        child: _QualityBadge(
-          label: labelText,
-          highlighted: isLossless,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (resolvedGenre != null && resolvedGenre.isNotEmpty) ...[
+                _QualityBadge(
+                  label: resolvedGenre.toUpperCase(),
+                  icon: Icons.music_note_rounded,
+                  highlighted: true,
+                ),
+                const SizedBox(width: 6),
+              ],
+              _QualityBadge(
+                label: labelText,
+                icon: isLossless ? Icons.high_quality_rounded : null,
+                highlighted: isLossless,
+              ),
+              if (sourceProvider != null && sourceProvider.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                _QualityBadge(
+                  label: sourceProvider.toUpperCase(),
+                  icon: Icons.cloud_outlined,
+                  highlighted: false,
+                ),
+              ],
+            ],
+          ),
         ),
       );
     },
@@ -181,21 +243,26 @@ class _AudioQualityBadges extends StatelessWidget {
 }
 
 class _QualityBadge extends StatelessWidget {
-  const _QualityBadge({required this.label, this.highlighted = false});
+  const _QualityBadge({
+    required this.label,
+    this.icon,
+    this.highlighted = false,
+  });
 
   final String label;
+  final IconData? icon;
   final bool highlighted;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: highlighted
-          ? MeloColors.cherry.withValues(alpha: 0.24)
+          ? MeloColors.cherry.withValues(alpha: 0.22)
           : Colors.white.withValues(alpha: 0.10),
       borderRadius: BorderRadius.circular(MeloRadii.pill),
       border: Border.all(
         color: highlighted
-            ? MeloColors.cherrySoft.withValues(alpha: 0.45)
+            ? MeloColors.cherrySoft.withValues(alpha: 0.50)
             : Colors.white.withValues(alpha: 0.14),
         width: 0.8,
       ),
@@ -209,14 +276,27 @@ class _QualityBadge extends StatelessWidget {
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: highlighted ? MeloColors.cherrySoft : MeloColors.playerText,
-          fontSize: 9.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.4,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 11,
+              color: highlighted ? MeloColors.cherrySoft : MeloColors.playerMuted,
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: highlighted ? MeloColors.cherrySoft : MeloColors.playerText,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     ),
   );
@@ -253,9 +333,22 @@ class TrackDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final extras = item.extras ?? const <String, dynamic>{};
-    final genre = extras['genre'] as String?;
+    final cachedStudio = MetadataProviderService.instance.getCachedMetadata(
+      title: item.title,
+      artist: item.artist ?? '',
+    );
+    final rawGenre = (extras['genre'] as String?)?.trim().isNotEmpty == true
+        ? (extras['genre'] as String).trim()
+        : item.genre?.trim().isNotEmpty == true
+            ? item.genre!.trim()
+            : (cachedStudio != null && cachedStudio.genres.isNotEmpty)
+                ? cachedStudio.genres.first
+                : null;
     final bpm = (extras['bpm'] as num?)?.toDouble();
-    final year = extras['year'];
+    final year = extras['year'] ??
+        (cachedStudio?.releaseDate != null
+            ? DateTime.tryParse(cachedStudio!.releaseDate!)?.year
+            : null);
     final trackNumber = extras['trackNumber'];
     final fileSizeBytes = (extras['fileSizeBytes'] as num?)?.toInt();
     final modifiedAt = DateTime.tryParse(
@@ -291,13 +384,17 @@ class TrackDetailsSheet extends StatelessWidget {
         item.album?.trim().isNotEmpty == true &&
                 item.album!.trim().toLowerCase() != 'unknown album'
             ? item.album!.trim()
-            : 'Not tagged',
+            : (cachedStudio?.album.trim().isNotEmpty == true
+                ? cachedStudio!.album.trim()
+                : 'Not tagged'),
       ),
       ('Release year', year == null ? 'Not tagged' : '$year'),
       ('Track', trackNumber == null ? 'Not tagged' : '$trackNumber'),
       (
         'Genre',
-        genre?.trim().isNotEmpty == true ? genre!.trim() : 'Not tagged',
+        rawGenre != null && rawGenre.isNotEmpty
+            ? (rawGenre.length > 1 ? rawGenre[0].toUpperCase() + rawGenre.substring(1) : rawGenre.toUpperCase())
+            : 'Not tagged',
       ),
       if (bpm != null && bpm > 0) ('Tempo', '${bpm.round()} BPM'),
       (

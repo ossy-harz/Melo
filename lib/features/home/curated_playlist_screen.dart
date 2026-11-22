@@ -599,6 +599,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
   ImportedTrack _trackToImportedTrack(YoutubeTrack t) {
     final enrichedArt = _enrichedTrackArtworks[t.id] ?? t.thumbnailUrl;
     final rawId = _rawTrackId(t.id);
+    final pGenre = widget.preset.genre.trim();
     if (_isSpotifyTrackId(t.id)) {
       return SpotifyTrack(
         id: rawId,
@@ -609,7 +610,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             : widget.preset.title,
         durationMs: t.duration.inMilliseconds,
         artworkUrl: enrichedArt,
-      ).toImportedTrack();
+      ).toImportedTrack(genre: pGenre.isNotEmpty ? pGenre : null);
     }
     return YoutubeTrack(
       id: rawId,
@@ -619,12 +620,13 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       album: t.album ?? widget.preset.title,
       thumbnailUrl: enrichedArt,
       viewCount: t.viewCount,
-    ).toImportedTrack();
+    ).toImportedTrack(genre: pGenre.isNotEmpty ? pGenre : null);
   }
 
   MediaItem _trackToMediaItem(YoutubeTrack t) {
     final enrichedArt = _enrichedTrackArtworks[t.id] ?? t.thumbnailUrl;
     final rawId = _rawTrackId(t.id);
+    final pGenre = widget.preset.genre.trim();
     if (_isSpotifyTrackId(t.id)) {
       return SpotifyTrack(
         id: rawId,
@@ -635,7 +637,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             : widget.preset.title,
         durationMs: t.duration.inMilliseconds,
         artworkUrl: enrichedArt,
-      ).toImportedTrack().toMediaItem();
+      ).toImportedTrack(genre: pGenre.isNotEmpty ? pGenre : null).toMediaItem();
     }
     return YoutubeTrack(
       id: rawId,
@@ -645,7 +647,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       album: t.album,
       thumbnailUrl: enrichedArt,
       viewCount: t.viewCount,
-    ).toMediaItem();
+    ).toMediaItem(genre: pGenre.isNotEmpty ? pGenre : null);
   }
 
   void _syncSavedPlaylistIfNeeded(List<YoutubeTrack> tracks) {

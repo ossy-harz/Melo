@@ -71,6 +71,19 @@ class MetadataProviderService {
     }
   }
 
+  /// Synchronously returns cached metadata if already fetched in memory.
+  UnifiedTrackMetadata? getCachedMetadata({
+    required String title,
+    required String artist,
+    MusicProviderType provider = MusicProviderType.all,
+  }) {
+    final cleanTitle = SongMetadataEnricher.cleanTitle(title, rawArtist: artist);
+    final cleanArtist = SongMetadataEnricher.cleanArtist(artist, rawTitle: title);
+    if (cleanTitle.isEmpty) return null;
+    final cacheKey = '${provider.name}:${cleanTitle.toLowerCase()}::${cleanArtist.toLowerCase()}';
+    return _metadataCache[cacheKey];
+  }
+
   Future<UnifiedTrackMetadata?> _fetchMetadataInternal({
     required String cleanTitle,
     required String cleanArtist,

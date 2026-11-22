@@ -426,20 +426,48 @@ class _SongDetailsSheetState extends State<SongDetailsSheet> {
                       label: 'Provider',
                       value: _providerName,
                     ),
-                    if (widget.track?.genre != null && widget.track!.genre!.isNotEmpty) ...[
+                    if (((widget.track?.genre != null && widget.track!.genre!.isNotEmpty)
+                        ? widget.track!.genre
+                        : (widget.mediaItem?.genre != null && widget.mediaItem!.genre!.isNotEmpty)
+                            ? widget.mediaItem!.genre
+                            : (widget.mediaItem?.extras?['genre'] as String?)?.isNotEmpty == true
+                                ? widget.mediaItem!.extras!['genre'] as String
+                                : (_studioMetadata != null && _studioMetadata!.genres.isNotEmpty)
+                                    ? _studioMetadata!.genres.first
+                                    : null) != null) ...[
                       const Divider(color: Colors.white10, height: 16),
                       _DetailRow(
                         icon: Icons.category_outlined,
                         label: 'Genre',
-                        value: widget.track!.genre!,
+                        value: ((widget.track?.genre != null && widget.track!.genre!.isNotEmpty)
+                            ? widget.track!.genre
+                            : (widget.mediaItem?.genre != null && widget.mediaItem!.genre!.isNotEmpty)
+                                ? widget.mediaItem!.genre
+                                : (widget.mediaItem?.extras?['genre'] as String?)?.isNotEmpty == true
+                                    ? widget.mediaItem!.extras!['genre'] as String
+                                    : (_studioMetadata != null && _studioMetadata!.genres.isNotEmpty)
+                                        ? _studioMetadata!.genres.first
+                                        : '')!,
                       ),
                     ],
-                    if (widget.track?.year != null && widget.track!.year! > 0) ...[
+                    if (((widget.track?.year != null && widget.track!.year! > 0)
+                        ? widget.track!.year.toString()
+                        : (widget.mediaItem?.extras?['year'] != null)
+                            ? widget.mediaItem!.extras!['year'].toString()
+                            : (_studioMetadata?.releaseDate != null)
+                                ? DateTime.tryParse(_studioMetadata!.releaseDate!)?.year.toString()
+                                : null) != null) ...[
                       const Divider(color: Colors.white10, height: 16),
                       _DetailRow(
                         icon: Icons.calendar_today_outlined,
                         label: 'Year',
-                        value: widget.track!.year.toString(),
+                        value: ((widget.track?.year != null && widget.track!.year! > 0)
+                            ? widget.track!.year.toString()
+                            : (widget.mediaItem?.extras?['year'] != null)
+                                ? widget.mediaItem!.extras!['year'].toString()
+                                : (_studioMetadata?.releaseDate != null)
+                                    ? DateTime.tryParse(_studioMetadata!.releaseDate!)?.year.toString()
+                                    : '')!,
                       ),
                     ],
                   ],

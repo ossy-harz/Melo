@@ -49,8 +49,15 @@ abstract final class PersonalMixGenerator {
     required Duration targetDuration,
     required double discovery,
     int? randomSeed,
+    String? genre,
   }) {
     if (targetDuration <= Duration.zero) return const <MixPick>[];
+
+    final cleanGenre = genre?.trim().toLowerCase();
+    final hasGenreFilter = cleanGenre != null &&
+        cleanGenre.isNotEmpty &&
+        cleanGenre != 'all' &&
+        cleanGenre != 'all music';
 
     final remaining = <ImportedTrack>[];
     for (final track in tracks) {
@@ -58,8 +65,29 @@ abstract final class PersonalMixGenerator {
       if (excludedTrackIds.contains(track.id)) continue;
       if (!track.isAvailable) continue;
       if (durationMs == null || durationMs <= 0) continue;
+      if (hasGenreFilter) {
+        final tGenre = track.genre?.toLowerCase() ?? '';
+        final tArtist = track.artist.toLowerCase();
+        final tTitle = track.title.toLowerCase();
+        final matches = (tGenre.isNotEmpty && (tGenre.contains(cleanGenre) || cleanGenre.contains(tGenre))) ||
+            tArtist.contains(cleanGenre) ||
+            tTitle.contains(cleanGenre);
+        if (!matches) continue;
+      }
       remaining.add(track);
     }
+
+    // Fallback to all tracks if strict genre matching yielded 0 tracks in local library
+    if (hasGenreFilter && remaining.isEmpty) {
+      for (final track in tracks) {
+        final durationMs = track.durationMs;
+        if (excludedTrackIds.contains(track.id)) continue;
+        if (!track.isAvailable) continue;
+        if (durationMs == null || durationMs <= 0) continue;
+        remaining.add(track);
+      }
+    }
+
     if (remaining.isEmpty) return const <MixPick>[];
 
     final random = Random(randomSeed);

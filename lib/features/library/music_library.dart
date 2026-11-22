@@ -1174,6 +1174,7 @@ class MusicLibrary extends ChangeNotifier {
     required Duration targetDuration,
     required double discovery,
     int? randomSeed,
+    String? genre,
   }) => PersonalMixGenerator.generate(
     tracks: _tracks,
     favoriteTrackIds: _favoriteTrackIds,
@@ -1181,6 +1182,7 @@ class MusicLibrary extends ChangeNotifier {
     targetDuration: targetDuration,
     discovery: discovery,
     randomSeed: randomSeed,
+    genre: genre,
   );
 
   ImportedTrack? _trackById(String trackId) {

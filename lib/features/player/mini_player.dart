@@ -34,6 +34,8 @@ import 'package:melo_player/features/player/player_device_helper.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
+import 'package:melo_player/features/sources/multi_metadata_provider.dart';
+import 'package:melo_player/features/sources/music_provider_models.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 part 'album_artwork.dart';
