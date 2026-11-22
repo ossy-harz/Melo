@@ -1104,7 +1104,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
           artistName.isNotEmpty && artistName.toLowerCase() != 'unknown artist'
           ? '$artistName ${widget.item.title} official audio'
           : '${widget.item.title} official audio',
-      gradient: const [MeloColors.cherry, MeloColors.cherryDeep, Colors.black],
+      gradient: [MeloColors.cherry, MeloColors.cherryDeep, Colors.black],
       icon: Icons.queue_music_rounded,
       coverUrl: widget.item.artUri?.toString(),
       initialMediaItems: items,

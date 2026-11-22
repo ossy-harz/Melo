@@ -184,8 +184,29 @@ class _SearchScreenState extends State<SearchScreen> {
         return;
       }
 
+      final currentQuery = _controller.text.trim();
       final item = track.toMediaItem();
-      await handler.playMediaItem(item);
+      if (handler is MeloAudioHandler) {
+        if (currentQuery.isNotEmpty) {
+          handler.recordSearchSeed(currentQuery, artist: track.author, title: track.title);
+        }
+        final items = _onlineResults.map((t) {
+          final local = widget.library?.findMatchingLocalTrack(
+            providerTrackId: t.id,
+            title: t.title,
+            artist: t.author,
+          );
+          return local != null ? local.toMediaItem() : t.toMediaItem();
+        }).toList();
+        final initialIndex = _onlineResults.indexWhere((t) => t.id == track.id);
+        await handler.replaceQueue(
+          items.isNotEmpty ? items : [item],
+          initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          playWhenReady: true,
+        );
+      } else {
+        await handler.playMediaItem(item);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -261,6 +282,69 @@ class _SearchScreenState extends State<SearchScreen> {
         ..showSnackBar(
           SnackBar(
             content: Text('Could not queue "${track.title}": $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  Future<void> _queueSimilarTracks(YoutubeTrack track) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    final currentQuery = _controller.text.trim();
+    if (handler is MeloAudioHandler && currentQuery.isNotEmpty) {
+      handler.recordSearchSeed(currentQuery, artist: track.author, title: track.title);
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Finding music similar to "${track.title}"...'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    try {
+      final related = await YoutubeAudioService.instance.getRelatedTracks(
+        track.id,
+        artist: track.author,
+        title: track.title,
+      );
+      if (related.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('No similar tracks found right now.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        return;
+      }
+      var count = 0;
+      for (final t in related) {
+        await handler.addQueueItem(t.toMediaItem());
+        count++;
+        if (count >= 10) break;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Queued $count similar songs to Up Next'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not queue similar tracks: $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -428,7 +512,7 @@ class _SearchScreenState extends State<SearchScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.link_rounded, color: MeloColors.cherry, size: 22),
+              Icon(Icons.link_rounded, color: MeloColors.cherry, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -572,7 +656,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
-                          avatar: const Icon(Icons.check_circle_rounded, size: 16, color: MeloColors.cherrySoft),
+                          avatar: Icon(Icons.check_circle_rounded, size: 16, color: MeloColors.cherrySoft),
                           label: Text('On Device (${_searchResults.length})'),
                           selected: _selectedCategoryIndex == 1,
                           onSelected: (_) => setState(() => _selectedCategoryIndex = 1),
@@ -652,6 +736,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           onPlay: () => _playOnlineTrack(topOnline),
                           onPlayNext: () => _queueOnlineTrack(topOnline, playNext: true),
                           onQueue: () => _queueOnlineTrack(topOnline, playNext: false),
+                          onQueueSimilar: () => _queueSimilarTracks(topOnline),
                         );
                       }
                     },
@@ -733,6 +818,20 @@ class _SearchScreenState extends State<SearchScreen> {
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
+                      const Spacer(),
+                      if (_onlineResults.isNotEmpty)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          ),
+                          onPressed: () => _queueSimilarTracks(_onlineResults.first),
+                          icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                          label: const Text(
+                            'Queue Similar',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -759,6 +858,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           onTap: () => _playOnlineTrack(track),
                           onQueue: () => _queueOnlineTrack(track),
                           onPlayNext: () => _queueOnlineTrack(track, playNext: true),
+                          onQueueSimilar: () => _queueSimilarTracks(track),
                           onDownload: widget.library == null
                               ? null
                               : () => _downloadOnlineTrack(track),
@@ -998,6 +1098,7 @@ class _OnlineSearchResultTile extends StatelessWidget {
     required this.onTap,
     this.onQueue,
     this.onPlayNext,
+    this.onQueueSimilar,
     required this.onDownload,
   });
 
@@ -1008,6 +1109,7 @@ class _OnlineSearchResultTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onQueue;
   final VoidCallback? onPlayNext;
+  final VoidCallback? onQueueSimilar;
   final VoidCallback? onDownload;
 
   @override
@@ -1111,6 +1213,8 @@ class _OnlineSearchResultTile extends StatelessWidget {
                         onPlayNext?.call();
                       } else if (val == 'queue') {
                         onQueue?.call();
+                      } else if (val == 'queueSimilar') {
+                        onQueueSimilar?.call();
                       } else if (val == 'download') {
                         onDownload?.call();
                       }
@@ -1138,6 +1242,17 @@ class _OnlineSearchResultTile extends StatelessWidget {
                             ],
                           ),
                         ),
+                      if (onQueueSimilar != null)
+                        const PopupMenuItem(
+                          value: 'queueSimilar',
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, size: 20),
+                              SizedBox(width: 10),
+                              Text('Queue similar songs'),
+                            ],
+                          ),
+                        ),
                       if (!isDownloaded && onDownload != null)
                         const PopupMenuItem(
                           value: 'download',
@@ -1161,7 +1276,6 @@ class _OnlineSearchResultTile extends StatelessWidget {
   }
 }
 
-
 class _TopResultCard extends StatelessWidget {
   const _TopResultCard({
     required this.title,
@@ -1172,6 +1286,7 @@ class _TopResultCard extends StatelessWidget {
     required this.onPlay,
     this.onPlayNext,
     this.onQueue,
+    this.onQueueSimilar,
   });
 
   final String title;
@@ -1182,6 +1297,7 @@ class _TopResultCard extends StatelessWidget {
   final VoidCallback onPlay;
   final VoidCallback? onPlayNext;
   final VoidCallback? onQueue;
+  final VoidCallback? onQueueSimilar;
 
   @override
   Widget build(BuildContext context) {
@@ -1274,7 +1390,7 @@ class _TopResultCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onPlayNext != null || onQueue != null) ...[
+              if (onPlayNext != null || onQueue != null || onQueueSimilar != null) ...[
                 PopupMenuButton<String>(
                   tooltip: 'Queue options',
                   icon: Icon(
@@ -1294,6 +1410,8 @@ class _TopResultCard extends StatelessWidget {
                       onPlayNext?.call();
                     } else if (val == 'queue') {
                       onQueue?.call();
+                    } else if (val == 'queue_similar') {
+                      onQueueSimilar?.call();
                     }
                   },
                   itemBuilder: (context) => [
@@ -1316,6 +1434,17 @@ class _TopResultCard extends StatelessWidget {
                             Icon(Icons.queue_music_rounded, size: 20),
                             SizedBox(width: 10),
                             Text('Add to Up Next'),
+                          ],
+                        ),
+                      ),
+                    if (onQueueSimilar != null)
+                      const PopupMenuItem(
+                        value: 'queue_similar',
+                        child: Row(
+                          children: [
+                            Icon(Icons.auto_awesome_rounded, size: 20),
+                            SizedBox(width: 10),
+                            Text('Queue similar songs'),
                           ],
                         ),
                       ),

@@ -1209,7 +1209,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ),
                           if (library.isImporting) ...[
                             const SizedBox(height: 8),
-                            const LinearProgressIndicator(color: MeloColors.cherry),
+                            LinearProgressIndicator(color: MeloColors.cherry),
                           ],
                         ],
                         if (library?.musicFolders.isNotEmpty == true) ...[

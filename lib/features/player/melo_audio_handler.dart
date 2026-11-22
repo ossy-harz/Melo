@@ -22,6 +22,12 @@ import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
+enum NotificationDuckingMode {
+  steady, // Keeps music volume steady (100%), never collapse or pause for notifications
+  gentle, // Gentle 80% volume dip during notification, auto-restores
+  pause, // Pause on interruption
+}
+
 class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   MeloAudioHandler({
     AudioEngine? audioEngine,
@@ -59,6 +65,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   static const _shuffleModeKey = 'tone_playback_shuffle_mode';
   static const _autoplayContinuousKey = 'tone_autoplay_continuous';
   static const _discoveryLevelKey = 'tone_mix_discovery_level';
+  static const _duckingModeKey = 'tone_notification_ducking_mode';
 
   /// Real hardware filtering is only reachable on Android.
   static bool get _dspSupported =>
@@ -78,6 +85,18 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
   final List<StreamSubscription<dynamic>> _audioSessionSubscriptions = [];
   AudioSession? _audioSession;
+
+  NotificationDuckingMode _notificationDuckingMode = NotificationDuckingMode.steady;
+  bool _isDucked = false;
+
+  NotificationDuckingMode get notificationDuckingMode => _notificationDuckingMode;
+
+  Future<void> setNotificationDuckingMode(NotificationDuckingMode mode) async {
+    _notificationDuckingMode = mode;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_duckingModeKey, mode.name);
+    _publishState();
+  }
 
   List<MediaItem> _items = const [];
   List<int> _playOrder = const [];
@@ -177,6 +196,18 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     _publishState();
   }
 
+  final List<String> _recentSearchSeeds = [];
+
+  void recordSearchSeed(String query, {String? artist, String? title}) {
+    final clean = query.trim();
+    if (clean.isNotEmpty && !_recentSearchSeeds.contains(clean)) {
+      _recentSearchSeeds.insert(0, clean);
+      if (_recentSearchSeeds.length > 8) {
+        _recentSearchSeeds.removeLast();
+      }
+    }
+  }
+
   void attachMusicLibrary(MusicLibrary library) {
     if (identical(_musicLibrary, library)) return;
     _musicLibrary?.removeListener(_onLibraryChanged);
@@ -245,6 +276,13 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (savedDiscovery != null) {
       _discoveryLevel = savedDiscovery.clamp(0.0, 1.0);
     }
+    final savedDucking = preferences.getString(_duckingModeKey);
+    if (savedDucking != null) {
+      _notificationDuckingMode = NotificationDuckingMode.values.firstWhere(
+        (m) => m.name == savedDucking,
+        orElse: () => NotificationDuckingMode.steady,
+      );
+    }
   }
 
   Future<void> attachAudioSession(AudioSession session) async {
@@ -252,7 +290,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     try {
       await session.configure(
         const AudioSessionConfiguration.music().copyWith(
-          androidWillPauseWhenDucked: true,
+          androidWillPauseWhenDucked: false,
         ),
       );
     } catch (_) {}
@@ -296,6 +334,19 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       final wasPlaying = _isAnyDeckPlaying || _desiredPlaying;
       switch (event.type) {
         case AudioInterruptionType.duck:
+          // Notification or transient sound:
+          // In steady mode (default), volume is never collapsed or paused.
+          _isDucked = true;
+          if (_notificationDuckingMode == NotificationDuckingMode.gentle && wasPlaying) {
+            _runSessionOperation(
+              _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain * 0.80),
+            );
+          } else if (_notificationDuckingMode == NotificationDuckingMode.pause && wasPlaying) {
+            _interruptionActive = true;
+            _resumeAfterInterruption = true;
+            _runSessionOperation(_pausePlayback(retainAudioFocus: true));
+          }
+          break;
         case AudioInterruptionType.pause:
           _interruptionActive = true;
           _resumeAfterInterruption = wasPlaying;
@@ -312,6 +363,16 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           break;
       }
       return;
+    }
+
+    if (_isDucked) {
+      _isDucked = false;
+      // Immediately restore full audio gain when notification ends
+      if (_isAnyDeckPlaying || _desiredPlaying) {
+        _runSessionOperation(
+          _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain),
+        );
+      }
     }
 
     if (!_interruptionActive) return;
@@ -707,6 +768,20 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       };
       await setRepeatMode(next);
       return next.name;
+    }
+    if (name == 'notificationDucking.get') {
+      await _settingsReady;
+      return <String, Object?>{'mode': _notificationDuckingMode.name};
+    }
+    if (name == 'notificationDucking.set') {
+      await _settingsReady;
+      final modeName = extras?['mode'] as String?;
+      final mode = NotificationDuckingMode.values.firstWhere(
+        (m) => m.name == modeName,
+        orElse: () => NotificationDuckingMode.steady,
+      );
+      await setNotificationDuckingMode(mode);
+      return <String, Object?>{'mode': _notificationDuckingMode.name};
     }
     if (name == 'player.updateMediaItemArtUri') {
       final id = extras?['id'] as String?;
@@ -2551,7 +2626,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           rawId ?? 'dQw4w9WgXcQ',
           artist: currentItem.artist,
           title: currentItem.title,
-          recentArtists: recentArtists,
+          recentArtists: [
+            ...recentArtists,
+            ..._recentSearchSeeds,
+          ],
           excludeIds: excludeIds,
           excludeTitleKeys: excludeTitleKeys,
         );
@@ -2562,6 +2640,26 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
             newItems.add(item);
           }
           if (newItems.length >= 6) break;
+        }
+
+        // Contextual search fallback: query similar tracks using recent search seed
+        if (newItems.length < 6 && _recentSearchSeeds.isNotEmpty) {
+          try {
+            final seed = _recentSearchSeeds.first;
+            final searchResults = await YoutubeAudioService.instance.search(
+              '$seed similar tracks official audio',
+              filterMixtapes: true,
+            );
+            for (final t in searchResults) {
+              if (t.duration.inSeconds >= 45 && t.duration.inSeconds <= 660) {
+                final item = t.toMediaItem();
+                if (excludeIds.add(item.id)) {
+                  newItems.add(item);
+                }
+              }
+              if (newItems.length >= 6) break;
+            }
+          } catch (_) {}
         }
       }
 

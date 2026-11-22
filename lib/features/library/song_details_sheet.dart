@@ -265,7 +265,7 @@ class SongDetailsSheet extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.graphic_eq_rounded, size: 13, color: MeloColors.cherry),
+                    Icon(Icons.graphic_eq_rounded, size: 13, color: MeloColors.cherry),
                     const SizedBox(width: 5),
                     Text(
                       _audioQualityBadge,

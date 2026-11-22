@@ -46,6 +46,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late String _greeting = HomeScreen.timeOfDayGreeting();
   int _refreshGeneration = 0;
+  String _selectedMood = 'All';
   Timer? _clockTimer;
 
   @override
@@ -325,6 +326,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                      // Mornye-Style Mood & Activity Speed Dial Pills
+                      MornyeMoodFilterBar(
+                        selectedMood: _selectedMood,
+                        onSelectMood: (mood) {
+                          setState(() {
+                            _selectedMood = mood;
+                            _refreshGeneration++;
+                          });
+                        },
+                      ),
                       const SizedBox(height: 20),
 
                       // Shelf 1: Top Picks for You (Hero Editorial Showcase)
@@ -336,6 +349,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             _openCuratedPreset(context, preset),
                         onOpenArtistRadio: (artist) =>
                             _openArtistRadio(context, artist),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Mornye Shelf: Quick Picks (4-Row Multi-Column Swiper)
+                      QuickPicksShelf(
+                        audioHandler: widget.audioHandler,
+                        library: widget.library,
+                        activeMood: _selectedMood,
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Trace & Soundcity Broadcast Channels
+                      BroadcastChannelsShelf(
+                        onPlayPreset: (preset) =>
+                            _openCuratedPreset(context, preset),
                       ),
                       const SizedBox(height: 28),
 
@@ -426,7 +454,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       curatorSubtitle: 'With similar artists & trending tracks',
       badge: 'ARTIST RADIO',
       searchQuery: '$artistName songs',
-      gradient: const [MeloColors.cherry, MeloColors.cherryDeep, Color(0xFF0A0A0C)],
+      gradient: [MeloColors.cherry, MeloColors.cherryDeep, const Color(0xFF0A0A0C)],
       icon: Icons.sensors_rounded,
       coverUrl: cachedCover,
       isArtistRadio: true,

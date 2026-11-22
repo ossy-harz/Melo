@@ -91,6 +91,7 @@ class YouScreen extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (_) => AudioSettingsScreen(
                       audioProfileService: audioProfileService,
+                      audioHandler: audioHandler,
                     ),
                   ),
                 ),
@@ -997,7 +998,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.favorite_rounded, color: MeloColors.cherry, size: 22),
+                    Icon(Icons.favorite_rounded, color: MeloColors.cherry, size: 22),
                     const SizedBox(width: 8),
                     Text(
                       '100% Free & Community-Driven',

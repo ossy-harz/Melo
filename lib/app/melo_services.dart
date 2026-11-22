@@ -37,7 +37,7 @@ class MeloServices {
       final session = await AudioSession.instance;
       await session.configure(
         const AudioSessionConfiguration.music().copyWith(
-          androidWillPauseWhenDucked: true,
+          androidWillPauseWhenDucked: false,
         ),
       );
       return session;

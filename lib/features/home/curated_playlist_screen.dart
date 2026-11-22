@@ -369,6 +369,8 @@ class CuratedPlaylistPreset {
     this.initialSpotifyTracks,
     this.initialMediaItems,
     this.allowLongEpisodes = false,
+    this.isBroadcastChannel = false,
+    this.broadcastStation,
   });
 
   final String title;
@@ -387,6 +389,8 @@ class CuratedPlaylistPreset {
   final List<SpotifyTrack>? initialSpotifyTracks;
   final List<MediaItem>? initialMediaItems;
   final bool allowLongEpisodes;
+  final bool isBroadcastChannel;
+  final String? broadcastStation;
 }
 
 /// Builds a canonical [CuratedPlaylistPreset] for a [SmartVibe] station so
@@ -1681,6 +1685,76 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
     );
   }
 
+  bool get _isBroadcast =>
+      widget.preset.isBroadcastChannel ||
+      widget.preset.title.contains('Soundcity') ||
+      widget.preset.title.contains('Trace');
+
+  Widget _buildBroadcastBanner() {
+    final station = widget.preset.broadcastStation ??
+        (widget.preset.title.contains('Soundcity') ? 'SOUNDCITY TV' : 'TRACE MUSIC TV');
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+          width: 0.9,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEF4444),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$station · LIVE ON AIR ROTATION',
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+              color: Color(0xFFEF4444),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBroadcastRankBadge(int index) {
+    final rank = index + 1;
+    final isTop3 = rank <= 3;
+    final color = rank == 1
+        ? const Color(0xFFFFD700)
+        : rank == 2
+            ? const Color(0xFFE2E8F0)
+            : rank == 3
+                ? const Color(0xFFCD7F32)
+                : Colors.white54;
+    return Container(
+      width: 30,
+      margin: const EdgeInsets.only(right: 8),
+      alignment: Alignment.center,
+      child: Text(
+        '#${rank < 10 ? '0$rank' : '$rank'}',
+        style: TextStyle(
+          fontSize: isTop3 ? 13.5 : 12,
+          fontWeight: isTop3 ? FontWeight.w900 : FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTrackThumbnail(YoutubeTrack track, bool isPlaying) {
     final artUrl = _enrichedTrackArtworks[track.id] ?? track.thumbnailUrl;
     final isSpotify = _isSpotifyTrackId(track.id);
@@ -1873,7 +1947,9 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                               primaryGradient,
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          if (_isBroadcast)
+                            _buildBroadcastBanner(),
+                          const SizedBox(height: 12),
                           Text(
                             widget.preset.title,
                             style: const TextStyle(
@@ -2303,6 +2379,8 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                             ),
                             child: Row(
                               children: [
+                                if (_isBroadcast)
+                                  _buildBroadcastRankBadge(index),
                                 _buildTrackThumbnail(track, isPlaying),
                                 const SizedBox(width: 14),
                                 Expanded(

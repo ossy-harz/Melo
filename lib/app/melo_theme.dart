@@ -40,6 +40,22 @@ enum MeloThemePalette {
     MeloThemePalette.titanium => const Color(0xFF94A3B8),
   };
 
+  Color get deepColor => switch (this) {
+    MeloThemePalette.cherry => const Color(0xFF5E0A19),
+    MeloThemePalette.cyberpunk => const Color(0xFF3B0764),
+    MeloThemePalette.emerald => const Color(0xFF064E3B),
+    MeloThemePalette.amber => const Color(0xFF78350F),
+    MeloThemePalette.titanium => const Color(0xFF1E293B),
+  };
+
+  Color get glowColor => switch (this) {
+    MeloThemePalette.cherry => const Color(0xFFFF5368),
+    MeloThemePalette.cyberpunk => const Color(0xFFC084FC),
+    MeloThemePalette.emerald => const Color(0xFF6EE7B7),
+    MeloThemePalette.amber => const Color(0xFFFCD34D),
+    MeloThemePalette.titanium => const Color(0xFFCBD5E1),
+  };
+
   List<Color> get gradient => switch (this) {
     MeloThemePalette.cherry => const [Color(0xFF351618), Color(0xFF76251F), Color(0xFFFF4B3E)],
     MeloThemePalette.cyberpunk => const [Color(0xFF2A103D), Color(0xFF6B21A8), Color(0xFFA855F7)],
@@ -138,6 +154,11 @@ abstract final class MeloColors {
   static const cherrySoft = Color(0xFFFF8997);
   static const cherryDeep = Color(0xFF5E0A19);
   static const cherryGlow = Color(0xFFFF5368);
+
+  /// Dynamic Theme Identity accessor: resolves active palette color in BuildContext
+  static Color of(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color secondaryOf(BuildContext context) => Theme.of(context).colorScheme.secondary;
+  static Color surfaceOf(BuildContext context) => Theme.of(context).colorScheme.surface;
 
   // Player surfaces. The Now Playing shell is intentionally near-black so
   // artwork and colour do the talking.

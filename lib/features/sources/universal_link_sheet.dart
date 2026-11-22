@@ -219,7 +219,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                const Icon(Icons.link_rounded, color: MeloColors.cherry),
+                Icon(Icons.link_rounded, color: MeloColors.cherry),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
@@ -300,7 +300,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
               ),
               child: Row(
                 children: [
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: MeloColors.cherry)),
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: MeloColors.cherry)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(_batchProgressMessage!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),

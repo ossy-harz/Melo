@@ -1,15 +1,23 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/audio_profile_service.dart';
+import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/player_device_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AudioSettingsScreen extends StatefulWidget {
-  const AudioSettingsScreen({required this.audioProfileService, super.key});
+  const AudioSettingsScreen({
+    required this.audioProfileService,
+    this.audioHandler,
+    super.key,
+  });
 
   final AudioProfileService? audioProfileService;
+  final AudioHandler? audioHandler;
 
   @override
   State<AudioSettingsScreen> createState() => _AudioSettingsScreenState();
@@ -21,11 +29,55 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
   String? _error;
   AudioProfile _profile = const AudioProfile();
   AudioOutputCapabilities? _capabilities;
+  NotificationDuckingMode _duckingMode = NotificationDuckingMode.steady;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadAudioProfile());
+    _loadDuckingMode();
+  }
+
+  void _loadDuckingMode() {
+    final handler = widget.audioHandler;
+    if (handler is MeloAudioHandler) {
+      _duckingMode = handler.notificationDuckingMode;
+    } else if (handler != null) {
+      handler.customAction('notificationDucking.get').then((res) {
+        if (res is Map && res['mode'] is String && mounted) {
+          final mode = NotificationDuckingMode.values.firstWhere(
+            (m) => m.name == res['mode'],
+            orElse: () => NotificationDuckingMode.steady,
+          );
+          setState(() => _duckingMode = mode);
+        }
+      });
+    } else {
+      SharedPreferences.getInstance().then((prefs) {
+        final saved = prefs.getString('tone_notification_ducking_mode');
+        if (saved != null && mounted) {
+          setState(() {
+            _duckingMode = NotificationDuckingMode.values.firstWhere(
+              (m) => m.name == saved,
+              orElse: () => NotificationDuckingMode.steady,
+            );
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _setDuckingMode(NotificationDuckingMode mode) async {
+    setState(() => _duckingMode = mode);
+    final handler = widget.audioHandler;
+    if (handler is MeloAudioHandler) {
+      await handler.setNotificationDuckingMode(mode);
+    } else if (handler != null) {
+      await handler.customAction('notificationDucking.set', {'mode': mode.name});
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('tone_notification_ducking_mode', mode.name);
+    }
   }
 
   Future<void> _loadAudioProfile() async {
@@ -235,6 +287,44 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
                   _updateProfile(_profile.copyWith(targetLoudnessDb: value)),
               onChangeEnd: (_) => unawaited(_setProfile(_profile)),
             ),
+          const SizedBox(height: 28),
+          Text(
+            'Notifications & Audio Focus',
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Control whether incoming notification rings or navigation directions '
+            'duck your music volume, dip gently, or pause playback.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<NotificationDuckingMode>(
+            value: _duckingMode,
+            decoration: const InputDecoration(
+              labelText: 'Notification ducking behavior',
+              prefixIcon: Icon(Icons.notifications_active_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: NotificationDuckingMode.steady,
+                child: Text('Keep volume steady (Recommended)'),
+              ),
+              DropdownMenuItem(
+                value: NotificationDuckingMode.gentle,
+                child: Text('Gentle dip (80% gain)'),
+              ),
+              DropdownMenuItem(
+                value: NotificationDuckingMode.pause,
+                child: Text('Pause playback'),
+              ),
+            ],
+            onChanged: (mode) {
+              if (mode != null) unawaited(_setDuckingMode(mode));
+            },
+          ),
           const SizedBox(height: 12),
           Text(
             'Stereo channel balance and hardware-specific headphone profiles '

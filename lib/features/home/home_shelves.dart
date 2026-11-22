@@ -17,7 +17,7 @@ import 'package:melo_player/features/settings/spotify_settings_screen.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
-const List<CuratedPlaylistPreset> kRecommendedPlaylists = [
+final List<CuratedPlaylistPreset> kRecommendedPlaylists = [
   CuratedPlaylistPreset(
     title: 'Matata Radio',
     curatorSubtitle: 'With KODONGKLAN, Sauti Sol, Chris Kaiga and more',
@@ -565,7 +565,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           curatorSubtitle: 'Tailored $activeGenre essentials',
           badge: activeGenre.toUpperCase(),
           searchQuery: '$activeGenre top hits songs official audio',
-          gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+          gradient: [MeloColors.cherry, MeloColors.cherryDeep],
           icon: Icons.local_fire_department_rounded,
           genre: activeGenre,
           allowLongEpisodes: isPodcastMode,
@@ -575,7 +575,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
             categoryBadge: activeGenre.toUpperCase(),
             title: '$activeGenre Essentials',
             description: 'Top $activeGenre tracks & hottest anthems right now.',
-            gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+            gradient: [MeloColors.cherry, MeloColors.cherryDeep],
             icon: Icons.local_fire_department_rounded,
             coverUrl:
                 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&q=80',
@@ -590,7 +590,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         curatorSubtitle: 'With top $activeGenre artists & similar tracks',
         badge: 'MADE FOR YOU',
         searchQuery: '$activeGenre radio mix songs official audio',
-        gradient: const [MeloColors.cherry, Color(0xFF0A0A0C)],
+        gradient: [MeloColors.cherry, const Color(0xFF0A0A0C)],
         icon: Icons.sensors_rounded,
         isArtistRadio: true,
         genre: activeGenre,
@@ -668,7 +668,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
           title: '$topArtist Mix',
           description:
               'Non-stop $topArtist & similar artists tailored to your taste.',
-          gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+          gradient: [MeloColors.cherry, MeloColors.cherryDeep],
           icon: Icons.auto_awesome_rounded,
           coverUrl: topArtistCover,
           preset: CuratedPlaylistPreset(
@@ -676,7 +676,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
             curatorSubtitle: 'With similar artists & trending tracks',
             badge: 'ARTIST RADIO',
             searchQuery: '$topArtist songs',
-            gradient: const [MeloColors.cherry, MeloColors.cherryDeep, Color(0xFF0A0A0C)],
+            gradient: [MeloColors.cherry, MeloColors.cherryDeep, const Color(0xFF0A0A0C)],
             icon: Icons.sensors_rounded,
             coverUrl: topArtistCover,
             isArtistRadio: true,
@@ -695,7 +695,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         curatorSubtitle: sp.subtitle,
         badge: 'SPOTIFY PLAYLIST',
         searchQuery: '${sp.title} official audio',
-        gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+        gradient: [MeloColors.cherry, MeloColors.cherryDeep],
         icon: Icons.graphic_eq_rounded,
         coverUrl: sp.artworkUrl.isNotEmpty ? sp.artworkUrl : null,
         spotifyPlaylistId: sp.id,
@@ -1481,7 +1481,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
         curatorSubtitle: 'Continuous $activeGenre station tailored to you',
         badge: 'LIVE STATION',
         searchQuery: '$activeGenre mix hits official audio',
-        gradient: const [MeloColors.cherry, Color(0xFF1A0408), Color(0xFF000000)],
+        gradient: [MeloColors.cherry, const Color(0xFF1A0408), const Color(0xFF000000)],
         icon: isPodcast ? Icons.podcasts_rounded : Icons.sensors_rounded,
         isArtistRadio: !isPodcast,
         genre: activeGenre,
@@ -2165,7 +2165,7 @@ class _RecommendedPlaylistsSectionState
                   curatorSubtitle: 'Top $_selectedGenre picks & viral hits',
                   badge: _selectedGenre.toUpperCase(),
                   searchQuery: '$_selectedGenre hits official audio',
-                  gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+                  gradient: [MeloColors.cherry, MeloColors.cherryDeep],
                   icon: Icons.music_note_rounded,
                   genre: _selectedGenre,
                 ),
@@ -3475,7 +3475,7 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
       curatorSubtitle: playlist.subtitle,
       badge: playlist.category.toUpperCase(),
       searchQuery: '${playlist.title} official audio',
-      gradient: const [MeloColors.cherry, MeloColors.cherryDeep],
+      gradient: [MeloColors.cherry, MeloColors.cherryDeep],
       icon: playlist.id == 'liked'
           ? Icons.favorite_rounded
           : Icons.graphic_eq_rounded,
@@ -4216,6 +4216,773 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Trace & Soundcity Immersive Broadcast Playlists
+final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
+  CuratedPlaylistPreset(
+    title: 'Soundcity Top 10 Naija & Africa',
+    curatorSubtitle: 'Official Soundcity TV Hitlist · Hot on Rotation',
+    badge: 'SOUNDCITY TOP 10',
+    searchQuery: 'Soundcity Top 10 Naija Hits Official Audio 2025 2026',
+    gradient: [const Color(0xFFEAB308), const Color(0xFF7F1D1D), const Color(0xFF000000)],
+    icon: Icons.tv_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    genre: 'Afrobeats',
+    isBroadcastChannel: true,
+    broadcastStation: 'SOUNDCITY TV',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Trace Urban Global Hitlist',
+    curatorSubtitle: 'Trace Urban Music TV · Non-Stop Heavyweight Rotation',
+    badge: 'TRACE URBAN',
+    searchQuery: 'Trace Urban Hits Hip Hop Afrobeats Pop 2025 Official Audio',
+    gradient: [const Color(0xFFEC4899), const Color(0xFF831843), const Color(0xFF000000)],
+    icon: Icons.live_tv_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    genre: 'Urban & Hip-Hop',
+    isBroadcastChannel: true,
+    broadcastStation: 'TRACE URBAN',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Trace Africa / Naija Gold',
+    curatorSubtitle: 'Trace Africa Network · African Music Worldwide',
+    badge: 'TRACE AFRICA',
+    searchQuery: 'Trace Africa Naija Bongo Amapiano Hits Official Audio',
+    gradient: [const Color(0xFF10B981), const Color(0xFF064E3B), const Color(0xFF000000)],
+    icon: Icons.sensors_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+    genre: 'Afrobeats',
+    isBroadcastChannel: true,
+    broadcastStation: 'TRACE AFRICA',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Soundcity Amapiano Takeover',
+    curatorSubtitle: 'Private School Yanos & Deep Bass · Soundcity Curated',
+    badge: 'SOUNDCITY AMAPIANO',
+    searchQuery: 'Soundcity Amapiano Mix Hits Official Audio',
+    gradient: [const Color(0xFFF97316), const Color(0xFF7C2D12), const Color(0xFF000000)],
+    icon: Icons.graphic_eq_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+    genre: 'Amapiano',
+    isBroadcastChannel: true,
+    broadcastStation: 'SOUNDCITY RADIO',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Trace Gospel Elevation',
+    curatorSubtitle: 'Trace Gospel TV · Spirit & Soul Worldwide',
+    badge: 'TRACE GOSPEL',
+    searchQuery: 'Trace Gospel Worship Contemporary Hits Official Audio',
+    gradient: [const Color(0xFF6366F1), const Color(0xFF312E81), const Color(0xFF000000)],
+    icon: Icons.favorite_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1445743432342-eac500ce72b7?w=600&q=80',
+    genre: 'Gospel',
+    isBroadcastChannel: true,
+    broadcastStation: 'TRACE GOSPEL',
+  ),
+  CuratedPlaylistPreset(
+    title: 'Soundcity Underground & New Wave',
+    curatorSubtitle: 'Next Gen Street Anthems & Rising Stars · Soundcity',
+    badge: 'SOUNDCITY NEW WAVE',
+    searchQuery: 'Soundcity Underground Afrobeats New Wave Hits Official Audio',
+    gradient: [const Color(0xFF06B6D4), const Color(0xFF164E63), const Color(0xFF000000)],
+    icon: Icons.bolt_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+    genre: 'Alternative & New Wave',
+    isBroadcastChannel: true,
+    broadcastStation: 'SOUNDCITY TV',
+  ),
+];
+
+/// Mornye-Style Mood & Activity Speed Dial Filter Bar
+class MornyeMoodFilterBar extends StatelessWidget {
+  const MornyeMoodFilterBar({
+    required this.selectedMood,
+    required this.onSelectMood,
+    super.key,
+  });
+
+  final String selectedMood;
+  final ValueChanged<String> onSelectMood;
+
+  static const List<({String label, String iconText})> moods = [
+    (label: 'All', iconText: '✨'),
+    (label: 'Energize', iconText: '⚡'),
+    (label: 'Chill & Lo-Fi', iconText: '🌙'),
+    (label: 'Deep Focus', iconText: '🎧'),
+    (label: 'Party & Club', iconText: '🔥'),
+    (label: 'Workout', iconText: '💪'),
+    (label: 'Commute', iconText: '🚗'),
+    (label: 'Afrobeats', iconText: '🥁'),
+    (label: 'Trace & Soundcity', iconText: '📺'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: moods.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final m = moods[index];
+          final isSelected = m.label == selectedMood;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => onSelectMood(m.label),
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colors.primary
+                      : MeloColors.qledCard,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? colors.primary
+                        : Colors.white.withValues(alpha: 0.12),
+                    width: 0.9,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: colors.primary.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      m.iconText,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      m.label,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Mornye-Style Signature Quick Picks Shelf
+/// (Compact 4-row swipeable multi-column grid with duration, Hi-Res tags, and 1-tap radio)
+class QuickPicksShelf extends StatefulWidget {
+  const QuickPicksShelf({
+    required this.audioHandler,
+    this.library,
+    this.activeMood = 'All',
+    super.key,
+  });
+
+  final AudioHandler? audioHandler;
+  final MusicLibrary? library;
+  final String activeMood;
+
+  @override
+  State<QuickPicksShelf> createState() => _QuickPicksShelfState();
+}
+
+class _QuickPicksShelfState extends State<QuickPicksShelf> {
+  static List<YoutubeTrack>? _cachedTracks;
+  List<YoutubeTrack> _tracks = _cachedTracks ?? const [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_tracks.isEmpty) {
+      unawaited(_loadQuickPicks());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant QuickPicksShelf oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeMood != widget.activeMood) {
+      unawaited(_loadQuickPicks(mood: widget.activeMood));
+    }
+  }
+
+  Future<void> _loadQuickPicks({String mood = 'All'}) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final query = switch (mood) {
+        'Energize' => 'High Energy Workout Upbeat Dance Hits Official Audio',
+        'Chill & Lo-Fi' => 'Chill Lo-Fi Late Night R&B Relaxing Hits Official Audio',
+        'Deep Focus' => 'Deep Focus Ambient Electronic Study Beats Instrumental',
+        'Party & Club' => 'Club Party Dancefloor Hits Nonstop Official Audio',
+        'Workout' => 'Workout Gym Hype Trap Hip Hop Bass Official Audio',
+        'Commute' => 'Road Trip Driving Feel Good Hits Official Audio',
+        'Afrobeats' => 'Top Afrobeats Amapiano Hits 2025 2026 Official Audio',
+        'Trace & Soundcity' => 'Soundcity Trace Top Hits Afrobeats Dancehall Official Audio',
+        _ => 'Top Hits 2025 2026 Viral Music Official Audio',
+      };
+
+      final results = await YoutubeAudioService.instance.search(
+        query,
+        filterMixtapes: true,
+      );
+
+      final valid = results
+          .where((t) =>
+              t.duration.inSeconds >= 45 &&
+              t.duration.inSeconds <= 660 &&
+              !YoutubeAudioService.isMixtapeOrNonstop(t.title, t.duration))
+          .take(16)
+          .toList();
+
+      if (valid.isNotEmpty && mounted) {
+        _cachedTracks = valid;
+        setState(() {
+          _tracks = valid;
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _playTrack(YoutubeTrack track) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final items = _tracks.map((t) => t.toMediaItem()).toList();
+      final idx = _tracks.indexWhere((t) => t.id == track.id);
+      if (handler is MeloAudioHandler) {
+        await handler.replaceQueue(
+          items,
+          initialIndex: idx >= 0 ? idx : 0,
+          playWhenReady: true,
+        );
+      } else {
+        await handler.playMediaItem(track.toMediaItem());
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _queueTrack(YoutubeTrack track, {bool playNext = false}) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    try {
+      final item = track.toMediaItem();
+      if (playNext && handler is MeloAudioHandler) {
+        await handler.insertQueueItemNext(item);
+      } else {
+        await handler.addQueueItem(item);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              playNext
+                  ? 'Playing "${track.title}" next'
+                  : 'Added "${track.title}" to Up Next',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    } catch (_) {}
+  }
+
+  Future<void> _queueSimilar(YoutubeTrack track) async {
+    final handler = widget.audioHandler;
+    if (handler == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Finding music similar to "${track.title}"...'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    try {
+      final related = await YoutubeAudioService.instance.getRelatedTracks(
+        track.id,
+        artist: track.author,
+        title: track.title,
+      );
+      var count = 0;
+      for (final t in related) {
+        await handler.addQueueItem(t.toMediaItem());
+        count++;
+        if (count >= 10) break;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Added $count similar songs to Up Next'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_tracks.isEmpty && !_isLoading) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final currentItem = widget.audioHandler?.mediaItem.value;
+
+    // Group into columns of 4 rows (Mornye standard)
+    const chunkSize = 4;
+    final columns = <List<YoutubeTrack>>[];
+    for (var i = 0; i < _tracks.length; i += chunkSize) {
+      columns.add(
+        _tracks.sublist(
+          i,
+          i + chunkSize > _tracks.length ? _tracks.length : i + chunkSize,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ShelfHeader(
+          icon: Icons.electric_bolt_rounded,
+          title: 'Quick Picks',
+          badgeLabel: widget.activeMood == 'All'
+              ? 'START RADIO FROM A TRACK'
+              : widget.activeMood.toUpperCase(),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 248,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: columns.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, colIndex) {
+              final colTracks = columns[colIndex];
+              return SizedBox(
+                width: MediaQuery.sizeOf(context).width * 0.84,
+                child: Column(
+                  children: colTracks.map((track) {
+                    final isPlaying = currentItem != null &&
+                        (currentItem.id == 'youtube:${track.id}' ||
+                            currentItem.id == track.id);
+                    return Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _playTrack(track),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 46,
+                                    height: 46,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        if (track.thumbnailUrl != null)
+                                          CachedNetworkArtwork(
+                                            url: track.thumbnailUrl!,
+                                            width: 46,
+                                            height: 46,
+                                            fit: BoxFit.cover,
+                                          )
+                                        else
+                                          Container(
+                                            color: MeloColors.qledCard,
+                                            child: const Icon(
+                                              Icons.music_note_rounded,
+                                              size: 20,
+                                              color: Colors.white38,
+                                            ),
+                                          ),
+                                        if (isPlaying)
+                                          Container(
+                                            color: Colors.black54,
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.equalizer_rounded,
+                                                color: MeloColors.cherry,
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        track.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isPlaying
+                                              ? colors.primary
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 1,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: colors.primary.withValues(alpha: 0.14),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'HI-RES',
+                                              style: TextStyle(
+                                                fontSize: 8.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: colors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              '${track.author} · ${track.durationString}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  tooltip: 'Options',
+                                  icon: Icon(
+                                    Icons.more_vert_rounded,
+                                    size: 18,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                  color: MeloColors.qledCard,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.12),
+                                    ),
+                                  ),
+                                  onSelected: (val) {
+                                    if (val == 'play_next') {
+                                      _queueTrack(track, playNext: true);
+                                    } else if (val == 'queue') {
+                                      _queueTrack(track, playNext: false);
+                                    } else if (val == 'similar') {
+                                      _queueSimilar(track);
+                                    }
+                                  },
+                                  itemBuilder: (ctx) => [
+                                    const PopupMenuItem(
+                                      value: 'play_next',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.playlist_play_rounded, size: 20),
+                                          SizedBox(width: 10),
+                                          Text('Play next'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'queue',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.queue_music_rounded, size: 20),
+                                          SizedBox(width: 10),
+                                          Text('Add to Up Next'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'similar',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.auto_awesome_rounded, size: 20),
+                                          SizedBox(width: 10),
+                                          Text('Queue similar songs'),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Trace & Soundcity Live Broadcast Channels Shelf
+class BroadcastChannelsShelf extends StatelessWidget {
+  const BroadcastChannelsShelf({
+    required this.onPlayPreset,
+    super.key,
+  });
+
+  final ValueChanged<CuratedPlaylistPreset> onPlayPreset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.live_tv_rounded,
+                    size: 14,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Trace & Soundcity Live Channels',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('● ', style: TextStyle(color: Color(0xFFEF4444), fontSize: 9)),
+                    Text(
+                      'LIVE ON AIR',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        color: Color(0xFFEF4444),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 175,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: kTraceSoundcityBroadcastPlaylists.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final preset = kTraceSoundcityBroadcastPlaylists[index];
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => onPlayPreset(preset),
+                  child: Container(
+                    width: 210,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          preset.gradient.first.withValues(alpha: 0.55),
+                          const Color(0xFF0C0A10),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: preset.gradient.first.withValues(alpha: 0.35),
+                        width: 1.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: preset.gradient.first.withValues(alpha: 0.2),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black45,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Text(
+                                preset.broadcastStation ?? 'BROADCAST',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.6,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              preset.icon,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Text(
+                          preset.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          preset.curatorSubtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: MeloColors.cherry.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'ROTATION',
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: MeloColors.cherry,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: MeloColors.cherry,
+                              size: 26,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
