@@ -348,6 +348,8 @@ class ExternalFeedService {
 
     switch (provider) {
       case MusicProviderType.appleMusic:
+        final liveApple = await fetchLiveAppleMusicHomeFeed();
+        if (liveApple.isNotEmpty) return liveApple;
         return [
           ExploreSection(
             uri: 'apple:featured',
@@ -394,9 +396,21 @@ class ExternalFeedService {
           ),
           ExploreSection(
             uri: 'apple:quick_picks',
-            title: 'Top Songs & Latest Hits',
+            title: 'Top Hits & Chart Anthems',
             layout: 'quick-picks',
-            items: quickPickItems,
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'am_track_1',
+                      uri: 'apple:track:1',
+                      type: 'track',
+                      name: 'Live Top Hit',
+                      artists: 'Top Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                      providerId: 'apple_music',
+                    ),
+                  ],
           ),
           const ExploreSection(
             uri: 'apple:broadcast',
@@ -423,21 +437,13 @@ class ExternalFeedService {
                 heading: 'TIMELESS CLASSICS',
                 providerId: 'apple_music',
               ),
-              ExploreItem(
-                id: 'am_station_country',
-                uri: 'apple:station:country',
-                type: 'station',
-                name: 'Nashville Sessions',
-                artists: 'Studio Country Hits Live',
-                coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
-                heading: 'STUDIO LIVE',
-                providerId: 'apple_music',
-              ),
             ],
           ),
         ];
 
       case MusicProviderType.youtubeMusic:
+        final liveYT = await fetchLiveYouTubeMusicHomeFeed();
+        if (liveYT.isNotEmpty) return liveYT;
         return [
           ExploreSection(
             uri: 'yt:featured',
@@ -462,140 +468,54 @@ class ExternalFeedService {
                 type: 'playlist',
                 name: 'Global Viral 50',
                 artists: 'Breakthrough Audio Anthems',
-                description: 'The top viral tracks with millions of plays and shares this week',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
-                heading: 'VIRAL HITS',
+                description: 'The fastest rising tracks on social video and global music radar',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
+                heading: 'VIRAL SPOTLIGHT',
                 providerId: 'youtube_music',
               ),
             ],
           ),
           ExploreSection(
             uri: 'yt:quick_picks',
-            title: 'Quick Picks',
+            title: 'Quick Picks for You',
             layout: 'quick-picks',
-            items: quickPickItems,
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'yt_track_1',
+                      uri: 'youtube:track:1',
+                      type: 'track',
+                      name: 'Trending Audio Track',
+                      artists: 'Popular Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
+                      providerId: 'youtube_music',
+                    ),
+                  ],
           ),
           const ExploreSection(
-            uri: 'yt:broadcast',
-            title: 'Spotlight Stations',
+            uri: 'yt:shelves',
+            title: 'Popular Playlists',
             layout: 'shelf',
             items: [
               ExploreItem(
-                id: 'yt_channel_1',
-                uri: 'youtube:channel:trending',
-                type: 'station',
-                name: 'Trending Hits',
-                artists: 'Global Top Trending',
+                id: 'yt_sh_hits',
+                uri: 'youtube:playlist:hits',
+                type: 'playlist',
+                name: 'Pop Hits & Trending',
+                artists: 'Global Hitmakers',
                 coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
-                heading: 'TOP CHARTS',
+                heading: 'POP HITS',
                 providerId: 'youtube_music',
-              ),
-              ExploreItem(
-                id: 'yt_channel_2',
-                uri: 'youtube:channel:viral',
-                type: 'station',
-                name: 'Viral Breakthroughs',
-                artists: 'Breakthrough Audio Anthems',
-                coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
-                heading: 'VIRAL 100',
-                providerId: 'youtube_music',
-              ),
-            ],
-          ),
-        ];
-
-      case MusicProviderType.spotify:
-        return [
-          ExploreSection(
-            uri: 'spotify:featured',
-            title: 'Curated Highlights',
-            layout: 'featured',
-            items: const [
-              ExploreItem(
-                id: 'sp_top_hits',
-                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
-                type: 'playlist',
-                name: "Today's Top Hits",
-                artists: 'The Hottest 50 Tracks Worldwide',
-                description: 'The hottest 50 tracks worldwide across digital streams right now',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
-                heading: 'TOP 50',
-                providerId: 'spotify',
-              ),
-              ExploreItem(
-                id: 'sp_rapcaviar',
-                uri: 'spotify:playlist:37i9dQZF1DX0XUsuxWHRQd',
-                type: 'playlist',
-                name: 'RapCaviar Anthem',
-                artists: 'Heavyweight Hip-Hop',
-                description: 'Heavyweight hip-hop bangers and new rap anthems',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
-                heading: 'HIP-HOP ANTHEMS',
-                providerId: 'spotify',
-              ),
-              ExploreItem(
-                id: 'sp_new_music',
-                uri: 'spotify:playlist:37i9dQZF1DX4JAvHpjipBk',
-                type: 'playlist',
-                name: 'New Music Friday',
-                artists: 'Fresh Weekly Drops',
-                description: 'The premier weekly release lineup of brand-new singles and albums',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
-                heading: 'NEW RELEASES',
-                providerId: 'spotify',
-              ),
-            ],
-          ),
-          ExploreSection(
-            uri: 'spotify:quick_picks',
-            title: 'Top Hits & Viral Charts',
-            layout: 'quick-picks',
-            items: quickPickItems,
-          ),
-          const ExploreSection(
-            uri: 'spotify:broadcast',
-            title: 'Curated Playlists',
-            layout: 'shelf',
-            items: [
-              ExploreItem(
-                id: 'sp_b_top50',
-                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
-                type: 'playlist',
-                name: 'Global Top 50',
-                artists: 'Most Streamed Tracks Worldwide',
-                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
-                heading: 'TOP 50',
-                providerId: 'spotify',
-              ),
-              ExploreItem(
-                id: 'sp_b_viral',
-                uri: 'spotify:playlist:37i9dQZF1DX2L0iB23Enbq',
-                type: 'playlist',
-                name: 'Viral 50',
-                artists: 'Viral Breakout Songs',
-                coverUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&q=80',
-                heading: 'VIRAL 50',
-                providerId: 'spotify',
-              ),
-              ExploreItem(
-                id: 'sp_b_fresh',
-                uri: 'spotify:playlist:37i9dQZF1DX3u9TSYrV1nG',
-                type: 'playlist',
-                name: 'Fresh Finds',
-                artists: 'Indie & Future Stars',
-                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
-                heading: 'FRESH FINDS',
-                providerId: 'spotify',
               ),
             ],
           ),
         ];
 
       case MusicProviderType.deezer:
+        final liveDeezer = await fetchLiveDeezerHomeFeed();
+        if (liveDeezer.isNotEmpty) return liveDeezer;
         return [
           ExploreSection(
             uri: 'deezer:featured',
@@ -630,34 +550,108 @@ class ExternalFeedService {
           ),
           ExploreSection(
             uri: 'deezer:quick_picks',
-            title: 'Worldwide Top Charts',
+            title: 'Global Top Chart Tracks',
             layout: 'quick-picks',
-            items: quickPickItems,
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'dz_track_1',
+                      uri: 'deezer:track:1',
+                      type: 'track',
+                      name: 'Global Chart Track',
+                      artists: 'International Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+                      providerId: 'deezer',
+                    ),
+                  ],
           ),
           const ExploreSection(
-            uri: 'deezer:broadcast',
-            title: 'Worldwide Stations',
+            uri: 'deezer:shelves',
+            title: 'Top Charts & Playlists',
             layout: 'shelf',
             items: [
               ExploreItem(
-                id: 'dz_b_flow',
+                id: 'dz_sh_top100',
                 uri: 'deezer:playlist:3155776842',
                 type: 'playlist',
-                name: 'Infinite Flow',
-                artists: 'High-Fidelity Stream',
+                name: 'Deezer Top 100',
+                artists: 'Worldwide Chart Hits',
                 coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
-                heading: 'HIGH FIDELITY',
-                providerId: 'deezer',
-              ),
-              ExploreItem(
-                id: 'dz_b_top',
-                uri: 'deezer:playlist:1116190041',
-                type: 'playlist',
-                name: 'Top International Hits',
-                artists: 'Top 100 International Hits',
-                coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
                 heading: 'GLOBAL 100',
                 providerId: 'deezer',
+              ),
+            ],
+          ),
+        ];
+
+      case MusicProviderType.spotify:
+        final liveSpotify = await fetchLiveSpotifyHomeFeed();
+        if (liveSpotify.isNotEmpty) return liveSpotify;
+        return [
+          ExploreSection(
+            uri: 'spotify:featured',
+            title: 'Spotify Spotlight',
+            layout: 'featured',
+            items: const [
+              ExploreItem(
+                id: 'sp_today',
+                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
+                type: 'playlist',
+                name: "Today's Top Hits",
+                artists: 'The Hottest 50 Tracks Worldwide',
+                description: 'The hottest 50 tracks on Spotify right now across pop, rap and Latin',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: "TODAY'S TOP HITS",
+                providerId: 'spotify',
+              ),
+              ExploreItem(
+                id: 'sp_rapcaviar',
+                uri: 'spotify:playlist:37i9dQZF1DX0XUsuxWHRQd',
+                type: 'playlist',
+                name: 'RapCaviar',
+                artists: 'Heavyweight Hip-Hop Bangers',
+                description: 'Heavyweight hip-hop bangers and new rap anthems',
+                featuredCoverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1000&q=80',
+                coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+                heading: 'HIP-HOP ANTHEMS',
+                providerId: 'spotify',
+              ),
+            ],
+          ),
+          ExploreSection(
+            uri: 'spotify:quick_picks',
+            title: 'Hot 50 Trending Tracks',
+            layout: 'quick-picks',
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'sp_track_1',
+                      uri: 'spotify:track:1',
+                      type: 'track',
+                      name: 'Top 50 Hit',
+                      artists: 'Spotify Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                      providerId: 'spotify',
+                    ),
+                  ],
+          ),
+          const ExploreSection(
+            uri: 'spotify:shelves',
+            title: 'Curated Playlists',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'sp_sh_tth',
+                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
+                type: 'playlist',
+                name: "Today's Top Hits",
+                artists: 'Spotify Editorial',
+                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+                heading: 'EDITORIAL',
+                providerId: 'spotify',
               ),
             ],
           ),
@@ -688,7 +682,19 @@ class ExternalFeedService {
             uri: 'soundcloud:quick_picks',
             title: 'Hot & Trending Tracks',
             layout: 'quick-picks',
-            items: quickPickItems,
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'sc_track_1',
+                      uri: 'soundcloud:track:1',
+                      type: 'track',
+                      name: 'Trending Underground',
+                      artists: 'Independent Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
+                      providerId: 'soundcloud',
+                    ),
+                  ],
           ),
           const ExploreSection(
             uri: 'soundcloud:broadcast',
@@ -705,22 +711,34 @@ class ExternalFeedService {
                 heading: 'INDIE DISCOVERY',
                 providerId: 'soundcloud',
               ),
-              ExploreItem(
-                id: 'sc_b_flips',
-                uri: 'soundcloud:station:flips',
-                type: 'station',
-                name: 'VIP Flips & Bootlegs',
-                artists: 'Underground Club Edits & Bootlegs',
-                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
-                heading: 'CLUB EDITS',
-                providerId: 'soundcloud',
-              ),
             ],
           ),
         ];
 
       case MusicProviderType.all:
       default:
+        // Unified live blend: Fetch real live Apple Music flowcase heroes + real live Deezer charts + real live YouTube Music quick picks in parallel
+        final liveFeeds = await Future.wait([
+          fetchLiveAppleMusicHomeFeed().catchError((_) => <ExploreSection>[]),
+          fetchLiveDeezerHomeFeed().catchError((_) => <ExploreSection>[]),
+          fetchLiveYouTubeMusicHomeFeed().catchError((_) => <ExploreSection>[]),
+        ]);
+        final appleSections = liveFeeds[0];
+        final deezerSections = liveFeeds[1];
+        final ytSections = liveFeeds[2];
+
+        final merged = <ExploreSection>[];
+        final appleHero = appleSections.where((s) => s.isFeatured).firstOrNull;
+        if (appleHero != null) merged.add(appleHero);
+
+        final ytQuickPicks = ytSections.where((s) => s.layout == 'quick-picks').firstOrNull;
+        if (ytQuickPicks != null) merged.add(ytQuickPicks);
+
+        final deezerChart = deezerSections.where((s) => s.layout == 'shelf' || s.isFeatured).firstOrNull;
+        if (deezerChart != null) merged.add(deezerChart);
+
+        if (merged.isNotEmpty) return merged;
+
         return [
           ExploreSection(
             uri: 'curated:featured',
@@ -739,40 +757,477 @@ class ExternalFeedService {
                 heading: 'LIVE ON AIR',
                 providerId: 'apple_music',
               ),
-              ExploreItem(
-                id: 'cur_sp',
-                uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
-                type: 'playlist',
-                name: "Today's Top Hits",
-                artists: 'The Hottest 50 Tracks Worldwide',
-                description: 'The hottest 50 tracks on digital charts worldwide right now',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
-                heading: 'TOP 50',
-                providerId: 'spotify',
-              ),
-              ExploreItem(
-                id: 'cur_dz',
-                uri: 'deezer:playlist:3155776842',
-                type: 'playlist',
-                name: 'Top Worldwide Hits',
-                artists: 'International Chart Anthems',
-                description: 'Top 100 international charts and streaming favorites',
-                featuredCoverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1000&q=80',
-                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
-                heading: 'WORLDWIDE CHARTS',
-                providerId: 'deezer',
-              ),
             ],
           ),
           ExploreSection(
             uri: 'curated:quick_picks',
-            title: 'Top Songs & Latest Hits',
+            title: 'Universal Quick Picks',
             layout: 'quick-picks',
-            items: quickPickItems,
+            items: quickPickItems.isNotEmpty
+                ? quickPickItems
+                : const [
+                    ExploreItem(
+                      id: 'cur_track_1',
+                      uri: 'curated:track:1',
+                      type: 'track',
+                      name: 'Universal Hit',
+                      artists: 'Global Artist',
+                      coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+                      providerId: 'all',
+                    ),
+                  ],
+          ),
+          const ExploreSection(
+            uri: 'curated:shelves',
+            title: 'Discover Worldwide',
+            layout: 'shelf',
+            items: [
+              ExploreItem(
+                id: 'cur_sh_global',
+                uri: 'deezer:playlist:3155776842',
+                type: 'playlist',
+                name: 'Global Charts',
+                artists: 'Worldwide Trending',
+                coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
+                heading: 'CHARTS',
+                providerId: 'deezer',
+              ),
+            ],
           ),
         ];
     }
+  }
+
+  /// Fetches actual live Apple Music home feed mirroring Mornye's apple-music extension.
+  /// Hits https://music.apple.com/{storefront}/new and parses serialized-server-data JSON.
+  Future<List<ExploreSection>> fetchLiveAppleMusicHomeFeed({String storefront = 'us'}) async {
+    try {
+      final uri = Uri.parse('https://music.apple.com/$storefront/new');
+      final response = await http.get(
+        uri,
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+          'Accept': 'text/html',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) return const [];
+      final html = response.body;
+      final match = RegExp(
+        r'<script\b[^>]*\bid=["' "'" r']serialized-server-data["' "'" r'][^>]*>([\s\S]*?)<\/script>',
+      ).firstMatch(html);
+      if (match == null) return const [];
+
+      final payload = jsonDecode(match.group(1)!) as dynamic;
+      final pages = payload is List ? payload : payload['data'];
+      if (pages is! List) return const [];
+
+      final page = pages.firstWhere(
+        (entry) =>
+            entry != null &&
+            entry['data'] != null &&
+            entry['data']['sections'] is List,
+        orElse: () => null,
+      );
+      if (page == null) return const [];
+
+      final rawSections = page['data']['sections'] as List;
+      final sections = <ExploreSection>[];
+
+      for (final rawSec in rawSections) {
+        if (rawSec is! Map) continue;
+        final rawItems = rawSec['items'] as List?;
+        if (rawItems == null || rawItems.isEmpty) continue;
+
+        final isFeatured = rawSec['itemKind'] == 'flowcaseLockup';
+        final items = <ExploreItem>[];
+
+        for (final rawItem in rawItems) {
+          if (rawItem is! Map || rawItem['isDisabled'] == true) continue;
+          final descriptor = rawItem['contentDescriptor'] ??
+              rawItem['segue']?['destination']?['contentDescriptor'];
+          if (descriptor is! Map) continue;
+
+          final kind = descriptor['kind']?.toString() ?? 'track';
+          final type = kind == 'song' ? 'track' : kind;
+          if (type != 'track' && type != 'album' && type != 'playlist' && type != 'artist') {
+            continue;
+          }
+
+          final id = descriptor['identifiers']?['storeAdamID']?.toString() ?? '';
+          final name = (rawItem['title'] as String?)?.trim() ?? '';
+          if (id.isEmpty || name.isEmpty) continue;
+
+          final artists = (rawItem['subtitle'] as String?) ??
+              (rawItem['artistName'] as String?) ??
+              'Apple Music';
+          final heading = (rawItem['heading'] as String?) ?? (isFeatured ? 'NEW & TRENDING' : null);
+          final description = (rawItem['description'] as String?) ?? '';
+
+          String? coverUrl;
+          final artworkDict = rawItem['coverArtwork'] ?? rawItem['artwork'];
+          if (artworkDict is Map && artworkDict['url'] is String) {
+            final rawUrl = artworkDict['url'] as String;
+            final w = isFeatured ? '960' : '600';
+            final h = isFeatured ? '640' : '600';
+            final crop = artworkDict['cropStyle']?.toString() ?? 'sr';
+            coverUrl = rawUrl
+                .replaceAll('{w}', w)
+                .replaceAll('{h}', h)
+                .replaceAll('{c}', crop)
+                .replaceAll('{f}', 'jpg');
+          }
+
+          final uri = descriptor['url']?.toString() ?? 'apple:$type:$id';
+
+          items.add(
+            ExploreItem(
+              id: id,
+              uri: uri,
+              type: type,
+              name: name,
+              artists: artists,
+              coverUrl: coverUrl,
+              featuredCoverUrl: isFeatured ? coverUrl : null,
+              heading: heading,
+              description: description,
+              providerId: 'apple_music',
+            ),
+          );
+        }
+
+        if (items.isNotEmpty) {
+          final headerTitle = rawSec['header']?['item']?['titleLink']?['title']?.toString() ??
+              rawSec['header']?['item']?['title']?.toString() ??
+              (isFeatured ? 'Featured Highlights' : 'Apple Music');
+          sections.add(
+            ExploreSection(
+              uri: 'apple:${sections.length}',
+              title: headerTitle,
+              layout: isFeatured ? 'featured' : (items.length > 8 ? 'quick-picks' : 'shelf'),
+              items: items,
+            ),
+          );
+        }
+      }
+
+      return sections;
+    } catch (e) {
+      debugPrint('Error fetching live Apple Music home feed: $e');
+      return const [];
+    }
+  }
+
+  /// Fetches actual live YouTube Music home feed mirroring Mornye's ytmusic-spotiflac extension.
+  /// Hits https://music.youtube.com/youtubei/v1/browse with browseId: "FEmusic_home".
+  Future<List<ExploreSection>> fetchLiveYouTubeMusicHomeFeed({String country = 'US'}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://music.youtube.com/youtubei/v1/browse'),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': '1.20231204.01.00',
+              'hl': 'en',
+              'gl': country,
+            },
+          },
+          'browseId': 'FEmusic_home',
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) return const [];
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final tabs = data['contents']?['singleColumnBrowseResultsRenderer']?['tabs'] as List?;
+      final contents = tabs?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+      if (contents == null || contents.isEmpty) return const [];
+
+      final sections = <ExploreSection>[];
+
+      for (final s in contents) {
+        if (s is! Map) continue;
+        final r = s['musicCarouselShelfRenderer'] ?? s['musicShelfRenderer'];
+        if (r is! Map) continue;
+
+        final headerObj = r['header']?['musicCarouselShelfBasicHeaderRenderer'] ??
+            r['header']?['musicShelfBasicHeaderRenderer'];
+        final titleRuns = headerObj?['title']?['runs'] as List?;
+        final sectionTitle = (titleRuns != null && titleRuns.isNotEmpty)
+            ? (titleRuns[0]?['text']?.toString() ?? '')
+            : '';
+        if (sectionTitle.isEmpty) continue;
+
+        final rawItems = r['contents'] as List?;
+        if (rawItems == null || rawItems.isEmpty) continue;
+
+        final items = <ExploreItem>[];
+
+        for (final itemContainer in rawItems) {
+          if (itemContainer is! Map) continue;
+          final item = itemContainer['musicTwoRowItemRenderer'] ??
+              itemContainer['musicResponsiveListItemRenderer'];
+          if (item is! Map) continue;
+
+          var name = '';
+          final tRuns = item['title']?['runs'] as List?;
+          if (tRuns != null && tRuns.isNotEmpty) {
+            name = tRuns[0]?['text']?.toString() ?? '';
+          }
+          if (name.isEmpty) {
+            final fCols = item['flexColumns'] as List?;
+            final firstCol = fCols != null && fCols.isNotEmpty ? fCols[0] : null;
+            final fRuns = firstCol?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs'] as List?;
+            if (fRuns != null && fRuns.isNotEmpty) {
+              name = fRuns[0]?['text']?.toString() ?? '';
+            }
+          }
+          if (name.isEmpty) continue;
+
+          var artists = 'YouTube Music';
+          final subRuns = item['subtitle']?['runs'] as List?;
+          if (subRuns != null && subRuns.isNotEmpty) {
+            final parts = <String>[];
+            for (final run in subRuns) {
+              final txt = run?['text']?.toString().trim() ?? '';
+              final lower = txt.toLowerCase();
+              if (txt.isEmpty || txt == '•' || txt == ',' || txt == '&') continue;
+              if (lower == 'single' || lower == 'album' || lower == 'ep' || lower == 'playlist' || lower == 'song' || lower == 'video') continue;
+              if (RegExp(r'^\d{4}$').hasMatch(txt)) continue;
+              if (RegExp(r'^\d+(\.\d+)?[KMB]?\s*(views|plays)', caseSensitive: false).hasMatch(txt)) continue;
+              if (txt.length > 1) parts.add(txt);
+            }
+            if (parts.isNotEmpty) artists = parts.join(', ');
+          }
+
+          var itemId = '';
+          var itemType = 'track';
+          final navEp = item['navigationEndpoint'];
+          if (navEp is Map) {
+            final watchEp = navEp['watchEndpoint'];
+            if (watchEp is Map && watchEp['videoId'] != null) {
+              itemId = watchEp['videoId'].toString();
+              itemType = 'track';
+            } else {
+              final browseEp = navEp['browseEndpoint'];
+              if (browseEp is Map && browseEp['browseId'] != null) {
+                itemId = browseEp['browseId'].toString();
+                if (itemId.startsWith('VL') || itemId.startsWith('PL') || itemId.startsWith('RDCLAK')) {
+                  itemType = 'playlist';
+                } else if (itemId.startsWith('MPREb_')) {
+                  itemType = 'album';
+                }
+              }
+            }
+          }
+
+          if (itemId.isEmpty) continue;
+
+          String? coverUrl;
+          final thumbObj = item['thumbnailRenderer']?['musicThumbnailRenderer'] ??
+              item['thumbnail']?['musicThumbnailRenderer'];
+          final thumbs = thumbObj?['thumbnail']?['thumbnails'] as List?;
+          if (thumbs != null && thumbs.isNotEmpty) {
+            coverUrl = thumbs.last['url']?.toString();
+            if (coverUrl != null) {
+              coverUrl = coverUrl.replaceAll(RegExp(r'=w\d+-h\d+'), '=w544-h544');
+            }
+          }
+
+          items.add(
+            ExploreItem(
+              id: itemId,
+              uri: 'youtube:$itemId',
+              type: itemType,
+              name: name,
+              artists: artists,
+              coverUrl: coverUrl,
+              featuredCoverUrl: coverUrl,
+              providerId: 'youtube_music',
+            ),
+          );
+        }
+
+        if (items.isNotEmpty) {
+          final isQuickPicks = sectionTitle.toLowerCase().contains('quick pick') ||
+              sectionTitle.toLowerCase().contains('mixed for you');
+          sections.add(
+            ExploreSection(
+              uri: 'yt:${sections.length}',
+              title: sectionTitle,
+              layout: isQuickPicks ? 'quick-picks' : 'shelf',
+              items: items,
+            ),
+          );
+        }
+      }
+
+      return sections;
+    } catch (e) {
+      debugPrint('Error fetching live YouTube Music home feed: $e');
+      return const [];
+    }
+  }
+
+  /// Fetches actual live Deezer chart feed mirroring Mornye's deezer extension.
+  Future<List<ExploreSection>> fetchLiveDeezerHomeFeed() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.deezer.com/chart'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) return const [];
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final sections = <ExploreSection>[];
+
+      final playlistsData = data['playlists']?['data'] as List?;
+      if (playlistsData != null && playlistsData.isNotEmpty) {
+        final items = playlistsData.map((p) {
+          final id = p['id']?.toString() ?? '';
+          final title = (p['title'] as String?)?.trim() ?? 'Deezer Playlist';
+          final creator = (p['user']?['name'] as String?) ?? 'Deezer Editorial';
+          final cover = (p['picture_xl'] as String?) ?? (p['picture_big'] as String?) ?? (p['picture_medium'] as String?);
+          return ExploreItem(
+            id: id,
+            uri: 'deezer:playlist:$id',
+            type: 'playlist',
+            name: title,
+            artists: creator,
+            coverUrl: cover,
+            featuredCoverUrl: cover,
+            heading: 'EDITORIAL HITLIST',
+            providerId: 'deezer',
+          );
+        }).toList();
+        sections.add(
+          ExploreSection(
+            uri: 'deezer:featured_playlists',
+            title: 'Featured Flow & Playlists',
+            layout: 'featured',
+            items: items,
+          ),
+        );
+      }
+
+      final tracksData = data['tracks']?['data'] as List?;
+      if (tracksData != null && tracksData.isNotEmpty) {
+        final items = tracksData.map((t) {
+          final id = t['id']?.toString() ?? '';
+          final title = (t['title'] as String?)?.trim() ?? '';
+          final artist = (t['artist']?['name'] as String?)?.trim() ?? 'Deezer Artist';
+          final cover = (t['album']?['cover_xl'] as String?) ?? (t['album']?['cover_big'] as String?);
+          final durationSec = (t['duration'] as num?)?.toInt() ?? 180;
+          return ExploreItem(
+            id: id,
+            uri: 'deezer:track:$id',
+            type: 'track',
+            name: title,
+            artists: artist,
+            coverUrl: cover,
+            featuredCoverUrl: cover,
+            durationMs: durationSec * 1000,
+            providerId: 'deezer',
+          );
+        }).toList();
+        sections.add(
+          ExploreSection(
+            uri: 'deezer:top_tracks',
+            title: 'Top 100 Worldwide',
+            layout: 'quick-picks',
+            items: items,
+          ),
+        );
+      }
+
+      return sections;
+    } catch (e) {
+      debugPrint('Error fetching live Deezer home feed: $e');
+      return const [];
+    }
+  }
+
+  /// Fetches actual live Spotify home feed mirroring Mornye's spotify-web extension.
+  Future<List<ExploreSection>> fetchLiveSpotifyHomeFeed() async {
+    try {
+      final playlists = [
+        ('37i9dQZF1DXcBWIGoYBM5M', "Today's Top Hits", 'TOP 50', 'The hottest tracks worldwide right now'),
+        ('37i9dQZF1DX2L0iB23Enbq', 'Viral 50', 'VIRAL 50', 'Viral breakout songs and social sensations'),
+        ('37i9dQZF1DX0XUsuxWHRQd', 'RapCaviar', 'RAP CAVIAR', 'Heavyweight hip-hop bangers and new anthems'),
+        ('37i9dQZF1DX4JAvHpjipBk', 'New Music Friday', 'NEW DROPS', 'The premier weekly lineup of brand-new releases'),
+      ];
+
+      final featuredItems = <ExploreItem>[];
+      final trackItems = <ExploreItem>[];
+
+      for (final p in playlists) {
+        final resolved = await SpotifyService.instance.fetchPlaylist(
+          'https://open.spotify.com/playlist/${p.$1}',
+        );
+        if (resolved.tracks.isNotEmpty) {
+          featuredItems.add(
+            ExploreItem(
+              id: p.$1,
+              uri: 'spotify:playlist:${p.$1}',
+              type: 'playlist',
+              name: p.$2,
+              artists: 'Spotify Editorial',
+              description: p.$4,
+              coverUrl: resolved.artworkUrl ?? (resolved.tracks.isNotEmpty ? resolved.tracks.first.artworkUrl : null),
+              featuredCoverUrl: resolved.artworkUrl ?? (resolved.tracks.isNotEmpty ? resolved.tracks.first.artworkUrl : null),
+              heading: p.$3,
+              providerId: 'spotify',
+            ),
+          );
+
+          if (trackItems.length < 20) {
+            for (final t in resolved.tracks) {
+              trackItems.add(
+                ExploreItem(
+                  id: t.id,
+                  uri: 'spotify:track:${t.id}',
+                  type: 'track',
+                  name: t.title,
+                  artists: t.artist,
+                  coverUrl: t.artworkUrl,
+                  featuredCoverUrl: t.artworkUrl,
+                  durationMs: t.durationMs,
+                  providerId: 'spotify',
+                ),
+              );
+              if (trackItems.length >= 20) break;
+            }
+          }
+        }
+      }
+
+      if (featuredItems.isNotEmpty) {
+        return [
+          ExploreSection(
+            uri: 'spotify:featured',
+            title: 'Curated Highlights',
+            layout: 'featured',
+            items: featuredItems,
+          ),
+          if (trackItems.isNotEmpty)
+            ExploreSection(
+              uri: 'spotify:quick_picks',
+              title: 'Top Hits & Chart Anthems',
+              layout: 'quick-picks',
+              items: trackItems,
+            ),
+        ];
+      }
+    } catch (e) {
+      debugPrint('Error fetching live Spotify home feed: $e');
+    }
+    return const [];
   }
 
   /// Automatically inspects and resolves ANY external music URL (Spotify, YouTube,

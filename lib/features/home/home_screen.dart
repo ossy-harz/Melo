@@ -535,12 +535,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _openExploreItem(BuildContext context, ExploreItem item) {
+  Future<void> _openExploreItem(BuildContext context, ExploreItem item) async {
     if (item.type == 'track') {
       final rawId = item.id.replaceAll(RegExp(r'^[a-z]+:'), '');
-      final safeId = RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(rawId) ? rawId : '';
+      var safeId = RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(rawId) ? rawId : '';
+      if (safeId.isEmpty) {
+        try {
+          final hits = await YoutubeAudioService.instance.search(
+            '${item.name} ${item.artists} official audio',
+            filterMixtapes: true,
+          );
+          if (hits.isNotEmpty) {
+            safeId = hits.first.id;
+          }
+        } catch (_) {}
+      }
+
       final track = YoutubeTrack(
-        id: safeId,
+        id: safeId.isNotEmpty ? safeId : rawId,
         title: item.name,
         author: item.artists,
         duration: Duration(milliseconds: item.durationMs > 0 ? item.durationMs : 180000),
@@ -567,8 +579,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       spotifyId = item.uri.replaceFirst('spotify:playlist:', '');
     } else if (item.uri.startsWith('deezer:playlist:')) {
       deezerId = item.uri.replaceFirst('deezer:playlist:', '');
-    } else if (item.uri.startsWith('apple:playlist:')) {
-      appleId = item.uri.replaceFirst('apple:playlist:', '');
+    } else if (item.uri.startsWith('apple:playlist:') || item.uri.startsWith('apple:album:')) {
+      appleId = item.uri.replaceFirst(RegExp(r'^apple:(playlist|album):'), '');
     } else if (item.uri.startsWith('http://') || item.uri.startsWith('https://')) {
       extUrl = item.uri;
     }
