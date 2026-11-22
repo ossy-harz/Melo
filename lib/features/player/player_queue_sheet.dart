@@ -262,7 +262,7 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                     const Spacer(),
                     IconButton(
                       tooltip: 'Discovery Dial',
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.tune_rounded,
                         color: MeloColors.cherrySoft,
                         size: 20,

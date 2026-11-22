@@ -6,7 +6,8 @@ enum MeloThemePalette {
   cyberpunk,
   emerald,
   amber,
-  titanium;
+  titanium,
+  custom;
 
   String get displayName => switch (this) {
     MeloThemePalette.cherry => 'Obsidian Cherry',
@@ -14,6 +15,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => 'Tokyo Emerald',
     MeloThemePalette.amber => 'Sunset Amber',
     MeloThemePalette.titanium => 'Obsidian Titanium',
+    MeloThemePalette.custom => 'Custom Bespoke',
   };
 
   String get subtitle => switch (this) {
@@ -22,6 +24,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => 'Nordic emerald & fresh jade studio tone',
     MeloThemePalette.amber => 'Warm analog vinyl amber & sunset gold',
     MeloThemePalette.titanium => 'Pure minimalist monochrome silver & white',
+    MeloThemePalette.custom => 'Personalized RGB & hex spectrum accent',
   };
 
   Color get primaryColor => switch (this) {
@@ -30,6 +33,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => const Color(0xFF10B981),
     MeloThemePalette.amber => const Color(0xFFF59E0B),
     MeloThemePalette.titanium => const Color(0xFFE2E8F0),
+    MeloThemePalette.custom => const Color(0xFFFA243C),
   };
 
   Color get secondaryColor => switch (this) {
@@ -38,6 +42,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => const Color(0xFF34D399),
     MeloThemePalette.amber => const Color(0xFFEA580C),
     MeloThemePalette.titanium => const Color(0xFF94A3B8),
+    MeloThemePalette.custom => const Color(0xFFFF5368),
   };
 
   Color get deepColor => switch (this) {
@@ -46,6 +51,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => const Color(0xFF064E3B),
     MeloThemePalette.amber => const Color(0xFF78350F),
     MeloThemePalette.titanium => const Color(0xFF1E293B),
+    MeloThemePalette.custom => const Color(0xFF5E0A19),
   };
 
   Color get glowColor => switch (this) {
@@ -54,6 +60,7 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => const Color(0xFF6EE7B7),
     MeloThemePalette.amber => const Color(0xFFFCD34D),
     MeloThemePalette.titanium => const Color(0xFFCBD5E1),
+    MeloThemePalette.custom => const Color(0xFFFF5368),
   };
 
   List<Color> get gradient => switch (this) {
@@ -62,26 +69,68 @@ enum MeloThemePalette {
     MeloThemePalette.emerald => const [Color(0xFF0A2E20), Color(0xFF047857), Color(0xFF10B981)],
     MeloThemePalette.amber => const [Color(0xFF3D2507), Color(0xFFB45309), Color(0xFFF59E0B)],
     MeloThemePalette.titanium => const [Color(0xFF18181B), Color(0xFF3F3F46), Color(0xFF71717A)],
+    MeloThemePalette.custom => const [Color(0xFF351618), Color(0xFF76251F), Color(0xFFFA243C)],
   };
 }
 
 class MeloThemeSettings {
   const MeloThemeSettings({
     this.palette = MeloThemePalette.cherry,
+    this.customColorValue,
     this.amoledPitchBlack = true,
     this.dynamicAlbumReactive = true,
   });
 
   final MeloThemePalette palette;
+  final int? customColorValue;
   final bool amoledPitchBlack;
   final bool dynamicAlbumReactive;
 
+  Color get customColor =>
+      customColorValue != null ? Color(customColorValue!) : const Color(0xFFFA243C);
+
+  Color get primaryColor =>
+      palette == MeloThemePalette.custom ? customColor : palette.primaryColor;
+
+  Color get secondaryColor {
+    if (palette == MeloThemePalette.custom) {
+      final hsl = HSLColor.fromColor(customColor);
+      return hsl.withLightness((hsl.lightness + 0.15).clamp(0.0, 1.0)).toColor();
+    }
+    return palette.secondaryColor;
+  }
+
+  Color get deepColor {
+    if (palette == MeloThemePalette.custom) {
+      final hsl = HSLColor.fromColor(customColor);
+      return hsl.withLightness((hsl.lightness * 0.35).clamp(0.0, 1.0)).toColor();
+    }
+    return palette.deepColor;
+  }
+
+  Color get glowColor {
+    if (palette == MeloThemePalette.custom) {
+      final hsl = HSLColor.fromColor(customColor);
+      return hsl.withLightness((hsl.lightness + 0.20).clamp(0.0, 1.0)).toColor();
+    }
+    return palette.glowColor;
+  }
+
+  List<Color> get gradient {
+    if (palette == MeloThemePalette.custom) {
+      return [deepColor, primaryColor, glowColor];
+    }
+    return palette.gradient;
+  }
+
   MeloThemeSettings copyWith({
     MeloThemePalette? palette,
+    int? customColorValue,
     bool? amoledPitchBlack,
     bool? dynamicAlbumReactive,
   }) => MeloThemeSettings(
     palette: palette ?? this.palette,
+    customColorValue: customColorValue ?? this.customColorValue,
     amoledPitchBlack: amoledPitchBlack ?? this.amoledPitchBlack,
     dynamicAlbumReactive: dynamicAlbumReactive ?? this.dynamicAlbumReactive,
   );
@@ -92,6 +141,7 @@ class MeloThemeService extends ValueNotifier<MeloThemeSettings> {
   static final MeloThemeService instance = MeloThemeService._();
 
   static const _paletteKey = 'tone_theme_palette_v2';
+  static const _customColorKey = 'tone_theme_custom_color_v2';
   static const _amoledKey = 'tone_theme_amoled_v2';
   static const _dynamicKey = 'tone_theme_dynamic_v2';
   bool _hasLoaded = false;
@@ -102,12 +152,14 @@ class MeloThemeService extends ValueNotifier<MeloThemeSettings> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final pName = prefs.getString(_paletteKey);
+      final customVal = prefs.getInt(_customColorKey);
       final amoled = prefs.getBool(_amoledKey) ?? true;
       final dynamicReactive = prefs.getBool(_dynamicKey) ?? true;
 
       final matchedPalette = MeloThemePalette.values.where((p) => p.name == pName).firstOrNull ?? MeloThemePalette.cherry;
       value = MeloThemeSettings(
         palette: matchedPalette,
+        customColorValue: customVal,
         amoledPitchBlack: amoled,
         dynamicAlbumReactive: dynamicReactive,
       );
@@ -119,6 +171,17 @@ class MeloThemeService extends ValueNotifier<MeloThemeSettings> {
     value = value.copyWith(palette: palette);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_paletteKey, palette.name);
+  }
+
+  Future<void> setCustomColor(Color color) async {
+    final argb = color.toARGB32();
+    value = value.copyWith(
+      palette: MeloThemePalette.custom,
+      customColorValue: argb,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_paletteKey, MeloThemePalette.custom.name);
+    await prefs.setInt(_customColorKey, argb);
   }
 
   Future<void> setAmoledPitchBlack(bool enabled) async {
@@ -147,13 +210,13 @@ abstract final class MeloColors {
   static const card = Color(0xFFFFFFFF);
   static const line = Color(0xFFECDDE2);
 
-  // Cherry identity.
-  static const plum = Color(0xFFFA243C);
-  static const ember = Color(0xFFFA243C);
-  static const cherry = Color(0xFFFA243C);
-  static const cherrySoft = Color(0xFFFF8997);
-  static const cherryDeep = Color(0xFF5E0A19);
-  static const cherryGlow = Color(0xFFFF5368);
+  // Dynamic Identity tokens: automatically reflect the user's active theme or custom RGB color across the whole app.
+  static Color get plum => MeloThemeService.instance.value.primaryColor;
+  static Color get ember => MeloThemeService.instance.value.primaryColor;
+  static Color get cherry => MeloThemeService.instance.value.primaryColor;
+  static Color get cherrySoft => MeloThemeService.instance.value.secondaryColor;
+  static Color get cherryDeep => MeloThemeService.instance.value.deepColor;
+  static Color get cherryGlow => MeloThemeService.instance.value.glowColor;
 
   /// Dynamic Theme Identity accessor: resolves active palette color in BuildContext
   static Color of(BuildContext context) => Theme.of(context).colorScheme.primary;
@@ -352,8 +415,9 @@ abstract final class MeloTheme {
   static ThemeData themeFor(Brightness brightness, [MeloThemeSettings? settings]) {
     final effectiveSettings = settings ?? MeloThemeService.instance.value;
     final isLight = brightness == Brightness.light;
-    final primary = effectiveSettings.palette.primaryColor;
-    final secondary = effectiveSettings.palette.secondaryColor;
+    final primary = effectiveSettings.primaryColor;
+    final secondary = effectiveSettings.secondaryColor;
+    final deep = effectiveSettings.deepColor;
     final surface = isLight
         ? MeloColors.paper
         : (effectiveSettings.amoledPitchBlack ? const Color(0xFF000000) : const Color(0xFF0D0D11));
@@ -364,12 +428,12 @@ abstract final class MeloTheme {
           brightness: brightness,
         ).copyWith(
           primary: primary,
-          onPrimary: isLight ? Colors.white : const Color(0xFF2A0008),
+          onPrimary: isLight ? Colors.white : const Color(0xFF000000),
           primaryContainer: isLight
               ? primary.withValues(alpha: 0.16)
               : primary.withValues(alpha: 0.28),
           onPrimaryContainer: isLight
-              ? const Color(0xFF5A0A1B)
+              ? deep
               : Colors.white,
           secondary: secondary,
           onSecondary: Colors.white,
@@ -385,16 +449,16 @@ abstract final class MeloTheme {
               ? MeloColors.card
               : (effectiveSettings.amoledPitchBlack ? const Color(0xFF000000) : const Color(0xFF08080A)),
           surfaceContainerLow: isLight
-              ? const Color(0xFFF6EDF0)
+              ? (isLight ? const Color(0xFFF6EDF0) : const Color(0xFF0D0D0D))
               : (effectiveSettings.amoledPitchBlack ? const Color(0xFF0D0D0D) : const Color(0xFF111114)),
           surfaceContainer: isLight
-              ? const Color(0xFFF1E6EA)
+              ? (isLight ? const Color(0xFFF1E6EA) : const Color(0xFF141414))
               : (effectiveSettings.amoledPitchBlack ? const Color(0xFF141414) : const Color(0xFF18181D)),
           surfaceContainerHigh: isLight
-              ? const Color(0xFFEADCE1)
+              ? (isLight ? const Color(0xFFEADCE1) : const Color(0xFF1E1E1E))
               : (effectiveSettings.amoledPitchBlack ? const Color(0xFF1E1E1E) : const Color(0xFF222228)),
           surfaceContainerHighest: isLight
-              ? const Color(0xFFE3D3D8)
+              ? (isLight ? const Color(0xFFE3D3D8) : const Color(0xFF282828))
               : (effectiveSettings.amoledPitchBlack ? const Color(0xFF282828) : const Color(0xFF2B2B33)),
           outline: isLight ? const Color(0xFFC9B2B9) : const Color(0xFF5A5A5A),
           outlineVariant: isLight ? MeloColors.line : const Color(0xFF2D2D2D),

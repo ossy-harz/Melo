@@ -40,7 +40,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141416),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.graphic_eq_rounded, color: MeloColors.cherry),
             SizedBox(width: 10),
@@ -68,7 +68,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141416),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.stream_rounded, color: MeloColors.cherry),
             SizedBox(width: 10),
@@ -95,7 +95,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141416),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.waves_rounded, color: MeloColors.cherry),
             SizedBox(width: 10),
@@ -128,7 +128,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF141416),
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.dns_rounded, color: MeloColors.cherry),
               SizedBox(width: 10),
@@ -337,7 +337,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141416),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.health_and_safety_rounded, color: MeloColors.cherry),
             SizedBox(width: 10),
@@ -430,7 +430,7 @@ class _AddonsScreenState extends State<AddonsScreen> {
                   color: MeloColors.cherry.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.extension_rounded,
                   color: MeloColors.cherry,
                   size: 26,

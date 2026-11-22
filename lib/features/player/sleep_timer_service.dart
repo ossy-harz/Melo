@@ -167,7 +167,7 @@ class SleepTimerService extends ChangeNotifier {
                           const SizedBox(height: 16),
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.bedtime_rounded,
                                 color: MeloColors.cherry,
                                 size: 22,
@@ -206,7 +206,7 @@ class SleepTimerService extends ChangeNotifier {
                                   ),
                                   child: Text(
                                     '$remainingText left',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: MeloColors.cherrySoft,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -292,7 +292,7 @@ class SleepTimerService extends ChangeNotifier {
                                     const Spacer(),
                                     Text(
                                       '${customMinutes.round()} min',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: MeloColors.cherrySoft,
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w800,
@@ -415,7 +415,7 @@ class _TimerOptionTile extends StatelessWidget {
             ),
           ),
           trailing: selected
-              ? const Icon(
+              ? Icon(
                   Icons.check_circle_rounded,
                   color: MeloColors.cherry,
                   size: 20,

@@ -524,7 +524,7 @@ class _AlbumTrackList extends StatelessWidget {
                         color: Colors.black.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Icons.equalizer_rounded,
                           color: MeloColors.cherry,

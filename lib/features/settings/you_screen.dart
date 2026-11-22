@@ -371,7 +371,7 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.image_outlined,
                       color: MeloColors.cherry,
                     ),
@@ -394,7 +394,7 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
                     color: colors.outlineVariant.withValues(alpha: 0.3),
                   ),
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.lyrics_outlined,
                       color: MeloColors.cherry,
                     ),
@@ -415,7 +415,7 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
                     color: colors.outlineVariant.withValues(alpha: 0.3),
                   ),
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.cleaning_services_outlined,
                       color: MeloColors.cherry,
                     ),
@@ -453,7 +453,7 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.backup_rounded,
                       color: MeloColors.cherry,
                     ),
@@ -474,7 +474,7 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
                     color: colors.outlineVariant.withValues(alpha: 0.3),
                   ),
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.settings_backup_restore_rounded,
                       color: MeloColors.cherry,
                     ),
@@ -541,6 +541,15 @@ class _OfflineDataScreenState extends State<OfflineDataScreen> {
 class AppearanceInfoScreen extends StatelessWidget {
   const AppearanceInfoScreen({super.key});
 
+  static void showCustomColorPicker(BuildContext context, Color initialColor) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CustomColorPickerDialog(initialColor: initialColor),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -563,9 +572,9 @@ class AppearanceInfoScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: activePalette.gradient,
+                    colors: themeSettings.gradient,
                   ),
-                  boxShadow: MeloShadows.glow(activePalette.primaryColor, opacity: 0.32),
+                  boxShadow: MeloShadows.glow(themeSettings.primaryColor, opacity: 0.32),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(MeloRadii.xl),
@@ -616,7 +625,9 @@ class AppearanceInfoScreen extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    activePalette.displayName,
+                                    activePalette == MeloThemePalette.custom
+                                        ? 'Custom Bespoke (${themeSettings.customColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()})'
+                                        : activePalette.displayName,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
@@ -624,7 +635,9 @@ class AppearanceInfoScreen extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    activePalette.subtitle,
+                                    activePalette == MeloThemePalette.custom
+                                        ? 'RGB personalized spectrum · App-wide live dynamic accent'
+                                        : activePalette.subtitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -666,11 +679,152 @@ class AppearanceInfoScreen extends StatelessWidget {
                         ),
                       _ThemePaletteTile(
                         palette: MeloThemePalette.values[i],
+                        themeSettings: themeSettings,
                         isSelected: activePalette == MeloThemePalette.values[i],
-                        onTap: () => MeloThemeService.instance
-                            .setPalette(MeloThemePalette.values[i]),
+                        onTap: () {
+                          if (MeloThemePalette.values[i] == MeloThemePalette.custom) {
+                            showCustomColorPicker(context, themeSettings.customColor);
+                          } else {
+                            MeloThemeService.instance
+                                .setPalette(MeloThemePalette.values[i]);
+                          }
+                        },
+                        onConfigureCustom: () =>
+                            showCustomColorPicker(context, themeSettings.customColor),
                       ),
                     ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'BESPOKE SPECTRUM & RGB PICKER',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => showCustomColorPicker(context, themeSettings.customColor),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tune_rounded, size: 14, color: themeSettings.primaryColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Sliders & Hex',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: themeSettings.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              MeloGlass(
+                borderRadius: MeloRadii.lg,
+                shadow: false,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Quick Spectrum Swatches',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Choose any signature tone or dial exact RGB / Hex values below.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final color in const [
+                          Color(0xFFFA243C), // Signature Obsidian Cherry
+                          Color(0xFF06B6D4), // Electric Cyan
+                          Color(0xFFA855F7), // Neon Violet
+                          Color(0xFFE11D48), // Crimson Rose
+                          Color(0xFF10B981), // Tokyo Emerald
+                          Color(0xFFF59E0B), // Sunset Amber
+                          Color(0xFFFF6B6B), // Coral Flame
+                          Color(0xFF3B82F6), // Royal Cobalt
+                          Color(0xFF84CC16), // Acid Lime
+                          Color(0xFFEAB308), // Solar Gold
+                          Color(0xFF7C3AED), // Deep Violet
+                          Color(0xFF94A3B8), // Ice Titanium
+                        ]) ...[
+                          GestureDetector(
+                            onTap: () => MeloThemeService.instance.setCustomColor(color),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: activePalette == MeloThemePalette.custom &&
+                                          themeSettings.customColor.toARGB32() == color.toARGB32()
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: color.withValues(alpha: 0.4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: activePalette == MeloThemePalette.custom &&
+                                      themeSettings.customColor.toARGB32() == color.toARGB32()
+                                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: themeSettings.primaryColor.withValues(alpha: 0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => showCustomColorPicker(context, themeSettings.customColor),
+                        icon: Icon(Icons.colorize_rounded, size: 18, color: themeSettings.primaryColor),
+                        label: Text(
+                          'Open RGB Sliders & Hex Code Picker',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: themeSettings.primaryColor,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -773,16 +927,24 @@ class AppearanceInfoScreen extends StatelessWidget {
 class _ThemePaletteTile extends StatelessWidget {
   const _ThemePaletteTile({
     required this.palette,
+    required this.themeSettings,
     required this.isSelected,
     required this.onTap,
+    this.onConfigureCustom,
   });
 
   final MeloThemePalette palette;
+  final MeloThemeSettings themeSettings;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onConfigureCustom;
 
   @override
   Widget build(BuildContext context) {
+    final isCustom = palette == MeloThemePalette.custom;
+    final primary = isCustom ? themeSettings.customColor : palette.primaryColor;
+    final secondary = isCustom ? themeSettings.secondaryColor : palette.secondaryColor;
+
     return ListTile(
       onTap: onTap,
       leading: Container(
@@ -791,31 +953,376 @@ class _ThemePaletteTile extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
-            colors: [palette.primaryColor, palette.secondaryColor],
+            colors: [primary, secondary],
           ),
           border: Border.all(
             color: isSelected ? Colors.white : Colors.transparent,
             width: 2.2,
           ),
           boxShadow: isSelected
-              ? MeloShadows.soft(palette.primaryColor, opacity: 0.4)
+              ? MeloShadows.soft(primary, opacity: 0.4)
               : null,
         ),
       ),
-      title: Text(
-        palette.displayName,
-        style: TextStyle(
-          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-          color: isSelected ? palette.primaryColor : null,
-        ),
+      title: Row(
+        children: [
+          Text(
+            palette.displayName,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: isSelected ? primary : null,
+            ),
+          ),
+          if (isCustom) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: primary.withValues(alpha: 0.4), width: 0.8),
+              ),
+              child: Text(
+                '#${primary.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: primary,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
       subtitle: Text(
         palette.subtitle,
         style: const TextStyle(fontSize: 12.5),
       ),
-      trailing: isSelected
-          ? Icon(Icons.check_circle_rounded, color: palette.primaryColor)
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCustom && onConfigureCustom != null) ...[
+            IconButton(
+              icon: const Icon(Icons.colorize_rounded, size: 20),
+              tooltip: 'Configure custom RGB color',
+              onPressed: onConfigureCustom,
+              color: primary,
+            ),
+          ],
+          if (isSelected)
+            Icon(Icons.check_circle_rounded, color: primary),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomColorPickerDialog extends StatefulWidget {
+  const _CustomColorPickerDialog({required this.initialColor});
+  final Color initialColor;
+
+  @override
+  State<_CustomColorPickerDialog> createState() => _CustomColorPickerDialogState();
+}
+
+class _CustomColorPickerDialogState extends State<_CustomColorPickerDialog> {
+  late int _r;
+  late int _g;
+  late int _b;
+  late TextEditingController _hexController;
+
+  @override
+  void initState() {
+    super.initState();
+    _r = (widget.initialColor.r * 255).round().clamp(0, 255);
+    _g = (widget.initialColor.g * 255).round().clamp(0, 255);
+    _b = (widget.initialColor.b * 255).round().clamp(0, 255);
+    _hexController = TextEditingController(text: _toHex(_r, _g, _b));
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  static String _toHex(int r, int g, int b) =>
+      '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}'
+          .toUpperCase();
+
+  void _onHexChanged(String val) {
+    var clean = val.replaceAll('#', '').trim();
+    if (clean.length == 6) {
+      final intVal = int.tryParse(clean, radix: 16);
+      if (intVal != null) {
+        setState(() {
+          _r = (intVal >> 16) & 0xFF;
+          _g = (intVal >> 8) & 0xFF;
+          _b = intVal & 0xFF;
+        });
+      }
+    }
+  }
+
+  void _updateFromRgb(int r, int g, int b) {
+    setState(() {
+      _r = r;
+      _g = g;
+      _b = b;
+      _hexController.text = _toHex(r, g, b);
+    });
+  }
+
+  Color get _currentColor => Color.fromARGB(255, _r, _g, _b);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+            width: 1.0,
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: colors.outlineVariant.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Custom RGB & Hex Accent',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Live Color Preview Card
+              Container(
+                height: 80,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: _currentColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _currentColor.withValues(alpha: 0.45),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _toHex(_r, _g, _b),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        Text(
+                          'RGB($_r, $_g, $_b)',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.palette_rounded, color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'LIVE PREVIEW',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Hex Input Field
+              TextField(
+                controller: _hexController,
+                onChanged: _onHexChanged,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: 'HEX CODE (#RRGGBB)',
+                  prefixIcon: const Icon(Icons.tag_rounded),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  filled: true,
+                  fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Red Slider
+              _RgbSliderRow(
+                label: 'Red',
+                value: _r,
+                accentColor: const Color(0xFFEF4444),
+                onChanged: (v) => _updateFromRgb(v, _g, _b),
+              ),
+              const SizedBox(height: 10),
+
+              // Green Slider
+              _RgbSliderRow(
+                label: 'Green',
+                value: _g,
+                accentColor: const Color(0xFF10B981),
+                onChanged: (v) => _updateFromRgb(_r, v, _b),
+              ),
+              const SizedBox(height: 10),
+
+              // Blue Slider
+              _RgbSliderRow(
+                label: 'Blue',
+                value: _b,
+                accentColor: const Color(0xFF3B82F6),
+                onChanged: (v) => _updateFromRgb(_r, _g, v),
+              ),
+              const SizedBox(height: 22),
+
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _currentColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: () {
+                  MeloThemeService.instance.setCustomColor(_currentColor);
+                  Navigator.of(context).pop();
+                },
+                icon: const Icon(Icons.check_rounded),
+                label: const Text(
+                  'Apply Color Accent App-Wide',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RgbSliderRow extends StatelessWidget {
+  const _RgbSliderRow({
+    required this.label,
+    required this.value,
+    required this.accentColor,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final Color accentColor;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: accentColor,
+              thumbColor: accentColor,
+              inactiveTrackColor: accentColor.withValues(alpha: 0.2),
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: 0,
+              max: 255,
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -952,7 +1459,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                   ),
                   boxShadow: MeloShadows.glow(MeloColors.cherry, opacity: 0.25),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.graphic_eq_rounded,
                   size: 32,
                   color: MeloColors.cherry,
@@ -1203,7 +1710,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.verified_rounded,
                                     color: MeloColors.cherry,
                                     size: 20,
@@ -1247,7 +1754,7 @@ class _AboutToneScreenState extends State<AboutToneScreen> with WidgetsBindingOb
                                         ),
                                         child: Row(
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               Icons.verified_rounded,
                                               color: MeloColors.cherry,
                                               size: 20,
@@ -1585,7 +2092,7 @@ class _ProfileHero extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(MeloRadii.xl),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
@@ -1632,7 +2139,7 @@ class _ProfileHero extends StatelessWidget {
                     height: 54,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [MeloColors.cherryGlow, MeloColors.cherry],
@@ -1919,7 +2426,7 @@ class _QualityAndStreamingSectionState
         child: Column(
           children: [
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.high_quality_rounded,
                 color: MeloColors.cherry,
               ),
@@ -1936,7 +2443,7 @@ class _QualityAndStreamingSectionState
                 ),
                 child: Text(
                   _downloadQuality.badge,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: MeloColors.cherry,
@@ -1973,7 +2480,7 @@ class _QualityAndStreamingSectionState
               color: colors.outlineVariant.withValues(alpha: 0.3),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.graphic_eq_rounded,
                 color: MeloColors.cherry,
               ),
@@ -2045,7 +2552,7 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
         child: Column(
           children: [
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.play_circle_fill_rounded,
                 color: MeloColors.cherry,
               ),
@@ -2081,7 +2588,7 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
               builder: (context, isSpotifyLoggedIn, _) {
                 final spotify = SpotifyService.instance;
                 return ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.radar_rounded,
                     color: MeloColors.cherry,
                   ),
@@ -2115,7 +2622,7 @@ class _ConnectedSourcesSectionState extends State<_ConnectedSourcesSection> {
               color: colors.outlineVariant.withValues(alpha: 0.3),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.playlist_add_check_circle_rounded,
                 color: MeloColors.cherry,
               ),
@@ -2280,7 +2787,7 @@ void _showProviderSelectionSheet(BuildContext context) {
                       shape: BoxShape.circle,
                       color: MeloColors.cherry.withValues(alpha: 0.15),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         Icons.hub_rounded,
                         color: MeloColors.cherry,

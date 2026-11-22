@@ -2,12 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_details_sheet.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
 import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
@@ -583,6 +585,194 @@ void main() {
       expect(SpotifyService.featuredPlaylists.first.id, '37i9dQZF1DXcBWIGoYBM5M');
       expect(SpotifyService.instance.userPlaylists, isNotNull);
       expect(YoutubeAuthService.instance.userPlaylists, isNotNull);
+    });
+  });
+
+  group('Dynamic Bespoke Theming & RGB Custom Color Engine', () {
+    test('supports MeloThemePalette.custom and dynamic MeloColors getters', () async {
+      SharedPreferences.setMockInitialValues({});
+      final service = MeloThemeService.instance;
+      await service.load();
+
+      // Check default
+      expect(service.value.palette, MeloThemePalette.cherry);
+      expect(MeloColors.cherry, const Color(0xFFFA243C));
+
+      // Set custom color to electric cyan
+      const electricCyan = Color(0xFF06B6D4);
+      await service.setCustomColor(electricCyan);
+
+      expect(service.value.palette, MeloThemePalette.custom);
+      expect(service.value.customColor.toARGB32(), electricCyan.toARGB32());
+      expect(service.value.primaryColor.toARGB32(), electricCyan.toARGB32());
+
+      // MeloColors.cherry now dynamically resolves to the user's custom accent!
+      expect(MeloColors.cherry.toARGB32(), electricCyan.toARGB32());
+      expect(MeloColors.plum.toARGB32(), electricCyan.toARGB32());
+      expect(MeloColors.ember.toARGB32(), electricCyan.toARGB32());
+
+      // Verify theme data builder uses custom color
+      final lightTheme = MeloTheme.light;
+      final darkTheme = MeloTheme.dark;
+      expect(lightTheme.colorScheme.primary.toARGB32(), electricCyan.toARGB32());
+      expect(darkTheme.colorScheme.primary.toARGB32(), electricCyan.toARGB32());
+
+      // Reset to cherry
+      await service.setPalette(MeloThemePalette.cherry);
+      expect(MeloColors.cherry, const Color(0xFFFA243C));
+    });
+
+    testWidgets('AppearanceInfoScreen renders custom bespoke picker and spectrum chips', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: MeloTheme.dark,
+          home: const AppearanceInfoScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('AUDIOPHILE THEME PALETTES'), findsOneWidget);
+      expect(find.text('Custom Bespoke'), findsOneWidget);
+      expect(find.text('BESPOKE SPECTRUM & RGB PICKER'), findsOneWidget);
+      expect(find.text('Quick Spectrum Swatches'), findsOneWidget);
+      expect(find.text('Open RGB Sliders & Hex Code Picker'), findsOneWidget);
+
+      // Open RGB dialog
+      await tester.tap(find.text('Open RGB Sliders & Hex Code Picker'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom RGB & Hex Accent'), findsOneWidget);
+      expect(find.text('LIVE PREVIEW'), findsOneWidget);
+      expect(find.text('Apply Color Accent App-Wide'), findsOneWidget);
+    });
+  });
+
+  group('Trace & Soundcity Live Broadcast Charts & New Releases', () {
+    test('kTraceSoundcityBroadcastPlaylists are hooked to live verified chart IDs', () {
+      expect(kTraceSoundcityBroadcastPlaylists.length >= 4, isTrue);
+
+      final soundcityTop10 = kTraceSoundcityBroadcastPlaylists.firstWhere(
+        (p) => p.title.contains('Soundcity Top 10'),
+      );
+      expect(soundcityTop10.deezerPlaylistId, '1362529295');
+      expect(soundcityTop10.spotifyPlaylistId, '37i9dQZF1DWYkaDif7Ztbp');
+      expect(soundcityTop10.isBroadcastChannel, isTrue);
+
+      final traceUrban = kTraceSoundcityBroadcastPlaylists.firstWhere(
+        (p) => p.title.contains('Trace Urban'),
+      );
+      expect(traceUrban.deezerPlaylistId, '3155776842');
+      expect(traceUrban.spotifyPlaylistId, '37i9dQZF1DXcBWIGoYBM5M');
+
+      final traceAfrica = kTraceSoundcityBroadcastPlaylists.firstWhere(
+        (p) => p.title.contains('Trace Africa'),
+      );
+      expect(traceAfrica.deezerPlaylistId, '1393664765');
+
+      final amapiano = kTraceSoundcityBroadcastPlaylists.firstWhere(
+        (p) => p.title.contains('Amapiano'),
+      );
+      expect(amapiano.deezerPlaylistId, '6158737704');
+    });
+
+    test('kRecommendedPlaylists includes dedicated live New Releases preset', () {
+      final newReleases = kRecommendedPlaylists.firstWhere(
+        (p) => p.badge == 'NEW RELEASES',
+      );
+      expect(newReleases.title, 'New Releases & Fresh Drops');
+      expect(newReleases.deezerPlaylistId, isNotNull);
+      expect(newReleases.genre, 'New Releases');
+    });
+  });
+
+  group('SpotifyRecommendationEngine & Algorithm Verification', () {
+    test('computes Camelot harmonic compatibility accurately', () {
+      expect(SpotifyRecommendationEngine.parseCamelot('8A'), (8, 'A'));
+      expect(SpotifyRecommendationEngine.parseCamelot('11b'), (11, 'B'));
+      expect(SpotifyRecommendationEngine.parseCamelot('invalid'), isNull);
+
+      // Same key = perfect score 30
+      expect(SpotifyRecommendationEngine.harmonicScore('8A', '8A'), 30.0);
+
+      // Relative major / minor = 22
+      expect(SpotifyRecommendationEngine.harmonicScore('8A', '8B'), 22.0);
+
+      // Adjacent Camelot step (8A -> 7A or 9A) = 25
+      expect(SpotifyRecommendationEngine.harmonicScore('8A', '7A'), 25.0);
+      expect(SpotifyRecommendationEngine.harmonicScore('8A', '9A'), 25.0);
+
+      // Wrap around (12A -> 1A) = 25
+      expect(SpotifyRecommendationEngine.harmonicScore('12A', '1A'), 25.0);
+
+      // Distant key clash = 0
+      expect(SpotifyRecommendationEngine.harmonicScore('8A', '4A'), 0.0);
+    });
+
+    test('computes BPM tempo matching within Spotify +-8% tolerance', () {
+      // 120 BPM vs 122 BPM (1.6% diff) -> +25
+      expect(SpotifyRecommendationEngine.tempoScore(120.0, 122.0), 25.0);
+
+      // 120 BPM vs 130 BPM (8.3% diff) -> +15
+      expect(SpotifyRecommendationEngine.tempoScore(120.0, 130.0), 15.0);
+
+      // Half-time / Double-time (70 BPM vs 140 BPM) -> +18
+      expect(SpotifyRecommendationEngine.tempoScore(70.0, 140.0), 18.0);
+
+      // Huge tempo mismatch (80 BPM vs 145 BPM) -> 0
+      expect(SpotifyRecommendationEngine.tempoScore(80.0, 145.0), 0.0);
+    });
+
+    test('computes release era scoring based on chronological proximity', () {
+      // Same year or +-1 year (e.g. 2024 vs 2025) -> +20
+      expect(SpotifyRecommendationEngine.eraScore(2025, 2024), 20.0);
+
+      // Within 3 years (e.g. 2025 vs 2022) -> +15
+      expect(SpotifyRecommendationEngine.eraScore(2025, 2022), 15.0);
+
+      // Within 6 years -> +8
+      expect(SpotifyRecommendationEngine.eraScore(2025, 2019), 8.0);
+
+      // 20 years apart -> 0
+      expect(SpotifyRecommendationEngine.eraScore(2025, 1995), 0.0);
+    });
+
+    test('scores composite candidate with multi-dimensional affinity', () {
+      final highAffinity = SpotifyRecommendationEngine.scoreCandidate(
+        seedTitle: 'Last Last',
+        seedArtist: 'Burna Boy',
+        seedGenre: 'Afrobeats',
+        seedYear: 2022,
+        seedBpm: 104.0,
+        seedMusicalKey: '8A',
+        candidateTitle: 'City Boys',
+        candidateArtist: 'Burna Boy',
+        candidateGenre: 'Afrobeats',
+        candidateYear: 2023,
+        candidateBpm: 106.0,
+        candidateMusicalKey: '9A',
+      );
+
+      final unrelatedCandidate = SpotifyRecommendationEngine.scoreCandidate(
+        seedTitle: 'Last Last',
+        seedArtist: 'Burna Boy',
+        seedGenre: 'Afrobeats',
+        seedYear: 2022,
+        seedBpm: 104.0,
+        seedMusicalKey: '8A',
+        candidateTitle: 'Fur Elise',
+        candidateArtist: 'Beethoven',
+        candidateGenre: 'Classical',
+        candidateYear: 1810,
+        candidateBpm: 140.0,
+        candidateMusicalKey: '2B',
+      );
+
+      expect(highAffinity > 100.0, isTrue);
+      expect(unrelatedCandidate < 25.0, isTrue);
     });
   });
 }

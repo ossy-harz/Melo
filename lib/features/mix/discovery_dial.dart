@@ -120,7 +120,7 @@ class _DiscoveryDialSheetState extends State<DiscoveryDialSheet> {
                   color: MeloColors.cherry.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.tune_rounded,
                   color: MeloColors.cherry,
                   size: 22,
@@ -158,7 +158,7 @@ class _DiscoveryDialSheetState extends State<DiscoveryDialSheet> {
                 ),
                 child: Text(
                   '$percent%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: MeloColors.cherry,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,

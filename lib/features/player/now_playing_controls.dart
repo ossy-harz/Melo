@@ -201,7 +201,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 Container(
                   width: 4,
                   height: 4,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: MeloColors.cherry,
                   ),
@@ -230,7 +230,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 height: 66,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
@@ -308,7 +308,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 Container(
                   width: 4,
                   height: 4,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: MeloColors.cherry,
                   ),

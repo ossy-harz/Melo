@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
+import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/melo_audio_handler.dart';
 import 'package:melo_player/features/player/mini_player.dart';
 import 'package:melo_player/features/sources/lossless_audio_service.dart';
@@ -299,17 +300,13 @@ class _SearchScreenState extends State<SearchScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('Finding music similar to "${track.title}"...'),
+          content: Text('Finding music similar to "${track.title}" (Spotify-grade matching)...'),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 1),
         ),
       );
     try {
-      final related = await YoutubeAudioService.instance.getRelatedTracks(
-        track.id,
-        artist: track.author,
-        title: track.title,
-      );
+      final related = await SmartPlaylistService.instance.getSpotifyGradeSimilarTracks(track);
       if (related.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context)
@@ -586,13 +583,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.graphic_eq_rounded,
                               size: 18,
                               color: MeloColors.cherry,
                             ),
                             const SizedBox(width: 8),
-                            const Text(
+                            Text(
                               'NOW PLAYING: ',
                               style: TextStyle(
                                 fontSize: 10.5,
@@ -1035,7 +1032,7 @@ class _SearchResultTile extends StatelessWidget {
                           color: Colors.black.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Icon(
                             Icons.equalizer_rounded,
                             color: MeloColors.cherry,
@@ -1316,7 +1313,7 @@ class _TopResultCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'TOP RESULT',
                 style: TextStyle(
                   fontSize: 11,

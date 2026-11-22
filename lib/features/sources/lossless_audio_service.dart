@@ -869,7 +869,7 @@ class _DownloadQualityPickerSheetState
                         color: MeloColors.cherry.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.high_quality_rounded,
                         color: MeloColors.cherry,
                         size: 24,

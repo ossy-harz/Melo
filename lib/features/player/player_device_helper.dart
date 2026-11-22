@@ -221,7 +221,7 @@ class _AudioOutputRouteSheetState extends State<_AudioOutputRouteSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            const Row(
+            Row(
               children: [
                 Icon(
                   Icons.speaker_group_rounded,
@@ -241,7 +241,7 @@ class _AudioOutputRouteSheetState extends State<_AudioOutputRouteSheet> {
             ),
             const SizedBox(height: 14),
             if (_loading)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
                 child: Center(
                   child: CircularProgressIndicator(color: MeloColors.cherry),
@@ -364,7 +364,7 @@ class _AudioOutputRouteSheetState extends State<_AudioOutputRouteSheet> {
                 const SizedBox(height: 10),
                 Text(
                   _statusMessage!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: MeloColors.cherry,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

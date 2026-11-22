@@ -22,6 +22,17 @@ import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 final List<CuratedPlaylistPreset> kRecommendedPlaylists = [
   CuratedPlaylistPreset(
+    title: 'New Releases & Fresh Drops',
+    curatorSubtitle: 'Brand-new global chart debuts, fresh singles & Friday drops',
+    badge: 'NEW RELEASES',
+    searchQuery: 'New Music Friday fresh songs 2025 2026 official audio',
+    gradient: [const Color(0xFF6366F1), const Color(0xFF312E81), const Color(0xFF000000)],
+    icon: Icons.fiber_new_rounded,
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    genre: 'New Releases',
+    deezerPlaylistId: '3155776842',
+  ),
+  CuratedPlaylistPreset(
     title: 'Matata Radio',
     curatorSubtitle: 'With KODONGKLAN, Sauti Sol, Chris Kaiga and more',
     badge: 'MADE FOR YOU',
@@ -784,7 +795,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
         categoryBadge: 'MADE FOR YOU',
         title: 'Personal Station',
         description: 'Continuous flow tailored to your favorites & library.',
-        gradient: const [
+        gradient: [
           MeloColors.cherry,
           MeloColors.cherryDeep,
           Color(0xFF0A0A0C),
@@ -998,7 +1009,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
                           width: 0.9,
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
@@ -1062,7 +1073,7 @@ class _TopPicksShelfState extends State<TopPicksShelf> {
                               width: 0.9,
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
@@ -1815,7 +1826,7 @@ class _StationsForYouShelfState extends State<StationsForYouShelf> {
                     color: MeloColors.cherry.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -2770,13 +2781,13 @@ class _ArtistRadioShelfState extends State<ArtistRadioShelf> {
                           padding: const EdgeInsets.all(2.4),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
                                 MeloColors.cherryGlow,
                                 MeloColors.cherryDeep,
-                                Color(0x38FFFFFF),
+                                const Color(0x38FFFFFF),
                               ],
                             ),
                             boxShadow: [
@@ -2806,7 +2817,7 @@ class _ArtistRadioShelfState extends State<ArtistRadioShelf> {
                                   right: 4,
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       color: MeloColors.cherry,
                                       shape: BoxShape.circle,
                                     ),
@@ -3169,7 +3180,7 @@ class _PopularSongsShelfState extends State<PopularSongsShelf> {
                                   right: 6,
                                   child: Container(
                                     padding: const EdgeInsets.all(5),
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       color: MeloColors.cherry,
                                       shape: BoxShape.circle,
                                     ),
@@ -3916,7 +3927,7 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                             : 'Sync Account',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: MeloColors.cherry,
@@ -4057,7 +4068,7 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                                       height: 112,
                                       fit: BoxFit.cover,
                                       errorWidget: Container(
-                                        decoration: const BoxDecoration(
+                                        decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             begin: Alignment.topLeft,
                                             end: Alignment.bottomRight,
@@ -4078,7 +4089,7 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                                     )
                                   else
                                     Container(
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
@@ -4226,7 +4237,7 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                   InkWell(
                     borderRadius: BorderRadius.circular(6),
                     onTap: () => _openSpotifyPlaylistScreen(selectedPlaylist),
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: 4,
                         vertical: 2,
@@ -4304,13 +4315,13 @@ class _SpotifyFeedShelfState extends State<SpotifyFeedShelf> {
                                     width: 38,
                                     height: 38,
                                     fit: BoxFit.cover,
-                                    errorWidget: const Icon(
+                                    errorWidget: Icon(
                                       Icons.music_note_rounded,
                                       size: 18,
                                       color: MeloColors.cherry,
                                     ),
                                   )
-                                : const Icon(
+                                : Icon(
                                     Icons.music_note_rounded,
                                     size: 18,
                                     color: MeloColors.cherry,
@@ -4418,6 +4429,8 @@ final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
     genre: 'Afrobeats',
     isBroadcastChannel: true,
     broadcastStation: 'SOUNDCITY TV',
+    deezerPlaylistId: '1362529295',
+    spotifyPlaylistId: '37i9dQZF1DWYkaDif7Ztbp',
     initialSpotifyTracks: const [
       SpotifyTrack(
         id: 'sc_top10_1',
@@ -4512,6 +4525,8 @@ final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
     genre: 'Urban & Hip-Hop',
     isBroadcastChannel: true,
     broadcastStation: 'TRACE URBAN',
+    deezerPlaylistId: '3155776842',
+    spotifyPlaylistId: '37i9dQZF1DXcBWIGoYBM5M',
     initialSpotifyTracks: const [
       SpotifyTrack(
         id: 'tu_hit_1',
@@ -4606,6 +4621,7 @@ final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
     genre: 'Afrobeats',
     isBroadcastChannel: true,
     broadcastStation: 'TRACE AFRICA',
+    deezerPlaylistId: '1393664765',
     initialSpotifyTracks: const [
       SpotifyTrack(
         id: 'ta_gold_1',
@@ -4700,6 +4716,7 @@ final List<CuratedPlaylistPreset> kTraceSoundcityBroadcastPlaylists = [
     genre: 'Amapiano',
     isBroadcastChannel: true,
     broadcastStation: 'SOUNDCITY RADIO',
+    deezerPlaylistId: '6158737704',
     initialSpotifyTracks: const [
       SpotifyTrack(
         id: 'sc_pfd_1',
@@ -5461,17 +5478,13 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('Finding music similar to "${track.title}"...'),
+          content: Text('Finding music similar to "${track.title}" (Spotify-grade matching)...'),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 1),
         ),
       );
     try {
-      final related = await YoutubeAudioService.instance.getRelatedTracks(
-        track.id,
-        artist: track.author,
-        title: track.title,
-      );
+      final related = await SmartPlaylistService.instance.getSpotifyGradeSimilarTracks(track);
       var count = 0;
       for (final t in related) {
         await handler.addQueueItem(t.toMediaItem());
@@ -5621,7 +5634,7 @@ class _QuickPicksShelfState extends State<QuickPicksShelf> {
                                         if (isPlaying)
                                           Container(
                                             color: Colors.black54,
-                                            child: const Center(
+                                            child: Center(
                                               child: Icon(
                                                 Icons.equalizer_rounded,
                                                 color: MeloColors.cherry,
@@ -5996,7 +6009,7 @@ class BroadcastChannelsShelf extends StatelessWidget {
                                 color: MeloColors.cherry.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'ROTATION',
                                 style: TextStyle(
                                   fontSize: 8.5,
@@ -6006,7 +6019,7 @@ class BroadcastChannelsShelf extends StatelessWidget {
                               ),
                             ),
                             const Spacer(),
-                            const Icon(
+                            Icon(
                               Icons.play_circle_fill_rounded,
                               color: MeloColors.cherry,
                               size: 26,
@@ -6087,7 +6100,7 @@ class ExploreFeaturedSection extends StatelessWidget {
                             item.heading!.toUpperCase(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,

@@ -392,7 +392,7 @@ class _UniversalLinkSheetState extends State<UniversalLinkSheet> {
                                     Text(track.durationFormatted, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11)),
                                   const SizedBox(width: 8),
                                   if (isDownloaded)
-                                    const Tooltip(
+                                    Tooltip(
                                       message: 'Already in local library',
                                       child: Icon(Icons.check_circle_rounded, color: MeloColors.cherry, size: 18),
                                     )

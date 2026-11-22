@@ -640,7 +640,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                       color: MeloColors.cherry.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.cloud_download_rounded,
                       color: MeloColors.cherry,
                       size: 22,
@@ -1301,7 +1301,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                   color: MeloColors.cherry.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.check_rounded, color: MeloColors.cherry, size: 14),
@@ -1494,7 +1494,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                           const SizedBox(height: 6),
                           Text(
                             '${playlist.tracks.length} tracks · ${playlist.totalDurationString}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: MeloColors.cherry,
@@ -1645,7 +1645,7 @@ class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
                     ),
                     const SizedBox(width: 8),
                     if (isDownloaded)
-                      const Tooltip(
+                      Tooltip(
                         message: 'Already downloaded in library',
                         child: Icon(Icons.check_circle_rounded,
                             color: MeloColors.cherry, size: 20),

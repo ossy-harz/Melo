@@ -122,7 +122,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
         showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
                 Icon(Icons.favorite_rounded, color: MeloColors.cherry),
                 SizedBox(width: 10),
@@ -212,7 +212,7 @@ class _SupportFeedbackScreenState extends State<SupportFeedbackScreen>
                   shape: BoxShape.circle,
                   color: MeloColors.cherry.withValues(alpha: 0.2),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.favorite_rounded,
                   color: MeloColors.cherry,
                   size: 38,

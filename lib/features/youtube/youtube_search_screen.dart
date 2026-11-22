@@ -685,7 +685,7 @@ class _YoutubeSearchScreenState extends State<YoutubeSearchScreen> {
                                     ),
                                   ),
                                   if (isPlaying)
-                                    const Padding(
+                                    Padding(
                                       padding: EdgeInsets.symmetric(
                                         horizontal: 12,
                                       ),

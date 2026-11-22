@@ -281,7 +281,7 @@ class MiniPlayer extends StatelessWidget {
                               return Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
+                                  gradient: LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
@@ -365,7 +365,7 @@ class MiniPlayer extends StatelessWidget {
                               backgroundColor: Colors.white.withValues(
                                 alpha: 0.14,
                               ),
-                              valueColor: const AlwaysStoppedAnimation(
+                              valueColor: AlwaysStoppedAnimation(
                                 MeloColors.cherry,
                               ),
                             ),

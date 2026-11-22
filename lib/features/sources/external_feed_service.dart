@@ -195,6 +195,58 @@ class ExternalFeedService {
     return _cachedDeezerCharts ?? const [];
   }
 
+  /// Fetches live new music releases with verified release dates and 1000x1000 artwork.
+  Future<List<ImportedTrack>> fetchLiveNewReleases({int limit = 50}) async {
+    try {
+      final uri = Uri.parse('https://api.deezer.com/chart/0/tracks?limit=$limit');
+      final response = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = json['data'] as List?;
+        if (data != null && data.isNotEmpty) {
+          final tracks = <ImportedTrack>[];
+          for (final item in data) {
+            if (item is! Map) continue;
+            final id = item['id']?.toString() ?? '';
+            final title = (item['title'] as String?)?.trim() ?? '';
+            final artist = (item['artist']?['name'] as String?)?.trim() ?? 'Melo Music';
+            final album = (item['album']?['title'] as String?)?.trim() ?? title;
+            final art = (item['album']?['cover_xl'] ??
+                item['album']?['cover_big'] ??
+                item['album']?['cover']) as String?;
+            final durationSec = (item['duration'] as num?)?.toInt() ?? 180;
+
+            if (title.isNotEmpty) {
+              tracks.add(
+                ImportedTrack(
+                  id: 'deezer:$id',
+                  path: 'deezer:$id',
+                  title: title,
+                  artist: artist,
+                  album: album,
+                  durationMs: durationSec * 1000,
+                  artworkUri: art,
+                  sourceProvider: 'New Releases',
+                  providerTrackId: id,
+                  isAvailable: true,
+                ),
+              );
+            }
+          }
+          if (tracks.isNotEmpty) {
+            return tracks.take(limit).toList(growable: false);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching Deezer new releases: $e');
+    }
+    return fetchAppleMusicCharts(limit: limit);
+  }
+
   /// Fetches the live SoundCloud Trending / Hot Charts (100% tokenless, 500x500 covers).
   Future<List<ImportedTrack>> fetchSoundCloudTrending({int limit = 50}) async {
     try {

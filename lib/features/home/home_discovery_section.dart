@@ -197,7 +197,7 @@ class _LiveDiscoverySectionState extends State<LiveDiscoverySection> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.explore_rounded,
               size: 18,
               color: MeloColors.cherry,
@@ -380,7 +380,7 @@ class _LiveDiscoverySectionState extends State<LiveDiscoverySection> {
                   ),
                 )
               else if (isDownloaded)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(horizontal: 6),
                   child: Icon(
                     Icons.check_circle_rounded,

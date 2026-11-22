@@ -805,7 +805,7 @@ class _DjMixSetsSectionState extends State<_DjMixSetsSection> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.disc_full_rounded,
               size: 18,
               color: MeloColors.cherry,
@@ -1008,7 +1008,7 @@ class _AppUpdatePromptDialogState extends State<_AppUpdatePromptDialog> {
               color: MeloColors.cherry.withValues(alpha: 0.16),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.rocket_launch_rounded,
               color: MeloColors.cherry,
               size: 22,
@@ -1056,7 +1056,7 @@ class _AppUpdatePromptDialogState extends State<_AppUpdatePromptDialog> {
                   ),
                   child: Text(
                     apkSize,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: MeloColors.cherry,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -1093,7 +1093,7 @@ class _AppUpdatePromptDialogState extends State<_AppUpdatePromptDialog> {
                 ),
                 Text(
                   '${(progress * 100).round()}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: MeloColors.cherry,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1138,7 +1138,7 @@ class _AppUpdatePromptDialogState extends State<_AppUpdatePromptDialog> {
             const SizedBox(height: 12),
             Text(
               _errorMessage!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: MeloColors.cherry,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,

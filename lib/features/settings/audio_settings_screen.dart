@@ -184,7 +184,7 @@ class _AudioSettingsScreenState extends State<AudioSettingsScreen> {
             borderRadius: BorderRadius.circular(16),
             clipBehavior: Clip.antiAlias,
             child: ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.usb_rounded,
                 color: MeloColors.cherry,
               ),

@@ -214,7 +214,7 @@ class _SpotifySettingsScreenState extends State<SpotifySettingsScreen> {
                         color: MeloColors.cherry.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.playlist_play_rounded,
                         color: MeloColors.cherry,
                         size: 28,

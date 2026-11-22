@@ -477,7 +477,7 @@ class _SongDetailsSheetState extends State<SongDetailsSheet> {
                           ),
                           const Spacer(),
                           if (_isLoadingStudio)
-                            const SizedBox(
+                            SizedBox(
                               width: 12,
                               height: 12,
                               child: CircularProgressIndicator(

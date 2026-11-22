@@ -303,7 +303,7 @@ class PlaylistMiniPlayerDock extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
@@ -859,7 +859,13 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
         fallbackArtist: preset.artistName ?? 'Melo',
       );
     }
-    if (preset.initialSpotifyTracks != null &&
+    final hasLiveSource = preset.deezerPlaylistId != null ||
+        preset.externalUrl != null ||
+        preset.spotifyPlaylistId != null ||
+        preset.applePlaylistId != null ||
+        preset.isBroadcastChannel;
+    if (!hasLiveSource &&
+        preset.initialSpotifyTracks != null &&
         preset.initialSpotifyTracks!.isNotEmpty) {
       return preset.initialSpotifyTracks!
           .map(_fromSpotifyTrackStatic)
@@ -935,21 +941,28 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       return;
     }
 
-    final initialSpotify = widget.preset.initialSpotifyTracks;
-    if (initialSpotify != null && initialSpotify.isNotEmpty) {
-      final mapped = initialSpotify
-          .map(_fromSpotifyTrack)
-          .toList(growable: false);
-      if (mounted) {
-        setState(() {
-          _tracks = mapped;
-          _loading = false;
-          _errorMessage = null;
-        });
+    final hasLiveSource = widget.preset.deezerPlaylistId != null ||
+        widget.preset.externalUrl != null ||
+        widget.preset.spotifyPlaylistId != null ||
+        widget.preset.applePlaylistId != null ||
+        widget.preset.isBroadcastChannel;
+    if (!hasLiveSource) {
+      final initialSpotify = widget.preset.initialSpotifyTracks;
+      if (initialSpotify != null && initialSpotify.isNotEmpty) {
+        final mapped = initialSpotify
+            .map(_fromSpotifyTrack)
+            .toList(growable: false);
+        if (mounted) {
+          setState(() {
+            _tracks = mapped;
+            _loading = false;
+            _errorMessage = null;
+          });
+        }
+        _syncSavedPlaylistIfNeeded(mapped);
+        unawaited(_enrichTrackArtworks(mapped));
+        return;
       }
-      _syncSavedPlaylistIfNeeded(mapped);
-      unawaited(_enrichTrackArtworks(mapped));
-      return;
     }
 
     final cached = _cache[_cacheKey];
@@ -968,7 +981,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
 
     try {
       final inFlight = _inFlightPreloads[_cacheKey];
-      final valid = inFlight != null
+      var valid = inFlight != null
           ? await inFlight
           : await _resolvePresetTracks(
               widget.preset,
@@ -1005,6 +1018,22 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             return;
           }
         }
+      }
+
+      if (widget.preset.initialSpotifyTracks != null &&
+          widget.preset.initialSpotifyTracks!.isNotEmpty) {
+        final fallbackTracks = widget.preset.initialSpotifyTracks!
+            .map(_fromSpotifyTrack)
+            .toList(growable: false);
+        if (mounted) {
+          setState(() {
+            _tracks = fallbackTracks;
+            _loading = false;
+            _errorMessage = null;
+          });
+        }
+        _cache[_cacheKey] = fallbackTracks;
+        return;
       }
 
       if (mounted) {
@@ -1045,6 +1074,22 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
           _cache[_cacheKey] = mapped;
           return;
         }
+      }
+
+      if (widget.preset.initialSpotifyTracks != null &&
+          widget.preset.initialSpotifyTracks!.isNotEmpty) {
+        final fallbackTracks = widget.preset.initialSpotifyTracks!
+            .map(_fromSpotifyTrack)
+            .toList(growable: false);
+        if (mounted) {
+          setState(() {
+            _tracks = fallbackTracks;
+            _loading = false;
+            _errorMessage = null;
+          });
+        }
+        _cache[_cacheKey] = fallbackTracks;
+        return;
       }
 
       if (mounted) {
@@ -1890,7 +1935,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
             if (isPlaying)
               Container(
                 color: Colors.black.withValues(alpha: 0.58),
-                child: const Center(
+                child: Center(
                   child: AnimatedEqualizerIndicator(
                     color: MeloColors.cherry,
                     size: 20,
@@ -2065,7 +2110,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                               Container(
                                 width: 20,
                                 height: 20,
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   color: MeloColors.cherry,
                                   shape: BoxShape.circle,
                                 ),
@@ -2169,7 +2214,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                             ? null
                             : _downloadAllTracks,
                         icon: _isDownloadingAll
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 22,
                                 height: 22,
                                 child: CircularProgressIndicator(
@@ -2220,7 +2265,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                             Container(
                               width: 4,
                               height: 4,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: MeloColors.cherry,
                                 shape: BoxShape.circle,
                               ),
@@ -2308,7 +2353,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
           ),
 
           if (_loading)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
                 child: Column(
@@ -2523,7 +2568,7 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                                     tooltip: 'Saved',
                                     onPressed: () =>
                                         _toggleSaveSingleTrack(track),
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.check_circle_rounded,
                                       color: MeloColors.cherry,
                                       size: 21,

@@ -1091,7 +1091,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 width: 0.8,
                               ),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.stars_rounded, size: 12, color: MeloColors.cherry),
@@ -1447,7 +1447,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                               if (isPlaying)
                                                 Container(
                                                   color: Colors.black.withValues(alpha: 0.55),
-                                                  child: const Center(
+                                                  child: Center(
                                                     child: AnimatedEqualizerIndicator(
                                                       color: MeloColors.cherry,
                                                       size: 20,
@@ -1484,7 +1484,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                             Row(
                                               children: [
                                                 if (isPlaying) ...[
-                                                  const Icon(
+                                                  Icon(
                                                     Icons.volume_up_rounded,
                                                     size: 14,
                                                     color: MeloColors.cherrySoft,
@@ -1531,7 +1531,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                                   const SizedBox(width: 5),
                                                 ] else if (!isStreamTrack &&
                                                     track.isAvailable) ...[
-                                                  const Icon(
+                                                  Icon(
                                                     Icons.download_done_rounded,
                                                     size: 13.5,
                                                     color: MeloColors.cherrySoft,

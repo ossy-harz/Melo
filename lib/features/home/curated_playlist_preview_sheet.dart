@@ -327,7 +327,7 @@ class _CuratedPlaylistPreviewSheetState
                       children: [
                         Text(
                           preset.genre.toUpperCase(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: MeloColors.cherry,
                             fontSize: 10.5,
                             fontWeight: FontWeight.w800,
@@ -426,7 +426,7 @@ class _CuratedPlaylistPreviewSheetState
           // Track List
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
                       color: MeloColors.cherry,
                       strokeWidth: 2.5,
@@ -524,7 +524,7 @@ class _CuratedPlaylistPreviewSheetState
                                               if (isPlaying)
                                                 Container(
                                                   color: Colors.black45,
-                                                  child: const Center(
+                                                  child: Center(
                                                     child: AnimatedEqualizerIndicator(
                                                       size: 16,
                                                       color: MeloColors.cherry,
@@ -567,7 +567,7 @@ class _CuratedPlaylistPreviewSheetState
                                         ),
                                       ),
                                       if (isPlaying) ...[
-                                        const AnimatedEqualizerIndicator(
+                                        AnimatedEqualizerIndicator(
                                           color: MeloColors.cherry,
                                           barCount: 3,
                                           size: 14,

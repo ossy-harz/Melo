@@ -273,7 +273,7 @@ class NowPlayingMoreSheet extends StatelessWidget {
             children: [
               Text(
                 '${offset > 0 ? '+' : ''}${offset}ms',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   color: MeloColors.cherry,
@@ -769,7 +769,7 @@ class _ManagePlaylistsSheetState extends State<_ManagePlaylistsSheet> {
                               height: 38,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                gradient: const LinearGradient(
+                                gradient: LinearGradient(
                                   colors: [
                                     MeloColors.cherry,
                                     MeloColors.cherryDeep,
@@ -849,7 +849,7 @@ class _ManagePlaylistsSheetState extends State<_ManagePlaylistsSheet> {
                                   ),
                                 ),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.add_rounded,
                                 color: MeloColors.cherrySoft,
                                 size: 22,
@@ -944,7 +944,7 @@ class _ManagePlaylistsSheetState extends State<_ManagePlaylistsSheet> {
                                       ),
                                     ),
                                     if (isBusy)
-                                      const SizedBox(
+                                      SizedBox(
                                         width: 20,
                                         height: 20,
                                         child: CircularProgressIndicator(

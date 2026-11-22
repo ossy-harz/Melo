@@ -6,17 +6,19 @@ import 'package:melo_player/app/melo_theme.dart';
 /// audio visualizer bars. Used in song rows, artwork overlays, and active queues.
 class AnimatedEqualizerIndicator extends StatefulWidget {
   const AnimatedEqualizerIndicator({
-    this.color = MeloColors.cherry,
+    this.color,
     this.size = 20,
     this.barCount = 3,
     this.isPlaying = true,
     super.key,
   });
 
-  final Color color;
+  final Color? color;
   final double size;
   final int barCount;
   final bool isPlaying;
+
+  Color get activeColor => color ?? MeloColors.cherry;
 
   @override
   State<AnimatedEqualizerIndicator> createState() =>
@@ -69,7 +71,7 @@ class _AnimatedEqualizerIndicatorState
           return CustomPaint(
             painter: _EqualizerBarsPainter(
               progress: _controller.value,
-              color: widget.color,
+              color: widget.activeColor,
               barCount: widget.barCount,
             ),
           );

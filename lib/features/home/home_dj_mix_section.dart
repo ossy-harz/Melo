@@ -171,7 +171,7 @@ class _DjMixShowcaseSectionState extends State<DjMixShowcaseSection> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.disc_full_rounded,
               size: 18,
               color: MeloColors.cherry,
@@ -193,7 +193,7 @@ class _DjMixShowcaseSectionState extends State<DjMixShowcaseSection> {
                 color: MeloColors.cherry.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(MeloRadii.pill),
               ),
-              child: const Text(
+              child: Text(
                 'NON-STOP SETS',
                 style: TextStyle(
                   fontSize: 10,

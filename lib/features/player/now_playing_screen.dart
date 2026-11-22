@@ -45,7 +45,7 @@ class _NowPlayingEmptyState extends StatelessWidget {
   const _NowPlayingEmptyState();
 
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
+  Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       gradient: RadialGradient(
         center: Alignment(0, -0.7),
@@ -1432,7 +1432,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                       ),
                                                     ),
                                                     const SizedBox(width: 2),
-                                                    const Icon(
+                                                    Icon(
                                                       Icons
                                                           .chevron_right_rounded,
                                                       size: 15,
@@ -1500,7 +1500,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                   ),
                                                   child: Text(
                                                     timerLabel,
-                                                    style: const TextStyle(
+                                                    style: TextStyle(
                                                       color:
                                                           MeloColors.cherrySoft,
                                                       fontSize: 10.5,
@@ -1742,7 +1742,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                       if (_isStreamTrack &&
                                           widget.musicLibrary != null)
                                         _isSavingToDevice
-                                            ? const Padding(
+                                            ? Padding(
                                                 padding: EdgeInsets.all(10),
                                                 child: SizedBox(
                                                   width: 22,
@@ -1940,7 +1940,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.auto_awesome_rounded,
                                             size: 11,
                                             color: MeloColors.cherry,
@@ -2104,7 +2104,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
                                                                   MainAxisSize
                                                                       .min,
                                                               children: [
-                                                                const Icon(
+                                                                Icon(
                                                                   Icons
                                                                       .speaker_group_rounded,
                                                                   size: 13,
