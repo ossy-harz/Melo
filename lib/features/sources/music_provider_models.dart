@@ -327,8 +327,8 @@ class ExploreSection {
       title: json['title'] as String? ?? '',
       layout: json['layout'] as String? ?? 'shelf',
       items: rawItems
-          .whereType<Map<String, dynamic>>()
-          .map((i) => ExploreItem.fromJson(i))
+          .whereType<Map>()
+          .map((i) => ExploreItem.fromJson(Map<String, dynamic>.from(i)))
           .toList(growable: false),
     );
   }

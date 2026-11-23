@@ -352,10 +352,19 @@ class ExternalFeedService {
             final decoded = jsonDecode(cached.payload!) as Map<String, dynamic>;
             if (decoded['provider_id'] == provider.id && decoded['sections'] is List) {
               final sections = (decoded['sections'] as List)
-                  .whereType<Map<String, dynamic>>()
-                  .map((s) => ExploreSection.fromJson(s))
+                  .whereType<Map>()
+                  .map((s) => ExploreSection.fromJson(Map<String, dynamic>.from(s)))
                   .toList();
-              if (sections.isNotEmpty) return sections;
+              // Invalidate cache if cached featured items lack artwork (e.g. from previous parse bug)
+              final hasBrokenFeaturedArtwork = sections.any((s) =>
+                  s.isFeatured &&
+                  s.items.isNotEmpty &&
+                  s.items.every((i) =>
+                      (i.coverUrl == null || i.coverUrl!.isEmpty) &&
+                      (i.featuredCoverUrl == null || i.featuredCoverUrl!.isEmpty)));
+              if (!hasBrokenFeaturedArtwork && sections.isNotEmpty) {
+                return sections;
+              }
             }
           } catch (_) {}
         }
@@ -902,33 +911,57 @@ class ExternalFeedService {
           if (descriptor is! Map) continue;
 
           final kind = descriptor['kind']?.toString() ?? 'track';
-          final type = kind == 'song' ? 'track' : kind;
-          if (type != 'track' && type != 'album' && type != 'playlist' && type != 'artist') {
+          final type = kind == 'song'
+              ? 'track'
+              : (kind == 'radioStation' ? 'station' : kind);
+          if (type != 'track' &&
+              type != 'album' &&
+              type != 'playlist' &&
+              type != 'artist' &&
+              type != 'station') {
             continue;
           }
 
           final id = descriptor['identifiers']?['storeAdamID']?.toString() ?? '';
-          final name = (rawItem['title'] as String?)?.trim() ?? '';
+          var name = (rawItem['title'] as String?)?.trim() ?? '';
+          if (name.isEmpty && rawItem['titleLinks'] is List && (rawItem['titleLinks'] as List).isNotEmpty) {
+            name = ((rawItem['titleLinks'] as List).first['title']?.toString() ?? '').trim();
+          }
           if (id.isEmpty || name.isEmpty) continue;
 
-          final artists = (rawItem['subtitle'] as String?) ??
+          var artists = (rawItem['subtitle'] as String?) ??
               (rawItem['artistName'] as String?) ??
-              'Apple Music';
+              '';
+          if (artists.isEmpty && rawItem['subtitleLinks'] is List && (rawItem['subtitleLinks'] as List).isNotEmpty) {
+            artists = (rawItem['subtitleLinks'] as List)
+                .map((l) => l['title']?.toString())
+                .whereType<String>()
+                .where((s) => s.isNotEmpty)
+                .join(', ');
+          }
+          if (artists.isEmpty) {
+            artists = 'Apple Music';
+          }
           final heading = (rawItem['heading'] as String?) ?? (isFeatured ? 'NEW & TRENDING' : null);
           final description = (rawItem['description'] as String?) ?? '';
 
           String? coverUrl;
-          final artworkDict = rawItem['coverArtwork'] ?? rawItem['artwork'];
-          if (artworkDict is Map && artworkDict['url'] is String) {
-            final rawUrl = artworkDict['url'] as String;
-            final w = isFeatured ? '960' : '600';
-            final h = isFeatured ? '640' : '600';
-            final crop = artworkDict['cropStyle']?.toString() ?? 'sr';
-            coverUrl = rawUrl
-                .replaceAll('{w}', w)
-                .replaceAll('{h}', h)
-                .replaceAll('{c}', crop)
-                .replaceAll('{f}', 'jpg');
+          final artworkObj = rawItem['coverArtwork'] ?? rawItem['artwork'];
+          if (artworkObj is Map) {
+            final dict = (artworkObj['dictionary'] is Map)
+                ? artworkObj['dictionary'] as Map
+                : artworkObj;
+            final rawUrl = dict['url']?.toString();
+            if (rawUrl != null && rawUrl.isNotEmpty) {
+              final w = isFeatured ? '960' : '600';
+              final h = isFeatured ? '640' : '600';
+              final crop = artworkObj['cropStyle']?.toString() ?? dict['cropStyle']?.toString() ?? 'sr';
+              coverUrl = rawUrl
+                  .replaceAll('{w}', w)
+                  .replaceAll('{h}', h)
+                  .replaceAll('{c}', crop)
+                  .replaceAll('{f}', 'jpg');
+            }
           }
 
           final uri = descriptor['url']?.toString() ?? 'apple:$type:$id';

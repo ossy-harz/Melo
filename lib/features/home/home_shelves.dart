@@ -6216,6 +6216,36 @@ class ExploreFeaturedSection extends StatelessWidget {
               final width = (MediaQuery.sizeOf(context).width - 64).clamp(240.0, 360.0);
               final imageHeight = (width / 2.0).clamp(130.0, 165.0);
 
+              Widget buildFallbackCard() {
+                final brandColor = item.providerId != null
+                    ? MusicProviderType.fromId(item.providerId!).brandColor
+                    : MeloColors.cherry;
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        brandColor.withValues(alpha: 0.45),
+                        const Color(0xFF1E1E24),
+                        const Color(0xFF101014),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      item.type == 'station'
+                          ? Icons.radio_rounded
+                          : (item.type == 'playlist'
+                              ? Icons.playlist_play_rounded
+                              : Icons.music_note_rounded),
+                      size: 40,
+                      color: Colors.white54,
+                    ),
+                  ),
+                );
+              }
+
               return SizedBox(
                 width: width,
                 child: Material(
@@ -6274,28 +6304,10 @@ class ExploreFeaturedSection extends StatelessWidget {
                                   Image.network(
                                     image,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
-                                      color: const Color(0xFF1C1C1E),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.music_note_rounded,
-                                          size: 40,
-                                          color: Colors.white38,
-                                        ),
-                                      ),
-                                    ),
+                                    errorBuilder: (_, _, _) => buildFallbackCard(),
                                   )
                                 else
-                                  Container(
-                                    color: const Color(0xFF1C1C1E),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.music_note_rounded,
-                                        size: 40,
-                                        color: Colors.white38,
-                                      ),
-                                    ),
-                                  ),
+                                  buildFallbackCard(),
                                 Positioned.fill(
                                   child: Container(
                                     decoration: BoxDecoration(

@@ -319,6 +319,17 @@ void main() {
       expect(allSections.isNotEmpty, isTrue);
     });
 
+    test('ExternalFeedService parses Apple Music live feed with valid cover artwork URLs', () async {
+      final appleSections = await ExternalFeedService.instance.fetchLiveAppleMusicHomeFeed();
+      if (appleSections.isNotEmpty) {
+        final feat = appleSections.where((s) => s.isFeatured).firstOrNull;
+        if (feat != null && feat.items.isNotEmpty) {
+          expect(feat.items.every((i) => i.coverUrl != null && i.coverUrl!.isNotEmpty), isTrue);
+          expect(feat.items.first.coverUrl!.startsWith('http'), isTrue);
+        }
+      }
+    });
+
     testWidgets('ExploreFeaturedSection renders editorial hero cards correctly', (tester) async {
       ExploreItem? tapped;
       const section = ExploreSection(
