@@ -36,6 +36,8 @@ android {
             val keyPasswordVal = keystoreProperties.getProperty("keyPassword")
                 ?: System.getenv("MELO_KEY_PASSWORD")
 
+            val bundledKeystore = file("melo_release.jks")
+
             if (keyStorePath != null && keyStorePassword != null && keyAliasVal != null && keyPasswordVal != null) {
                 val resolvedFile = file(keyStorePath)
                 if (resolvedFile.exists()) {
@@ -44,6 +46,17 @@ android {
                     keyAlias = keyAliasVal
                     keyPassword = keyPasswordVal
                 }
+            } else if (bundledKeystore.exists()) {
+                storeFile = bundledKeystore
+                storePassword = "meloplayerrelease"
+                keyAlias = "melokey"
+                keyPassword = "meloplayerrelease"
+            } else {
+                val debugKeystore = signingConfigs.getByName("debug")
+                storeFile = debugKeystore.storeFile
+                storePassword = debugKeystore.storePassword
+                keyAlias = debugKeystore.keyAlias
+                keyPassword = debugKeystore.keyPassword
             }
         }
     }
@@ -58,10 +71,7 @@ android {
 
     buildTypes {
         release {
-            val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null) {
-                signingConfig = releaseSigning
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
