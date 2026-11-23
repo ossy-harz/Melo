@@ -448,6 +448,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       await reorderUpcomingQueue(oldIndex, newIndex);
       return null;
     }
+    if (name == 'harmonizeUpcomingQueue') {
+      await harmonizeUpcomingQueue();
+      return null;
+    }
     if (name == 'clearUpcomingQueue') {
       await clearUpcomingQueue();
       return null;
@@ -1644,6 +1648,72 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     final moved = upcoming.removeAt(oldIndex);
     upcoming.insert(newIndex, moved);
     _playOrder = List.unmodifiable([..._playOrder.take(start), ...upcoming]);
+    _publishState();
+  }
+
+  /// Re-orders upcoming queue tracks using harmonic key compatibility (Camelot Wheel)
+  /// and tempo proximity for seamless, clash-free DJ transitions.
+  Future<void> harmonizeUpcomingQueue() async {
+    await _settingsReady;
+    final upcoming = [...upcomingQueueIndices];
+    if (upcoming.length <= 1) return;
+
+    final currentItem = mediaItem.value;
+    var currentKey = currentItem != null
+        ? (TrackAnalysis.normalizeCamelot(currentItem.extras?['musicalKey'] as String?) ??
+            TrackAnalysis.inferKey(currentItem.id))
+        : '8A';
+
+    final remaining = [...upcoming];
+    final sorted = <int>[];
+
+    while (remaining.isNotEmpty) {
+      var bestIndex = 0;
+      var bestScore = -1.0;
+
+      for (var i = 0; i < remaining.length; i++) {
+        final qIdx = remaining[i];
+        final item = _items[qIdx];
+        final key = TrackAnalysis.normalizeCamelot(item.extras?['musicalKey'] as String?) ??
+            TrackAnalysis.inferKey(item.id);
+
+        final comp = TrackAnalysis.assessHarmonic(currentKey, key);
+        var score = 0.0;
+        switch (comp) {
+          case HarmonicCompatibility.exactMatch:
+            score = 30.0;
+            break;
+          case HarmonicCompatibility.adjacentKey:
+            score = 25.0;
+            break;
+          case HarmonicCompatibility.relativeKey:
+            score = 22.0;
+            break;
+          case HarmonicCompatibility.energyBoost:
+            score = 20.0;
+            break;
+          case HarmonicCompatibility.incompatible:
+          case HarmonicCompatibility.unknown:
+            score = 5.0;
+            break;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+
+      final chosen = remaining.removeAt(bestIndex);
+      sorted.add(chosen);
+      final chosenItem = _items[chosen];
+      currentKey = TrackAnalysis.normalizeCamelot(chosenItem.extras?['musicalKey'] as String?) ??
+          TrackAnalysis.inferKey(chosenItem.id);
+    }
+
+    await _unloadDeckBBeforeQueueChange();
+    final start = _orderPosition + 1;
+    _playOrder = List.unmodifiable([..._playOrder.take(start), ...sorted]);
     _publishState();
   }
 

@@ -687,8 +687,10 @@ class _NowPlayingLyricsState extends State<_NowPlayingLyrics> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
                         onTap: line.time != null
-                            ? () =>
-                                  unawaited(widget.audioHandler.seek(line.time!))
+                            ? () {
+                                HapticFeedback.selectionClick();
+                                unawaited(widget.audioHandler.seek(line.time!));
+                              }
                             : null,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -926,9 +928,12 @@ class _FullLyricsSheetState extends State<_FullLyricsSheet> {
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
                               onTap: line.time != null
-                                  ? () => unawaited(
-                                      widget.audioHandler.seek(line.time!),
-                                    )
+                                  ? () {
+                                      HapticFeedback.selectionClick();
+                                      unawaited(
+                                        widget.audioHandler.seek(line.time!),
+                                      );
+                                    }
                                   : null,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(

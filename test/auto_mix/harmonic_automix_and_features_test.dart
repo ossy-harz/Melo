@@ -92,6 +92,18 @@ void main() {
       expect(plan.harmonicCompatibility, HarmonicCompatibility.relativeKey);
       expect(plan.diagnosticBadgeText, 'Harmonic Lift (8A → 8B)');
     });
+    test('harmonic assessment prioritizes compatible transitions over clashing keys', () {
+      final base = TrackAnalysis(trackId: 'track1', musicalKey: '8A', bpm: 124.0);
+      final exact = TrackAnalysis(trackId: 'track2', musicalKey: '8A', bpm: 124.0);
+      final relative = TrackAnalysis(trackId: 'track3', musicalKey: '8B', bpm: 125.0);
+      final adjacent = TrackAnalysis(trackId: 'track4', musicalKey: '7A', bpm: 123.0);
+      final incompatible = TrackAnalysis(trackId: 'track5', musicalKey: '3B', bpm: 128.0);
+
+      expect(TrackAnalysis.assessHarmonic(base.effectiveCamelotCode, exact.effectiveCamelotCode), HarmonicCompatibility.exactMatch);
+      expect(TrackAnalysis.assessHarmonic(base.effectiveCamelotCode, relative.effectiveCamelotCode), HarmonicCompatibility.relativeKey);
+      expect(TrackAnalysis.assessHarmonic(base.effectiveCamelotCode, adjacent.effectiveCamelotCode), HarmonicCompatibility.adjacentKey);
+      expect(TrackAnalysis.assessHarmonic(base.effectiveCamelotCode, incompatible.effectiveCamelotCode), HarmonicCompatibility.incompatible);
+    });
   });
 
   group('AudioProfile Vocal Control & Karaoke DSP', () {

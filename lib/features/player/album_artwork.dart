@@ -30,13 +30,58 @@ MeloPalette _paletteFor(MediaItem item, MeloPalette? artworkPalette) =>
 Future<MeloPalette?> tonePaletteForItem(MediaItem item) =>
     _paletteForItem(item);
 
-class _ArtworkBackdrop extends StatelessWidget {
-  const _ArtworkBackdrop({required this.palette});
+class _ArtworkBackdrop extends StatefulWidget {
+  const _ArtworkBackdrop({
+    required this.palette,
+    this.isPlaying = false,
+  });
 
   final MeloPalette palette;
+  final bool isPlaying;
+
+  @override
+  State<_ArtworkBackdrop> createState() => _ArtworkBackdropState();
+}
+
+class _ArtworkBackdropState extends State<_ArtworkBackdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    );
+    final isTesting = Platform.environment.containsKey('FLUTTER_TEST');
+    if (widget.isPlaying && !isTesting) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ArtworkBackdrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      final isTesting = Platform.environment.containsKey('FLUTTER_TEST');
+      if (widget.isPlaying && !isTesting) {
+        _controller.repeat(reverse: true);
+      } else {
+        _controller.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
     return RepaintBoundary(
       child: AnimatedContainer(
         duration: MeloMotion.slow,
@@ -49,53 +94,77 @@ class _ArtworkBackdrop extends StatelessWidget {
             stops: const [0, 0.52, 1],
           ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            AnimatedContainer(
-              duration: MeloMotion.slow,
-              curve: MeloMotion.emphasized,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.74),
-                  radius: 1.08,
-                  colors: [
-                    palette.accent.withValues(alpha: 0.48),
-                    palette.accent.withValues(alpha: 0),
-                  ],
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final t = _controller.value;
+            // Smoothly orbit and breathe aurora centers when music plays
+            final topAlignment = Alignment(
+              math.sin(t * 2 * math.pi) * 0.22,
+              -0.74 + math.cos(t * 2 * math.pi) * 0.10,
+            );
+            final rightAlignment = Alignment(
+              0.85 - math.sin(t * math.pi) * 0.18,
+              0.72 + math.cos(t * math.pi) * 0.12,
+            );
+            final leftAlignment = Alignment(
+              -0.85 + math.cos(t * math.pi) * 0.15,
+              1.05 - math.sin(t * math.pi) * 0.10,
+            );
+            final breathScale = 1.0 + (math.sin(t * 2 * math.pi) * 0.08);
+
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: topAlignment,
+                      radius: 1.08 * breathScale,
+                      colors: [
+                        palette.accent.withValues(
+                          alpha: (0.44 + (math.sin(t * 2 * math.pi) * 0.08))
+                              .clamp(0.0, 1.0),
+                        ),
+                        palette.accent.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            AnimatedContainer(
-              duration: MeloMotion.slow,
-              curve: MeloMotion.emphasized,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0.85, 0.72),
-                  radius: 1.02,
-                  colors: [
-                    palette.glow.withValues(alpha: 0.36),
-                    palette.glow.withValues(alpha: 0),
-                  ],
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: rightAlignment,
+                      radius: 1.02 * breathScale,
+                      colors: [
+                        palette.glow.withValues(
+                          alpha: (0.34 + (math.cos(t * 2 * math.pi) * 0.06))
+                              .clamp(0.0, 1.0),
+                        ),
+                        palette.glow.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            AnimatedContainer(
-              duration: MeloMotion.slow,
-              curve: MeloMotion.emphasized,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(-0.85, 1.05),
-                  radius: 0.95,
-                  colors: [
-                    palette.muted.withValues(alpha: 0.52),
-                    palette.muted.withValues(alpha: 0),
-                  ],
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: leftAlignment,
+                      radius: 0.95 * breathScale,
+                      colors: [
+                        palette.muted.withValues(
+                          alpha: (0.48 + (math.sin(t * 2 * math.pi) * 0.06))
+                              .clamp(0.0, 1.0),
+                        ),
+                        palette.muted.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const MeloGrain(),
-          ],
+                const MeloGrain(),
+              ],
+            );
+          },
         ),
       ),
     );

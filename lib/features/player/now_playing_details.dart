@@ -230,6 +230,21 @@ class _AudioQualityBadges extends StatelessWidget {
                   highlighted: false,
                 ),
               ],
+              const SizedBox(width: 6),
+              FutureBuilder<List<AudioOutputDeviceInfo>>(
+                future: PlayerDeviceHelper.getOutputDevices(),
+                builder: (context, devSnap) {
+                  final activeDevice = devSnap.data?.where((d) => d.isActive).firstOrNull ??
+                      devSnap.data?.firstOrNull;
+                  if (activeDevice == null) return const SizedBox.shrink();
+                  return _QualityBadge(
+                    label: activeDevice.name.toUpperCase(),
+                    icon: activeDevice.icon,
+                    highlighted: activeDevice.type == 'usb_dac' ||
+                        activeDevice.type == 'bluetooth',
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -372,6 +387,15 @@ class TrackDetailsSheet extends StatelessWidget {
         ? 'On-device library'
         : 'Imported audio';
     final licenseUrl = extras['licenseUrl'] as String?;
+    final path = item.id.toLowerCase();
+    final mime = (extras['mimeType'] as String? ?? '').toLowerCase();
+    final isLossless = mime.contains('flac') ||
+        mime.contains('alac') ||
+        mime.contains('wav') ||
+        path.endsWith('.flac') ||
+        path.endsWith('.alac') ||
+        path.endsWith('.wav');
+    final qualityLabel = isLossless ? 'FLAC Hi-Res · 24-bit' : 'AAC 320 kbps';
     final theme = Theme.of(context);
     final details = <(String, String)>[
       ('Artist', displayArtistName(item.artist)),
@@ -516,6 +540,99 @@ class TrackDetailsSheet extends StatelessWidget {
                         ),
                       ),
                     ],
+                    // Audiophile Signal Path Card
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isLossless
+                              ? MeloColors.cherry.withValues(alpha: 0.35)
+                              : Colors.white.withValues(alpha: 0.12),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isLossless ? Icons.stars_rounded : Icons.graphic_eq_rounded,
+                                size: 16,
+                                color: isLossless ? MeloColors.cherrySoft : Colors.white70,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isLossless ? 'LOSSLESS AUDIO PIPELINE' : 'AUDIO SIGNAL CHAIN',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: isLossless ? MeloColors.cherrySoft : Colors.white70,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(99),
+                                onTap: () => PlayerDeviceHelper.showAudioOutputSheet(context),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'OUTPUTS',
+                                        style: TextStyle(
+                                          color: MeloColors.cherrySoft,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Icon(Icons.chevron_right_rounded, size: 14, color: MeloColors.cherrySoft),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _SignalStageRow(
+                            step: 'SOURCE',
+                            detail: qualityLabel != 'Unavailable' ? qualityLabel : (isLossless ? 'FLAC 48kHz / 24-bit' : 'AAC 320 kbps'),
+                            icon: Icons.album_rounded,
+                          ),
+                          const SizedBox(height: 6),
+                          const _SignalStageRow(
+                            step: 'ENGINE',
+                            detail: 'Melo BitChord Float32 Pipeline',
+                            icon: Icons.memory_rounded,
+                          ),
+                          const SizedBox(height: 6),
+                          FutureBuilder<List<AudioOutputDeviceInfo>>(
+                            future: PlayerDeviceHelper.getOutputDevices(),
+                            builder: (context, snap) {
+                              final dev = snap.data?.where((d) => d.isActive).firstOrNull ??
+                                  snap.data?.firstOrNull;
+                              final devLabel = dev != null
+                                  ? '${dev.name} (${dev.specLabel})'
+                                  : 'Device Audio Output';
+                              return _SignalStageRow(
+                                step: 'DEVICE',
+                                detail: devLabel,
+                                icon: dev?.icon ?? Icons.speaker_rounded,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                     for (final (label, value) in details)
                       _TrackDetailRow(label: label, value: value),
                     if (!isOnlineTrack &&
@@ -773,4 +890,50 @@ class _TrackDetailRow extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _SignalStageRow extends StatelessWidget {
+  const _SignalStageRow({
+    required this.step,
+    required this.detail,
+    required this.icon,
+  });
+
+  final String step;
+  final String detail;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.white54),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 58,
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

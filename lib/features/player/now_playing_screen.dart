@@ -1363,7 +1363,7 @@ class _NowPlayingContentState extends State<_NowPlayingContent> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            _ArtworkBackdrop(palette: _palette),
+            _ArtworkBackdrop(palette: _palette, isPlaying: playing),
             const _PlayerScrim(),
             SafeArea(
               top: !_immersiveMode,

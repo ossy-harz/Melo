@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/auto_mix/track_analysis.dart';
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/mix/discovery_dial.dart';
 import 'package:melo_player/features/player/animated_equalizer_indicator.dart';
@@ -384,17 +386,108 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                       ),
                     ],
 
-                    // "Next from: Energy" Header
+                    // "Next from: Energy" Header with Harmonize DJ Flow
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                        child: Text(
-                          'Next from: $_sourceSectionName',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Next from: $_sourceSectionName',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (widget.upcomingIndices.length > 1 &&
+                                widget.audioHandler is MeloAudioHandler) ...[
+                              const SizedBox(width: 8),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(99),
+                                  onTap: () async {
+                                    HapticFeedback.mediumImpact();
+                                    await widget.audioHandler
+                                        .customAction('harmonizeUpcomingQueue');
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                        ..hideCurrentSnackBar()
+                                        ..showSnackBar(
+                                          SnackBar(
+                                            content: const Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.auto_awesome_rounded,
+                                                  color: Colors.white,
+                                                  size: 16,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Queue harmonized by Camelot key for seamless DJ flow',
+                                                    style: TextStyle(
+                                                      fontSize: 12.5,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            backgroundColor: MeloColors.cherry,
+                                            behavior: SnackBarBehavior.floating,
+                                            duration:
+                                                const Duration(seconds: 2),
+                                          ),
+                                        );
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 3.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: MeloColors.cherry
+                                          .withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(99),
+                                      border: Border.all(
+                                        color: MeloColors.cherry
+                                            .withValues(alpha: 0.45),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 12,
+                                          color: MeloColors.cherrySoft,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'HARMONIZE DJ FLOW',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.6,
+                                            color: MeloColors.cherrySoft,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
@@ -432,6 +525,22 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                         itemBuilder: (context, index) {
                           final queueIndex = widget.upcomingIndices[index];
                           final item = widget.items[queueIndex];
+                          final prevItem = index == 0
+                              ? current
+                              : (index - 1 < widget.upcomingIndices.length
+                                  ? widget.items[widget.upcomingIndices[index - 1]]
+                                  : null);
+                          final currentKey = TrackAnalysis.normalizeCamelot(
+                                item.extras?['musicalKey'] as String?,
+                              ) ??
+                              TrackAnalysis.inferKey(item.id);
+                          final prevKey = prevItem != null
+                              ? (TrackAnalysis.normalizeCamelot(
+                                    prevItem.extras?['musicalKey'] as String?,
+                                  ) ??
+                                  TrackAnalysis.inferKey(prevItem.id))
+                              : null;
+                          final comp = TrackAnalysis.assessHarmonic(prevKey, currentKey);
                           return Material(
                             key: ValueKey(item.id),
                             color: Colors.transparent,
@@ -480,14 +589,44 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
                                             ),
                                           ),
                                           const SizedBox(height: 2),
-                                          Text(
-                                            displayArtistName(item.artist),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 12.5,
-                                            ),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  displayArtistName(item.artist),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: Colors.white54,
+                                                    fontSize: 12.5,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 5,
+                                                  vertical: 1.5,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: _queueHarmonicColor(comp).withValues(alpha: 0.14),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: _queueHarmonicColor(comp).withValues(alpha: 0.35),
+                                                    width: 0.6,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  _queueHarmonicLabel(comp, currentKey),
+                                                  style: TextStyle(
+                                                    fontSize: 8.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 0.4,
+                                                    color: _queueHarmonicColor(comp),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -752,5 +891,37 @@ class _PlayerQueueSheetState extends State<PlayerQueueSheet> {
           ],
         ),
       );
+  }
+}
+
+Color _queueHarmonicColor(HarmonicCompatibility comp) {
+  switch (comp) {
+    case HarmonicCompatibility.exactMatch:
+      return const Color(0xFF00E5FF);
+    case HarmonicCompatibility.relativeKey:
+      return const Color(0xFFB388FF);
+    case HarmonicCompatibility.adjacentKey:
+      return const Color(0xFFFFB300);
+    case HarmonicCompatibility.energyBoost:
+      return MeloColors.cherrySoft;
+    case HarmonicCompatibility.incompatible:
+    case HarmonicCompatibility.unknown:
+      return Colors.white38;
+  }
+}
+
+String _queueHarmonicLabel(HarmonicCompatibility comp, String key) {
+  switch (comp) {
+    case HarmonicCompatibility.exactMatch:
+      return '$key · EXACT';
+    case HarmonicCompatibility.relativeKey:
+      return '$key · RELATIVE';
+    case HarmonicCompatibility.adjacentKey:
+      return '$key · CADENCE';
+    case HarmonicCompatibility.energyBoost:
+      return '$key · +2 LIFT';
+    case HarmonicCompatibility.incompatible:
+    case HarmonicCompatibility.unknown:
+      return key;
   }
 }
