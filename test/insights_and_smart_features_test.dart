@@ -107,21 +107,6 @@ void main() {
     });
 
     test('generates mood session blending matching local tracks', () async {
-      final chillTrack = const ImportedTrack(
-        id: 'chill-1',
-        path: '/music/chill.mp3',
-        title: 'Chill Vibes',
-        artist: 'Acoustic Soul',
-        genre: 'R&B & Soul',
-      );
-      final workoutTrack = const ImportedTrack(
-        id: 'workout-1',
-        path: '/music/workout.mp3',
-        title: 'Power Run',
-        artist: 'Gym Anthems',
-        genre: 'Hip-Hop & Rap',
-      );
-
       final library = MusicLibrary.forTesting(
         musicDirectory: musicDirectory,
         preferences: preferences,

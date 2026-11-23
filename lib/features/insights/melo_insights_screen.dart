@@ -263,7 +263,7 @@ class _MeloInsightsScreenState extends State<MeloInsightsScreen> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 136,
+              height: 160,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: report.forgottenGems.length,
@@ -390,24 +390,26 @@ class _MeloInsightsScreenState extends State<MeloInsightsScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: AlbumArtwork(
-                size: 94,
+                size: 90,
                 title: track.title,
                 artworkUri: track.artworkUri != null ? Uri.tryParse(track.artworkUri!) : null,
                 sourceUri: Uri.tryParse(track.path),
                 borderRadius: 10,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             Text(
               track.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
+            const SizedBox(height: 2),
             Text(
               track.artist,
               maxLines: 1,
