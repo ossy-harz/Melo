@@ -111,6 +111,7 @@ abstract interface class LibraryRepository {
   Future<List<ImportedTrack>> recentlyPlayed({int limit = 20});
   Future<List<MostPlayedTrack>> mostPlayedTracks({int limit = 20});
   Future<List<PlaybackHistoryEntry>> listeningHistory({int limit = 100});
+  Future<int> totalPlaybackCount();
   Future<StoredTrackAnalysis?> trackAnalysisFor(String trackId);
   Future<Map<String, StoredTrackAnalysis>> trackAnalysesFor(
     Set<String> trackIds,
@@ -844,6 +845,14 @@ class DriftLibraryRepository extends DatabaseAccessor<MeloDatabase>
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<int> totalPlaybackCount() async {
+    final count = database.playbackHistory.id.count();
+    final query = database.selectOnly(database.playbackHistory)..addColumns([count]);
+    final result = await query.map((row) => row.read(count)).getSingleOrNull();
+    return result ?? 0;
   }
 
   @override

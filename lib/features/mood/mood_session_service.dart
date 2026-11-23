@@ -85,6 +85,75 @@ class MoodSessionService {
   MoodSessionService._();
   static final MoodSessionService instance = MoodSessionService._();
 
+  /// Checks if a track's BPM matches the mood or its harmonic half/double-time groove.
+  static bool isBpmCompatible(double bpm, ListeningMood mood) {
+    if (bpm <= 0) return true;
+    if (bpm >= mood.minBpm && bpm <= mood.maxBpm) return true;
+    // For energetic workout and party sessions, require actual fast tempo (not slow ballads)
+    if (mood == ListeningMood.workout || mood == ListeningMood.party) {
+      return false;
+    }
+    // For mellow chill/focus/late-night, allow harmonic double-time (e.g. 160 bpm groove felt at 80 bpm)
+    final halfTime = bpm / 2;
+    if (halfTime >= mood.minBpm && halfTime <= mood.maxBpm) return true;
+    return false;
+  }
+
+  /// Calculates a suitability energy score for a track matching the specified mood.
+  /// Returns -1 if the track is disqualified due to tempo or tone incompatibility.
+  static double scoreTrackForMood({
+    required ImportedTrack track,
+    required ListeningMood mood,
+    Set<String> recentTrackIds = const {},
+  }) {
+    if (recentTrackIds.contains(track.id)) return -1;
+
+    final genre = track.genre?.toLowerCase() ?? '';
+    final title = track.title.toLowerCase();
+    final genreMatches = mood.genres.any((g) => genre.contains(g.toLowerCase()));
+
+    // Strict BPM boundary verification when tempo is tagged
+    if (track.bpm != null && track.bpm! > 0) {
+      if (!isBpmCompatible(track.bpm!, mood)) {
+        return -1; // Disqualified by tempo
+      }
+    } else {
+      // Fallback heuristics when BPM is untagged:
+      if (mood == ListeningMood.workout || mood == ListeningMood.party) {
+        if (title.contains('slow') ||
+            title.contains('acoustic') ||
+            title.contains('lullaby') ||
+            title.contains('ambient') ||
+            title.contains('relaxing')) {
+          return -1; // Disqualify calm songs from energetic sessions
+        }
+      }
+      if (mood == ListeningMood.chill || mood == ListeningMood.lateNight) {
+        if (title.contains('workout') ||
+            title.contains('club mix') ||
+            title.contains('rave') ||
+            title.contains('party edit')) {
+          return -1;
+        }
+      }
+    }
+
+    if (!genreMatches && (track.bpm == null || track.bpm! <= 0)) {
+      return -1;
+    }
+
+    var score = 10.0;
+    if (genreMatches) score += 35.0;
+    if (track.bpm != null && track.bpm! >= mood.minBpm && track.bpm! <= mood.maxBpm) {
+      score += 45.0;
+      final mid = (mood.minBpm + mood.maxBpm) / 2;
+      final dist = (track.bpm! - mid).abs();
+      score += math.max(0.0, 10.0 - (dist / 3));
+    }
+
+    return score;
+  }
+
   /// Generates a tailored mood session blending local library tracks with verified catalog streams.
   Future<SmartPlaylist> generateMoodSession({
     required ListeningMood mood,
@@ -93,23 +162,30 @@ class MoodSessionService {
     final sessionTracks = <MediaItem>[];
     final seenIds = <String>{};
 
-    // 1. Gather local matching tracks by genre and tempo
+    // 1. Gather local matching tracks by BPM tempo range and genre suitability
     if (library != null && library.tracks.isNotEmpty) {
-      final matchingLocal = <ImportedTrack>[];
+      final history = await library.listeningHistory(limit: 15);
+      final recentIds = history.map((e) => e.trackId).toSet();
+      final scoredLocal = <(ImportedTrack, double)>[];
+
       for (final t in library.tracks) {
         if (!t.isAvailable) continue;
-        final genre = t.genre?.toLowerCase() ?? '';
-        final genreMatches = mood.genres.any((g) => genre.contains(g.toLowerCase()));
-        if (genreMatches) {
-          matchingLocal.add(t);
+        final score = scoreTrackForMood(
+          track: t,
+          mood: mood,
+          recentTrackIds: recentIds,
+        );
+        if (score > 0) {
+          scoredLocal.add((t, score));
         }
       }
 
-      // Shuffle and take up to 10 local tracks
-      matchingLocal.shuffle(math.Random());
-      for (final track in matchingLocal.take(10)) {
-        if (seenIds.add(track.id)) {
-          sessionTracks.add(track.toMediaItem());
+      // Sort descending by suitability score
+      scoredLocal.sort((a, b) => b.$2.compareTo(a.$2));
+
+      for (final item in scoredLocal.take(12)) {
+        if (seenIds.add(item.$1.id)) {
+          sessionTracks.add(item.$1.toMediaItem());
         }
       }
     }

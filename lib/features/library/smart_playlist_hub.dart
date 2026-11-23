@@ -22,8 +22,8 @@ enum SmartPlaylistType {
     color: Color(0xFF009688),
   ),
   audiophileHiRes(
-    title: 'Audiophile Hi-Res',
-    subtitle: 'Lossless FLAC, ALAC & studio audio',
+    title: 'Lossless & Studio',
+    subtitle: 'FLAC, ALAC, WAV & hi-res audio files',
     icon: Icons.high_quality_rounded,
     color: Color(0xFFFF9800),
   ),
@@ -64,12 +64,21 @@ class SmartPlaylistHub {
         return all.where((t) {
           final path = t.path.toLowerCase();
           final src = (t.sourceName ?? '').toLowerCase();
-          return path.endsWith('.flac') ||
-              path.endsWith('.alac') ||
+          final isFlacOrWavOrAiff = path.endsWith('.flac') ||
               path.endsWith('.wav') ||
               path.endsWith('.aiff') ||
-              src.contains('flac') ||
-              src.contains('lossless');
+              path.endsWith('.dsd') ||
+              path.endsWith('.dff');
+          // Common ALAC files use .m4a container with ALAC codec tag
+          final isAlac = path.endsWith('.alac') ||
+              (path.endsWith('.m4a') && (src.contains('alac') || src.contains('lossless')));
+          final isExplicitLossless = src.contains('24bit') ||
+              src.contains('24-bit') ||
+              src.contains('96khz') ||
+              src.contains('192khz') ||
+              src.contains('lossless') ||
+              src.contains('flac');
+          return isFlacOrWavOrAiff || isAlac || isExplicitLossless;
         }).take(40).toList();
 
       case SmartPlaylistType.neverPlayed:
@@ -79,23 +88,28 @@ class SmartPlaylistHub {
 
       case SmartPlaylistType.heavyRotation:
         final mostPlayed = await library.mostPlayedTracks(limit: 40);
-        if (mostPlayed.isNotEmpty) {
-          final trackMap = {for (final t in all) t.id: t};
-          final result = <ImportedTrack>[];
-          for (final item in mostPlayed) {
-            final t = trackMap[item.track.id] ?? item.track;
-            result.add(t);
-          }
-          if (result.isNotEmpty) return result;
+        if (mostPlayed.isEmpty) return const <ImportedTrack>[];
+        final trackMap = {for (final t in all) t.id: t};
+        final result = <ImportedTrack>[];
+        for (final item in mostPlayed) {
+          final t = trackMap[item.track.id] ?? item.track;
+          result.add(t);
         }
-        return all.take(25).toList();
+        return result;
 
       case SmartPlaylistType.forgottenGems:
-        final history = await library.listeningHistory(limit: 200);
+        final history = await library.listeningHistory(limit: 500);
+        if (history.isEmpty && library.favoriteTracks.isEmpty) {
+          return const <ImportedTrack>[];
+        }
         final recentPlayed = history.take(25).map((e) => e.trackId).toSet();
+        final historicalPlayed = history.skip(25).map((e) => e.trackId).toSet();
         final favIds = library.favoriteTracks.map((t) => t.id).toSet();
-        final gems = all.where((t) => !recentPlayed.contains(t.id) && favIds.contains(t.id)).toList();
-        return gems.isNotEmpty ? gems.take(30).toList() : all.reversed.take(20).toList();
+        final gems = all.where((t) {
+          final wasEnjoyed = historicalPlayed.contains(t.id) || favIds.contains(t.id);
+          return wasEnjoyed && !recentPlayed.contains(t.id);
+        }).toList();
+        return gems.take(30).toList();
     }
   }
 }

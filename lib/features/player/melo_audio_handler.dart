@@ -477,6 +477,10 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     if (name == 'setVolume') {
       final vol = (extras?['volume'] as num?)?.toDouble() ?? 1.0;
+      final isSleepFade = extras?['isSleepFade'] == true;
+      if (!isSleepFade) {
+        SleepTimerService.instance.notifyUserChangedVolume();
+      }
       _userVolume = vol.clamp(0.0, 1.0);
       await _applyMasterDeckGains();
       return _userVolume;

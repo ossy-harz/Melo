@@ -296,10 +296,17 @@ class SpotifyService {
         prefs.getString('melo_spotify_client_id') ??
         prefs.getString('spotify_client_id');
     if (legacyVal != null && legacyVal.isNotEmpty) {
-      await SecureCredentialStore.instance.write(_clientIdPrefKey, legacyVal);
-      await prefs.remove(_clientIdPrefKey);
-      await prefs.remove('melo_spotify_client_id');
-      await prefs.remove('spotify_client_id');
+      try {
+        await SecureCredentialStore.instance.write(_clientIdPrefKey, legacyVal);
+        final verified = await SecureCredentialStore.instance.read(_clientIdPrefKey);
+        if (verified == legacyVal) {
+          await prefs.remove(_clientIdPrefKey);
+          await prefs.remove('melo_spotify_client_id');
+          await prefs.remove('spotify_client_id');
+        }
+      } catch (e) {
+        debugPrint('Spotify client ID secure migration failed: $e');
+      }
       return legacyVal;
     }
     return null;
@@ -313,10 +320,17 @@ class SpotifyService {
         prefs.getString('melo_spotify_client_secret') ??
         prefs.getString('spotify_client_secret');
     if (legacyVal != null && legacyVal.isNotEmpty) {
-      await SecureCredentialStore.instance.write(_clientSecretPrefKey, legacyVal);
-      await prefs.remove(_clientSecretPrefKey);
-      await prefs.remove('melo_spotify_client_secret');
-      await prefs.remove('spotify_client_secret');
+      try {
+        await SecureCredentialStore.instance.write(_clientSecretPrefKey, legacyVal);
+        final verified = await SecureCredentialStore.instance.read(_clientSecretPrefKey);
+        if (verified == legacyVal) {
+          await prefs.remove(_clientSecretPrefKey);
+          await prefs.remove('melo_spotify_client_secret');
+          await prefs.remove('spotify_client_secret');
+        }
+      } catch (e) {
+        debugPrint('Spotify client secret secure migration failed: $e');
+      }
       return legacyVal;
     }
     return null;
@@ -359,10 +373,17 @@ class SpotifyService {
       final altKey2 = key.replaceFirst('tone_', 'melo_');
       final legacy = prefs.getString(key) ?? prefs.getString(altKey1) ?? prefs.getString(altKey2);
       if (legacy != null && legacy.isNotEmpty) {
-        await SecureCredentialStore.instance.write(key, legacy);
-        await prefs.remove(key);
-        await prefs.remove(altKey1);
-        await prefs.remove(altKey2);
+        try {
+          await SecureCredentialStore.instance.write(key, legacy);
+          final verified = await SecureCredentialStore.instance.read(key);
+          if (verified == legacy) {
+            await prefs.remove(key);
+            await prefs.remove(altKey1);
+            await prefs.remove(altKey2);
+          }
+        } catch (e) {
+          debugPrint('Spotify credential secure migration failed for $key: $e');
+        }
         return legacy;
       }
       return null;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:melo_player/features/library/imported_track.dart';
 import 'package:melo_player/features/library/music_library.dart';
 
@@ -61,7 +62,9 @@ class MeloInsightsService {
         dominantVibe: ListeningVibe.afternoon,
       );
     }
-    final history = await library.listeningHistory(limit: 500);
+    final totalDbCount = await library.totalPlaybackCount();
+    // Retrieve up to 1000 history entries for detailed breakdown
+    final history = await library.listeningHistory(limit: 1000);
     final mostPlayed = await library.mostPlayedTracks(limit: 30);
     final allTracks = library.tracks;
 
@@ -77,17 +80,26 @@ class MeloInsightsService {
       );
     }
 
-    final totalPlays = history.length;
-    // Estimate listening minutes based on 3.5 min average per play if duration not stored
+    final totalPlays = math.max(totalDbCount, history.length);
+
+    // Calculate listening minutes using actual listenedMs where recorded,
+    // or capped completed playback to prevent 30s listens counting as 5m
     var totalSeconds = 0;
     final trackById = {for (final t in allTracks) t.id: t};
 
     for (final entry in history) {
-      final t = trackById[entry.trackId];
-      if (t?.durationMs != null && t!.durationMs! > 0) {
-        totalSeconds += (t.durationMs! / 1000).round();
+      if (entry.listenedMs > 0) {
+        totalSeconds += (entry.listenedMs / 1000).round();
+      } else if (entry.completed) {
+        final t = trackById[entry.trackId];
+        if (t?.durationMs != null && t!.durationMs! > 0) {
+          totalSeconds += (t.durationMs! / 1000).round();
+        } else {
+          totalSeconds += 180; // 3 min standard
+        }
       } else {
-        totalSeconds += 210; // 3.5 minutes default
+        // Partial listen without exact duration recorded: conservative 45s estimate
+        totalSeconds += 45;
       }
     }
     final totalMinutes = (totalSeconds / 60).round();
@@ -119,7 +131,8 @@ class MeloInsightsService {
       topTracks.add(track);
     }
 
-    // Forgotten Gems: tracks played before 14+ days ago, or favorited, but not in last 20 plays
+    // Forgotten Gems: tracks actually played in the past (>7 days ago) or favorited,
+    // but not played in the most recent 25 sessions. Never injects never-played songs.
     final recentPlayedIds = history.take(25).map((e) => e.trackId).toSet();
     final now = DateTime.now();
     final forgottenGems = <ImportedTrack>[];
@@ -127,23 +140,11 @@ class MeloInsightsService {
     for (final entry in history.reversed) {
       if (!recentPlayedIds.contains(entry.trackId)) {
         final age = now.difference(entry.playedAt).inDays;
-        if (age >= 10) {
+        if (age >= 7) {
           final t = trackById[entry.trackId];
           if (t != null && !forgottenGems.any((existing) => existing.id == t.id)) {
             forgottenGems.add(t);
             if (forgottenGems.length >= 20) break;
-          }
-        }
-      }
-    }
-
-    // If history is small, supplement forgotten gems with library tracks not in recent plays
-    if (forgottenGems.length < 5) {
-      for (final t in allTracks) {
-        if (!recentPlayedIds.contains(t.id)) {
-          if (!forgottenGems.any((existing) => existing.id == t.id)) {
-            forgottenGems.add(t);
-            if (forgottenGems.length >= 15) break;
           }
         }
       }

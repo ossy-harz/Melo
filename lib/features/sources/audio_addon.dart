@@ -194,8 +194,15 @@ class AudioAddonManager {
     var password = securePass ?? '';
     if (securePass == null && legacyPass != null && legacyPass.isNotEmpty) {
       password = legacyPass;
-      await SecureCredentialStore.instance.write(_subsonicPassKey, legacyPass);
-      await prefs.remove(_subsonicPassKey);
+      try {
+        await SecureCredentialStore.instance.write(_subsonicPassKey, legacyPass);
+        final verified = await SecureCredentialStore.instance.read(_subsonicPassKey);
+        if (verified == legacyPass) {
+          await prefs.remove(_subsonicPassKey);
+        }
+      } catch (e) {
+        debugPrint('Subsonic password secure migration failed: $e');
+      }
     }
 
     _subsonicConfig = SubsonicConfig(

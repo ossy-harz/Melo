@@ -1997,6 +1997,11 @@ class MusicLibrary extends ChangeNotifier {
     return _repository.listeningHistory(limit: limit);
   }
 
+  Future<int> totalPlaybackCount() async {
+    if (_repository == null) return 0;
+    return _repository.totalPlaybackCount();
+  }
+
   Future<bool> removeTrack(ImportedTrack track) async {
     if (!_tracks.any((item) => item.id == track.id)) return true;
     if (track.isDeviceMedia) {

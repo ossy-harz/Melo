@@ -62,6 +62,7 @@ class SleepTimerService extends ChangeNotifier {
 
   Future<void> _pauseWithFadeOut(AudioHandler audioHandler) async {
     final activeSession = ++_sessionId;
+    _userChangedVolume = false;
     var originalVolume = 1.0;
     var adjustedVolume = false;
     StreamSubscription<PlaybackState>? stateSub;
@@ -89,11 +90,12 @@ class SleepTimerService extends ChangeNotifier {
 
       if (originalVolume > 0.05) {
         for (var step = 5; step >= 1; step--) {
-          if (activeSession != _sessionId || isActive) break;
+          if (activeSession != _sessionId || isActive || _userChangedVolume) break;
           await Future<void>.delayed(const Duration(milliseconds: 240));
-          if (activeSession != _sessionId || isActive) break;
+          if (activeSession != _sessionId || isActive || _userChangedVolume) break;
           await audioHandler.customAction('setVolume', {
             'volume': originalVolume * (step / 6),
+            'isSleepFade': true,
           });
           adjustedVolume = true;
         }
@@ -103,13 +105,17 @@ class SleepTimerService extends ChangeNotifier {
       await stateSub?.cancel();
     }
 
-    // Only pause if the fade session remains valid and wasn't superseded by user resumption
-    if (activeSession == _sessionId && !isActive) {
+    // Only pause if the fade session remains valid and wasn't superseded by user resumption or volume change
+    if (activeSession == _sessionId && !isActive && !_userChangedVolume) {
       await audioHandler.pause();
     }
-    if (adjustedVolume) {
+    // Only restore original volume if the user didn't make a new volume adjustment
+    if (adjustedVolume && !_userChangedVolume && activeSession == _sessionId) {
       try {
-        await audioHandler.customAction('setVolume', {'volume': originalVolume});
+        await audioHandler.customAction('setVolume', {
+          'volume': originalVolume,
+          'isSleepFade': true,
+        });
       } catch (_) {}
     }
   }
@@ -122,6 +128,15 @@ class SleepTimerService extends ChangeNotifier {
     _targetTime = null;
     _label = null;
     notifyListeners();
+  }
+
+  bool _userChangedVolume = false;
+
+  /// Notified when the user actively adjusts the volume control.
+  /// Aborts any pending sleep timer fade and preserves the user's chosen volume.
+  void notifyUserChangedVolume() {
+    _userChangedVolume = true;
+    _sessionId++;
   }
 
   /// Explicitly cancels any ongoing fade-out operation triggered by the timer expiring.
