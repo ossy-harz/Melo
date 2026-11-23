@@ -726,6 +726,8 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
       valid = preset.initialTracks!
           .map(_importedTrackToYoutubeTrack)
           .toList(growable: false);
+    } else if (preset.initialMediaItems != null && preset.initialMediaItems!.isNotEmpty) {
+      valid = _mapMediaItemsStatic(preset.initialMediaItems!, fallbackArtist: preset.artistName ?? 'Melo');
     } else if (preset.externalUrl != null && preset.externalUrl!.isNotEmpty) {
       try {
         final resolved = await ExternalFeedService.instance.resolveExternalUrl(preset.externalUrl!);

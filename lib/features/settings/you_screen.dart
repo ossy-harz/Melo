@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:melo_player/app/melo_appearance.dart';
 import 'package:melo_player/app/melo_glass.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/features/insights/melo_insights_screen.dart';
 import 'package:melo_player/features/library/data/library_backup_service.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
@@ -81,6 +82,20 @@ class YouScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const _ProfileHero(),
+              const SizedBox(height: 14),
+              _SettingsRow(
+                icon: Icons.insights_rounded,
+                title: 'Melo Insights',
+                subtitle: 'Personal listening stats, top artists & habits',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => MeloInsightsScreen(
+                      library: library,
+                      audioHandler: audioHandler,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 26),
               Text('APP PREFERENCES', style: _sectionLabel(context)),
               const SizedBox(height: 8),

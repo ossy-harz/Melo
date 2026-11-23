@@ -1764,6 +1764,11 @@ void main() {
     }
     await tester.pumpAndSettle();
     expect(find.text('Your space'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Offline & data'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Offline & data'), findsOneWidget);
 
     await tester.tap(find.text('Offline & data'));

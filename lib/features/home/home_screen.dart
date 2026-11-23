@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:melo_player/app/melo_theme.dart';
 import 'package:melo_player/features/library/music_library.dart';
 import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
+import 'package:melo_player/features/mood/mood_session_service.dart';
 
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 
@@ -373,6 +375,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 18),
+
+                      // Refined Tailored Mood Sessions
+                      _buildMoodSessionsBar(context),
                       const SizedBox(height: 22),
 
                       // Dynamic, Provider-Authentic Home Feed Hierarchy
@@ -668,6 +674,171 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Widget _buildMoodSessionsBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.auto_awesome_rounded,
+              size: 14,
+              color: isDark ? MeloColors.cherry : colors.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'TAILORED SESSIONS',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 38,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: ListeningMood.values.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final mood = ListeningMood.values[index];
+              return InkWell(
+                onTap: () => _openMoodSession(context, mood),
+                borderRadius: BorderRadius.circular(19),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(19),
+                    color: isDark
+                        ? MeloColors.qledElevated
+                        : colors.surfaceContainerHighest,
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : colors.outlineVariant.withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        mood.icon,
+                        size: 16,
+                        color: isDark ? MeloColors.cherry : colors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        mood.title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openMoodSession(BuildContext context, ListeningMood mood) async {
+    unawaited(HapticFeedback.lightImpact());
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 10,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B1B1E),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: MeloColors.cherry.withValues(alpha: 0.4)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: MeloColors.cherry),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Assembling ${mood.title} session…',
+                    style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    try {
+      final session = await MoodSessionService.instance.generateMoodSession(
+        mood: mood,
+        library: widget.library,
+      );
+      overlayEntry.remove();
+      if (!context.mounted) return;
+      final preset = CuratedPlaylistPreset(
+        title: session.title,
+        curatorSubtitle: session.subtitle,
+        badge: '${mood.title.toUpperCase()} SESSION',
+        searchQuery: mood.searchFallback,
+        gradient: [
+          MeloColors.cherry,
+          MeloColors.cherryDeep,
+          const Color(0xFF0A0A0C),
+        ],
+        icon: mood.icon,
+        initialMediaItems: session.tracks,
+      );
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CuratedPlaylistScreen(
+            preset: preset,
+            audioHandler: widget.audioHandler,
+            library: widget.library,
+          ),
+        ),
+      );
+    } catch (e) {
+      overlayEntry.remove();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load ${mood.title} session: $e')),
+        );
+      }
+    }
   }
 }
 

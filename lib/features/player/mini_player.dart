@@ -460,6 +460,7 @@ Stream<Duration> _createPositionStream(AudioHandler audioHandler) {
 }
 
 void _run(BuildContext context, Future<void> Function() action) {
+  unawaited(HapticFeedback.lightImpact());
   action().catchError((Object error, StackTrace stackTrace) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)

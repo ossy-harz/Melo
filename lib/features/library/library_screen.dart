@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:melo_player/app/melo_theme.dart';
@@ -14,6 +16,9 @@ import 'package:melo_player/features/library/music_playlist.dart';
 import 'package:melo_player/features/library/playlist_detail_screen.dart';
 import 'package:melo_player/features/library/library_track_filters.dart';
 import 'package:melo_player/features/player/mini_player.dart';
+import 'package:melo_player/features/home/curated_playlist_screen.dart';
+import 'package:melo_player/features/insights/melo_insights_screen.dart';
+import 'package:melo_player/features/library/smart_playlist_hub.dart';
 import 'package:melo_player/features/sources/universal_link_sheet.dart';
 import 'package:melo_player/features/spotify/spotify_import_sheet.dart';
 
@@ -1135,6 +1140,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               ),
                               const Spacer(),
                               IconButton(
+                                tooltip: 'Melo Insights',
+                                icon: const Icon(Icons.insights_rounded, size: 24),
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => MeloInsightsScreen(
+                                        library: widget.library,
+                                        audioHandler: widget.audioHandler,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
                                 tooltip: 'Create playlist',
                                 icon: const Icon(Icons.add_rounded, size: 26),
                                 onPressed: _createPlaylist,
@@ -1293,6 +1312,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ),
                         if (_selectedFilter == 'Playlists' &&
                             selectedPlaylist == null) ...[
+                          const SizedBox(height: 18),
+                          _buildSmartPlaylistsSection(context),
                           const SizedBox(height: 14),
                           FilledButton.icon(
                             onPressed: _createPlaylist,
@@ -1698,5 +1719,135 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _selectedFilter == 'Albums'
       ? '${track.album}\u001f${track.artist}' == group.key
       : track.artist == group.key;
+
+  Widget _buildSmartPlaylistsSection(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded, size: 14, color: MeloColors.cherry),
+            const SizedBox(width: 6),
+            Text(
+              'SMART PLAYLISTS',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 110,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: SmartPlaylistType.values.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final type = SmartPlaylistType.values[index];
+              return InkWell(
+                onTap: () => _openSmartPlaylist(type),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: 150,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        type.color.withValues(alpha: isDark ? 0.35 : 0.2),
+                        isDark ? MeloColors.qledCard : colors.surfaceContainerHighest,
+                      ],
+                    ),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : colors.outlineVariant.withValues(alpha: 0.3),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: type.color.withValues(alpha: 0.25),
+                        ),
+                        child: Icon(type.icon, size: 18, color: type.color),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            type.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            type.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openSmartPlaylist(SmartPlaylistType type) async {
+    final library = widget.library;
+    if (library == null) return;
+    unawaited(HapticFeedback.lightImpact());
+    final tracks = await SmartPlaylistHub.resolveTracks(
+      type: type,
+      library: library,
+    );
+    if (!mounted) return;
+    final preset = CuratedPlaylistPreset(
+      title: type.title,
+      curatorSubtitle: type.subtitle,
+      badge: 'SMART PLAYLIST',
+      searchQuery: '',
+      gradient: [type.color, const Color(0xFF141416), const Color(0xFF0A0A0C)],
+      icon: type.icon,
+      initialTracks: tracks,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuratedPlaylistScreen(
+          preset: preset,
+          audioHandler: widget.audioHandler,
+          library: widget.library,
+        ),
+      ),
+    );
+  }
 }
 

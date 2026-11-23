@@ -610,6 +610,49 @@ class TrackDetailsSheet extends StatelessWidget {
                         );
                       },
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Audio output route',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.62),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FutureBuilder<List<AudioOutputDeviceInfo>>(
+                      future: PlayerDeviceHelper.getOutputDevices(),
+                      builder: (context, snapshot) {
+                        final devices = snapshot.data ?? const [];
+                        final active = devices.where((d) => d.isActive).firstOrNull ?? devices.firstOrNull;
+                        if (active == null) {
+                          return const _TrackDetailRow(
+                            label: 'Active output',
+                            value: 'Internal speaker',
+                          );
+                        }
+                        return Column(
+                          children: [
+                            _TrackDetailRow(
+                              label: 'Active device',
+                              value: active.name,
+                            ),
+                            _TrackDetailRow(
+                              label: 'Output path',
+                              value: active.type.toUpperCase().replaceAll('_', ' '),
+                            ),
+                            _TrackDetailRow(
+                              label: 'Output spec',
+                              value: active.specLabel,
+                            ),
+                            if (active.isBitPerfectCapable)
+                              const _TrackDetailRow(
+                                label: 'Bit-perfect DAC',
+                                value: 'Supported · Direct hardware playback',
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                     const SizedBox(height: 10),
                     Text(
                       'Tags come from the audio file or device media index. '
