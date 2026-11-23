@@ -1,7 +1,18 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystorePropertiesFile = rootProject.file("key.properties").let {
+    if (it.exists()) it else rootProject.file("android/key.properties")
+}
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -16,18 +27,23 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = file("melo_release.jks")
-            if (keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = "meloplayerrelease"
-                keyAlias = "melokey"
-                keyPassword = "meloplayerrelease"
-            } else {
-                val debugKeystore = signingConfigs.getByName("debug")
-                storeFile = debugKeystore.storeFile
-                storePassword = debugKeystore.storePassword
-                keyAlias = debugKeystore.keyAlias
-                keyPassword = debugKeystore.keyPassword
+            val keyStorePath = keystoreProperties.getProperty("storeFile")
+                ?: System.getenv("MELO_KEYSTORE_PATH")
+            val keyStorePassword = keystoreProperties.getProperty("storePassword")
+                ?: System.getenv("MELO_KEYSTORE_PASSWORD")
+            val keyAliasVal = keystoreProperties.getProperty("keyAlias")
+                ?: System.getenv("MELO_KEY_ALIAS")
+            val keyPasswordVal = keystoreProperties.getProperty("keyPassword")
+                ?: System.getenv("MELO_KEY_PASSWORD")
+
+            if (keyStorePath != null && keyStorePassword != null && keyAliasVal != null && keyPasswordVal != null) {
+                val resolvedFile = file(keyStorePath)
+                if (resolvedFile.exists()) {
+                    storeFile = resolvedFile
+                    storePassword = keyStorePassword
+                    keyAlias = keyAliasVal
+                    keyPassword = keyPasswordVal
+                }
             }
         }
     }
@@ -42,7 +58,10 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null) {
+                signingConfig = releaseSigning
+            }
         }
     }
 }

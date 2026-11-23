@@ -1,0 +1,7 @@
+# Example key.properties for Melo release signing
+# Copy this file to key.properties (or android/key.properties) and populate with your credentials.
+# NEVER commit key.properties or keystore files to version control.
+storePassword=your_keystore_password
+keyPassword=your_key_password
+keyAlias=your_key_alias
+storeFile=path/to/your/upload_or_release_keystore.jks

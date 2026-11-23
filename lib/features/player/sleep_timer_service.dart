@@ -64,11 +64,29 @@ class SleepTimerService extends ChangeNotifier {
     final activeSession = ++_sessionId;
     var originalVolume = 1.0;
     var adjustedVolume = false;
+    StreamSubscription<PlaybackState>? stateSub;
+
     try {
+      // If playback is already paused, do not execute a fade-out
+      if (!audioHandler.playbackState.value.playing) {
+        return;
+      }
+
       final currentVol = await audioHandler.customAction('getVolume');
       if (currentVol is num && currentVol.isFinite) {
         originalVolume = currentVol.toDouble().clamp(0.0, 1.0);
       }
+
+      var wasPlaying = true;
+      stateSub = audioHandler.playbackState.listen((state) {
+        if (!state.playing && wasPlaying) {
+          wasPlaying = false;
+        } else if (state.playing && !wasPlaying) {
+          // Playback resumed by user during fade-out: invalidate the fade session immediately
+          _sessionId++;
+        }
+      });
+
       if (originalVolume > 0.05) {
         for (var step = 5; step >= 1; step--) {
           if (activeSession != _sessionId || isActive) break;
@@ -80,7 +98,12 @@ class SleepTimerService extends ChangeNotifier {
           adjustedVolume = true;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      await stateSub?.cancel();
+    }
+
+    // Only pause if the fade session remains valid and wasn't superseded by user resumption
     if (activeSession == _sessionId && !isActive) {
       await audioHandler.pause();
     }

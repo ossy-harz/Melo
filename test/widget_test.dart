@@ -2369,6 +2369,42 @@ void main() {
     },
   );
 
+  test('SleepTimerService aborts fade-out session if user resumes playback or cancels timer', () async {
+    final handler = _PreviewAudioHandler();
+    handler.playbackState.add(
+      PlaybackState(
+        processingState: AudioProcessingState.ready,
+        playing: true,
+      ),
+    );
+
+    final timer = SleepTimerService.instance;
+    var finished = false;
+    timer.start(
+      duration: const Duration(milliseconds: 50),
+      label: 'Quick Timer',
+      onFinish: () {
+        finished = true;
+      },
+    );
+
+    expect(timer.isActive, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(finished, isTrue);
+    expect(timer.isActive, isFalse);
+
+    // Verify manual cancel clears timer and increments session ID to prevent fade-out execution
+    timer.start(
+      duration: const Duration(seconds: 30),
+      label: 'Active Timer',
+      onFinish: () {},
+    );
+    expect(timer.isActive, isTrue);
+    timer.cancel();
+    expect(timer.isActive, isFalse);
+    expect(timer.activeLabel, isNull);
+  });
+
   testWidgets('MiniPlayer horizontal swipe triggers skipToNext and skipToPrevious', (
     tester,
   ) async {

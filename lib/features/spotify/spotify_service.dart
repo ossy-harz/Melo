@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spotify/spotify.dart' as sp;
@@ -149,6 +150,52 @@ class FeaturedSpotifyPlaylist {
   final String category;
 }
 
+/// Secure Keystore-backed storage for sensitive tokens, client secrets, and auth cookies.
+/// Replaces plain SharedPreferences to prevent cleartext credential leakage.
+class SecureCredentialStore {
+  SecureCredentialStore._();
+  static final SecureCredentialStore instance = SecureCredentialStore._();
+
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(resetOnError: true),
+  );
+  final Map<String, String> _memoryCache = {};
+
+  Future<void> write(String key, String? value) async {
+    if (value == null || value.trim().isEmpty) {
+      await delete(key);
+      return;
+    }
+    _memoryCache[key] = value.trim();
+    try {
+      await _secureStorage.write(key: key, value: value.trim());
+    } catch (_) {
+      // Graceful in-memory fallback for test runners or environments without Keystore
+    }
+  }
+
+  Future<String?> read(String key) async {
+    if (_memoryCache.containsKey(key)) {
+      return _memoryCache[key];
+    }
+    try {
+      final val = await _secureStorage.read(key: key);
+      if (val != null) {
+        _memoryCache[key] = val;
+        return val;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> delete(String key) async {
+    _memoryCache.remove(key);
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (_) {}
+  }
+}
+
 class SpotifyService {
   SpotifyService._();
   static final SpotifyService instance = SpotifyService._();
@@ -278,36 +325,88 @@ class SpotifyService {
   ];
 
   Future<String?> getSavedClientId() async {
+    final secureVal = await SecureCredentialStore.instance.read(_clientIdPrefKey);
+    if (secureVal != null && secureVal.isNotEmpty) return secureVal;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_clientIdPrefKey);
+    final legacyVal = prefs.getString(_clientIdPrefKey) ??
+        prefs.getString('melo_spotify_client_id') ??
+        prefs.getString('spotify_client_id');
+    if (legacyVal != null && legacyVal.isNotEmpty) {
+      await SecureCredentialStore.instance.write(_clientIdPrefKey, legacyVal);
+      await prefs.remove(_clientIdPrefKey);
+      await prefs.remove('melo_spotify_client_id');
+      await prefs.remove('spotify_client_id');
+      return legacyVal;
+    }
+    return null;
   }
 
   Future<String?> getSavedClientSecret() async {
+    final secureVal = await SecureCredentialStore.instance.read(_clientSecretPrefKey);
+    if (secureVal != null && secureVal.isNotEmpty) return secureVal;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_clientSecretPrefKey);
+    final legacyVal = prefs.getString(_clientSecretPrefKey) ??
+        prefs.getString('melo_spotify_client_secret') ??
+        prefs.getString('spotify_client_secret');
+    if (legacyVal != null && legacyVal.isNotEmpty) {
+      await SecureCredentialStore.instance.write(_clientSecretPrefKey, legacyVal);
+      await prefs.remove(_clientSecretPrefKey);
+      await prefs.remove('melo_spotify_client_secret');
+      await prefs.remove('spotify_client_secret');
+      return legacyVal;
+    }
+    return null;
   }
 
   Future<void> saveCredentials({String? clientId, String? clientSecret}) async {
     final prefs = await SharedPreferences.getInstance();
+    // Clear any legacy plain shared preferences across tone/melo/standard keys
+    for (final k in [_clientIdPrefKey, 'melo_spotify_client_id', 'spotify_client_id']) {
+      await prefs.remove(k);
+    }
+    for (final k in [_clientSecretPrefKey, 'melo_spotify_client_secret', 'spotify_client_secret']) {
+      await prefs.remove(k);
+    }
+
+    // Save into Keystore-backed secure storage
     if (clientId != null && clientId.trim().isNotEmpty) {
-      await prefs.setString(_clientIdPrefKey, clientId.trim());
+      await SecureCredentialStore.instance.write(_clientIdPrefKey, clientId.trim());
     } else {
-      await prefs.remove(_clientIdPrefKey);
+      await SecureCredentialStore.instance.delete(_clientIdPrefKey);
     }
     if (clientSecret != null && clientSecret.trim().isNotEmpty) {
-      await prefs.setString(_clientSecretPrefKey, clientSecret.trim());
+      await SecureCredentialStore.instance.write(_clientSecretPrefKey, clientSecret.trim());
     } else {
-      await prefs.remove(_clientSecretPrefKey);
+      await SecureCredentialStore.instance.delete(_clientSecretPrefKey);
     }
   }
 
-  /// Loads saved Spotify account credentials, session state, and cached personal
-  /// feed from local storage, and triggers a background feed refresh if signed in.
+  /// Loads saved Spotify account credentials from Keystore-backed secure storage,
+  /// session state, and cached personal feed from local storage, and triggers a background feed refresh if signed in.
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    _accessToken = prefs.getString(_accessTokenPrefKey);
-    _refreshToken = prefs.getString(_refreshTokenPrefKey);
-    _cookie = prefs.getString(_cookiePrefKey);
+
+    // Load sensitive credentials securely with transparent migration from plain preferences
+    Future<String?> loadSecureOrMigrate(String key) async {
+      final secureVal = await SecureCredentialStore.instance.read(key);
+      if (secureVal != null && secureVal.isNotEmpty) return secureVal;
+      final altKey1 = key.replaceFirst('tone_', '');
+      final altKey2 = key.replaceFirst('tone_', 'melo_');
+      final legacy = prefs.getString(key) ?? prefs.getString(altKey1) ?? prefs.getString(altKey2);
+      if (legacy != null && legacy.isNotEmpty) {
+        await SecureCredentialStore.instance.write(key, legacy);
+        await prefs.remove(key);
+        await prefs.remove(altKey1);
+        await prefs.remove(altKey2);
+        return legacy;
+      }
+      return null;
+    }
+
+    _accessToken = await loadSecureOrMigrate(_accessTokenPrefKey);
+    _refreshToken = await loadSecureOrMigrate(_refreshTokenPrefKey);
+    _cookie = await loadSecureOrMigrate(_cookiePrefKey);
+
     _userId = prefs.getString(_userIdPrefKey);
     _displayName = prefs.getString(_displayNamePrefKey);
     _avatarUrl = prefs.getString(_avatarUrlPrefKey);
@@ -366,7 +465,18 @@ class SpotifyService {
   }
 
   Future<void> _persistSession() async {
+    // 1. Securely store sensitive tokens and cookies in Keystore-backed storage
+    await SecureCredentialStore.instance.write(_accessTokenPrefKey, _accessToken);
+    await SecureCredentialStore.instance.write(_refreshTokenPrefKey, _refreshToken);
+    await SecureCredentialStore.instance.write(_cookiePrefKey, _cookie);
+
+    // 2. Persist non-sensitive metadata and cached playlists in SharedPreferences
     final prefs = await SharedPreferences.getInstance();
+    // Ensure sensitive keys are deleted from plain SharedPreferences
+    await prefs.remove(_accessTokenPrefKey);
+    await prefs.remove(_refreshTokenPrefKey);
+    await prefs.remove(_cookiePrefKey);
+
     Future<void> setOrRemove(String key, String? value) async {
       if (value != null && value.isNotEmpty) {
         await prefs.setString(key, value);
@@ -375,9 +485,6 @@ class SpotifyService {
       }
     }
 
-    await setOrRemove(_accessTokenPrefKey, _accessToken);
-    await setOrRemove(_refreshTokenPrefKey, _refreshToken);
-    await setOrRemove(_cookiePrefKey, _cookie);
     await setOrRemove(_userIdPrefKey, _userId);
     await setOrRemove(_displayNamePrefKey, _displayName);
     await setOrRemove(_avatarUrlPrefKey, _avatarUrl);
@@ -731,6 +838,11 @@ class SpotifyService {
     _likedTracks = const [];
     _recentlyPlayedTracks = const [];
     _topArtists = const [];
+
+    // Delete sensitive credentials from SecureCredentialStore
+    await SecureCredentialStore.instance.delete(_accessTokenPrefKey);
+    await SecureCredentialStore.instance.delete(_refreshTokenPrefKey);
+    await SecureCredentialStore.instance.delete(_cookiePrefKey);
 
     final prefs = await SharedPreferences.getInstance();
     for (final key in [

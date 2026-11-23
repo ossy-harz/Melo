@@ -828,6 +828,31 @@ void main() {
       expect(res6.$2, 'playlist');
     });
 
+    test('SecureCredentialStore writes, reads, deletes, and migrates legacy preferences', () async {
+      SharedPreferences.setMockInitialValues({
+        'spotify_client_id': 'legacy-id-123',
+        'spotify_client_secret': 'legacy-secret-456',
+        'spotify_access_token': 'legacy-token-789',
+      });
+
+      final store = SecureCredentialStore.instance;
+      await store.write('test_token', 'secret_value_xyz');
+      expect(await store.read('test_token'), 'secret_value_xyz');
+      await store.delete('test_token');
+      expect(await store.read('test_token'), isNull);
+
+      // Verify SpotifyService transparently migrates legacy SharedPreferences to SecureCredentialStore
+      final id = await SpotifyService.instance.getSavedClientId();
+      expect(id, 'legacy-id-123');
+      final secret = await SpotifyService.instance.getSavedClientSecret();
+      expect(secret, 'legacy-secret-456');
+
+      // Verify that plain SharedPreferences has had these sensitive keys removed after migration
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('spotify_client_id'), isNull);
+      expect(prefs.getString('spotify_client_secret'), isNull);
+    });
+
     testWidgets('AppShell renders with light paper surface under light theme', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1080, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
