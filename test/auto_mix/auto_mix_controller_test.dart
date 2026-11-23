@@ -126,6 +126,45 @@ void main() {
     expect(controller.isTransitioning, isFalse);
   });
 
+  test('dynamically updates transition gains and master multiplier during active crossfade', () async {
+    final engine = _FakeAudioEngine();
+    addTearDown(engine.dispose);
+    final stepStarted = Completer<void>();
+    final holdStep = Completer<void>();
+    final controller = AutoMixController(
+      audioEngine: engine,
+      gainStep: const Duration(milliseconds: 25),
+      delay: (_) async {
+        if (!stepStarted.isCompleted) stepStarted.complete();
+        await holdStep.future;
+      },
+    );
+    await engine.initialize();
+    engine.loadForTest(AudioDeck.a, playing: true, gain: 1.0);
+    engine.loadForTest(AudioDeck.b, gain: 0.0);
+
+    final transition = controller.transitionIncoming(
+      plan: _plan(duration: const Duration(milliseconds: 100)),
+      targetGain: 1.0,
+    );
+    await stepStarted.future;
+    expect(controller.isTransitioning, isTrue);
+
+    // User changes volume to 0.5 and notification ducks to 0.8 during transition
+    controller.updateTransitionGains(
+      targetGain: 0.5,
+      outgoingGain: 0.5,
+      masterMultiplier: 0.8,
+    );
+
+    holdStep.complete();
+    expect(await transition, isTrue);
+    expect(controller.isTransitioning, isFalse);
+    // Final incoming deck gain must be 0.5 * 0.8 = 0.4
+    expect(engine.stateFor(AudioDeck.b).gain, closeTo(0.4, 0.001));
+    expect(engine.stateFor(AudioDeck.a).gain, 0.0);
+  });
+
   test(
     'requires a loaded, playing outgoing deck and loaded incoming deck',
     () async {

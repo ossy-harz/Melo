@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:melo_player/core/secure_credential_store.dart';
 import 'package:melo_player/features/spotify/spotify_service.dart';
 import 'package:melo_player/features/youtube/youtube_auth_service.dart';
 
@@ -188,10 +189,19 @@ class AudioAddonManager {
     }
     updated.sort((a, b) => a.priority.compareTo(b.priority));
 
+    final legacyPass = prefs.getString(_subsonicPassKey);
+    final securePass = await SecureCredentialStore.instance.read(_subsonicPassKey);
+    var password = securePass ?? '';
+    if (securePass == null && legacyPass != null && legacyPass.isNotEmpty) {
+      password = legacyPass;
+      await SecureCredentialStore.instance.write(_subsonicPassKey, legacyPass);
+      await prefs.remove(_subsonicPassKey);
+    }
+
     _subsonicConfig = SubsonicConfig(
       serverUrl: prefs.getString(_subsonicUrlKey) ?? '',
       username: prefs.getString(_subsonicUserKey) ?? '',
-      password: prefs.getString(_subsonicPassKey) ?? '',
+      password: password,
     );
 
     _addons = updated;
@@ -237,7 +247,13 @@ class AudioAddonManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_subsonicUrlKey, config.serverUrl);
     await prefs.setString(_subsonicUserKey, config.username);
-    await prefs.setString(_subsonicPassKey, config.password);
+    // Remove cleartext password from SharedPreferences and store in Keystore
+    await prefs.remove(_subsonicPassKey);
+    if (config.password.isNotEmpty) {
+      await SecureCredentialStore.instance.write(_subsonicPassKey, config.password);
+    } else {
+      await SecureCredentialStore.instance.delete(_subsonicPassKey);
+    }
     _subsonicConfig = config;
   }
 
@@ -258,6 +274,20 @@ class AudioAddonManager {
         return _subsonicConfig.isConfigured;
       default:
         return false;
+    }
+  }
+
+  /// Whether an active authenticated session exists for the addon
+  bool isAddonConnected(String addonId) {
+    switch (addonId) {
+      case 'youtube_music':
+        return YoutubeAuthService.instance.isLoggedIn;
+      case 'spotify_matcher':
+        return SpotifyService.instance.isConnected;
+      case 'subsonic_navidrome':
+        return _subsonicConfig.isConfigured;
+      default:
+        return isAddonConfigured(addonId);
     }
   }
 

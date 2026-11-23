@@ -6,8 +6,8 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:melo_player/core/secure_credential_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spotify/spotify.dart' as sp;
 import 'package:melo_player/features/library/imported_track.dart';
@@ -150,57 +150,21 @@ class FeaturedSpotifyPlaylist {
   final String category;
 }
 
-/// Secure Keystore-backed storage for sensitive tokens, client secrets, and auth cookies.
-/// Replaces plain SharedPreferences to prevent cleartext credential leakage.
-class SecureCredentialStore {
-  SecureCredentialStore._();
-  static final SecureCredentialStore instance = SecureCredentialStore._();
-
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(resetOnError: true),
-  );
-  final Map<String, String> _memoryCache = {};
-
-  Future<void> write(String key, String? value) async {
-    if (value == null || value.trim().isEmpty) {
-      await delete(key);
-      return;
-    }
-    _memoryCache[key] = value.trim();
-    try {
-      await _secureStorage.write(key: key, value: value.trim());
-    } catch (_) {
-      // Graceful in-memory fallback for test runners or environments without Keystore
-    }
-  }
-
-  Future<String?> read(String key) async {
-    if (_memoryCache.containsKey(key)) {
-      return _memoryCache[key];
-    }
-    try {
-      final val = await _secureStorage.read(key: key);
-      if (val != null) {
-        _memoryCache[key] = val;
-        return val;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> delete(String key) async {
-    _memoryCache.remove(key);
-    try {
-      await _secureStorage.delete(key: key);
-    } catch (_) {}
-  }
-}
-
 class SpotifyService {
   SpotifyService._();
   static final SpotifyService instance = SpotifyService._();
 
-  bool get isConfigured => true;
+  /// Whether the Spotify integration is available in Melo.
+  bool get isAvailable => true;
+
+  /// Whether custom credentials or an authenticated session have been supplied.
+  bool get isConfigured =>
+      (_cachedClientId != null && _cachedClientId!.isNotEmpty) || isLoggedIn;
+
+  /// Whether the user has an active authenticated session.
+  bool get isConnected => isLoggedIn;
+
+  String? _cachedClientId;
 
   static const String _clientIdPrefKey = 'tone_spotify_client_id';
   static const String _clientSecretPrefKey = 'tone_spotify_client_secret';
@@ -359,6 +323,7 @@ class SpotifyService {
   }
 
   Future<void> saveCredentials({String? clientId, String? clientSecret}) async {
+    _cachedClientId = clientId?.trim();
     final prefs = await SharedPreferences.getInstance();
     // Clear any legacy plain shared preferences across tone/melo/standard keys
     for (final k in [_clientIdPrefKey, 'melo_spotify_client_id', 'spotify_client_id']) {
@@ -406,6 +371,7 @@ class SpotifyService {
     _accessToken = await loadSecureOrMigrate(_accessTokenPrefKey);
     _refreshToken = await loadSecureOrMigrate(_refreshTokenPrefKey);
     _cookie = await loadSecureOrMigrate(_cookiePrefKey);
+    _cachedClientId = await getSavedClientId();
 
     _userId = prefs.getString(_userIdPrefKey);
     _displayName = prefs.getString(_displayNamePrefKey);

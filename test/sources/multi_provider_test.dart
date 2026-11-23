@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melo_player/app/melo_theme.dart';
+import 'package:melo_player/core/secure_credential_store.dart';
 import 'package:melo_player/features/home/curated_playlist_screen.dart';
 import 'package:melo_player/features/home/home_screen.dart';
 import 'package:melo_player/features/home/home_shelves.dart';
@@ -13,6 +14,7 @@ import 'package:melo_player/features/library/song_details_sheet.dart';
 import 'package:melo_player/features/mix/personal_mix.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/settings/you_screen.dart';
+import 'package:melo_player/features/sources/audio_addon.dart';
 import 'package:melo_player/features/sources/external_feed_service.dart';
 import 'package:melo_player/features/sources/multi_lyrics_provider.dart';
 import 'package:melo_player/features/sources/multi_metadata_provider.dart';
@@ -851,6 +853,58 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('spotify_client_id'), isNull);
       expect(prefs.getString('spotify_client_secret'), isNull);
+    });
+
+    test('AudioAddonManager securely stores Subsonic password and migrates from prefs', () async {
+      SharedPreferences.setMockInitialValues({
+        'tone_subsonic_url': 'https://music.example.com',
+        'tone_subsonic_user': 'navidrome_user',
+        'tone_subsonic_pass': 'plain_secret_password',
+      });
+
+      final addonManager = AudioAddonManager.instance;
+      await addonManager.initialize();
+
+      // Password should be migrated to SecureCredentialStore
+      final securePass = await SecureCredentialStore.instance.read('tone_subsonic_pass');
+      expect(securePass, 'plain_secret_password');
+      expect(addonManager.subsonicConfig.password, 'plain_secret_password');
+
+      // Cleartext password in SharedPreferences must be deleted
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('tone_subsonic_pass'), isNull);
+
+      // Now save updated config and verify secure storage
+      await addonManager.saveSubsonicConfig(
+        const SubsonicConfig(
+          serverUrl: 'https://navidrome.home',
+          username: 'admin',
+          password: 'new_super_secret_password',
+        ),
+      );
+      expect(prefs.getString('tone_subsonic_pass'), isNull);
+      expect(await SecureCredentialStore.instance.read('tone_subsonic_pass'), 'new_super_secret_password');
+    });
+
+    test('distinguishes Spotify Available, Configured, and Connected states', () async {
+      // 1. Initial unconfigured, unauthenticated state
+      final spotify = SpotifyService.instance;
+      await spotify.logout();
+      await spotify.saveCredentials(clientId: '', clientSecret: '');
+
+      expect(spotify.isAvailable, isTrue); // Feature exists in Melo
+      expect(spotify.isConfigured, isFalse); // No credentials provided
+      expect(spotify.isConnected, isFalse); // No active session
+      expect(AudioAddonManager.instance.isAddonConfigured('spotify_matcher'), isFalse);
+      expect(AudioAddonManager.instance.isAddonConnected('spotify_matcher'), isFalse);
+
+      // 2. Client ID configured without active session
+      await spotify.saveCredentials(clientId: 'my-custom-client-id');
+      expect(spotify.isAvailable, isTrue);
+      expect(spotify.isConfigured, isTrue);
+      expect(spotify.isConnected, isFalse);
+      expect(AudioAddonManager.instance.isAddonConfigured('spotify_matcher'), isTrue);
+      expect(AudioAddonManager.instance.isAddonConnected('spotify_matcher'), isFalse);
     });
 
     testWidgets('AppShell renders with light paper surface under light theme', (tester) async {

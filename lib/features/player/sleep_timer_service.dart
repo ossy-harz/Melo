@@ -124,6 +124,13 @@ class SleepTimerService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Explicitly cancels any ongoing fade-out operation triggered by the timer expiring.
+  /// Called by [MeloAudioHandler.play] or user playback initiation to prevent the timer
+  /// from unexpectedly pausing playback if the user presses Play during the fade-out.
+  void cancelPendingFadeOut() {
+    _sessionId++;
+  }
+
   void cancel() {
     _sessionId++;
     _clearState();

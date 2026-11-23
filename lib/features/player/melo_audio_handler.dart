@@ -21,6 +21,7 @@ import 'package:melo_player/features/library/song_metadata_enricher.dart';
 import 'package:melo_player/features/mix/smart_playlist_service.dart';
 import 'package:melo_player/features/player/audio_profile.dart';
 import 'package:melo_player/features/player/lyrics_repository.dart';
+import 'package:melo_player/features/player/sleep_timer_service.dart';
 import 'package:melo_player/features/youtube/youtube_audio_service.dart';
 
 enum NotificationDuckingMode {
@@ -340,9 +341,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
           // In steady mode (default), volume is never collapsed or paused.
           _isDucked = true;
           if (_notificationDuckingMode == NotificationDuckingMode.gentle && wasPlaying) {
-            _runSessionOperation(
-              _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain * 0.80),
-            );
+            _runSessionOperation(_applyMasterDeckGains());
           } else if (_notificationDuckingMode == NotificationDuckingMode.pause && wasPlaying) {
             _interruptionActive = true;
             _resumeAfterInterruption = true;
@@ -369,11 +368,9 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
     if (_isDucked) {
       _isDucked = false;
-      // Immediately restore full audio gain when notification ends
+      // Immediately restore full audio gain across both decks when notification ends
       if (_isAnyDeckPlaying || _desiredPlaying) {
-        _runSessionOperation(
-          _audioEngine.setDeckGain(AudioDeck.a, _effectiveTargetGain),
-        );
+        _runSessionOperation(_applyMasterDeckGains());
       }
     }
 
@@ -386,6 +383,39 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
       _runSessionOperation(_startPlayback());
     } else {
       _runSessionOperation(_deactivateAudioSession());
+    }
+  }
+
+  Future<void> _applyMasterDeckGains() async {
+    final effectiveGain = _effectiveTargetGain;
+    final duckMultiplier = (_isDucked && _notificationDuckingMode == NotificationDuckingMode.gentle)
+        ? 0.80
+        : 1.0;
+
+    if (_autoMixController.isTransitioning) {
+      _autoMixController.updateTransitionGains(
+        targetGain: effectiveGain,
+        outgoingGain: effectiveGain,
+        masterMultiplier: duckMultiplier,
+      );
+      // Immediately adjust active decks to avoid hearing transient gain blast
+      final stateA = _audioEngine.stateFor(AudioDeck.a);
+      final stateB = _audioEngine.stateFor(AudioDeck.b);
+      await Future.wait([
+        if (stateA.loaded && stateA.playing)
+          _audioEngine.setDeckGain(AudioDeck.a, stateA.gain * duckMultiplier),
+        if (stateB.loaded && stateB.playing)
+          _audioEngine.setDeckGain(AudioDeck.b, stateB.gain * duckMultiplier),
+      ]);
+    } else {
+      final stateA = _audioEngine.stateFor(AudioDeck.a);
+      final stateB = _audioEngine.stateFor(AudioDeck.b);
+      await Future.wait([
+        if (stateA.loaded)
+          _audioEngine.setDeckGain(AudioDeck.a, effectiveGain * duckMultiplier),
+        if (stateB.loaded && stateB.playing)
+          _audioEngine.setDeckGain(AudioDeck.b, effectiveGain * duckMultiplier),
+      ]);
     }
   }
 
@@ -448,11 +478,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
     if (name == 'setVolume') {
       final vol = (extras?['volume'] as num?)?.toDouble() ?? 1.0;
       _userVolume = vol.clamp(0.0, 1.0);
-      final effectiveGain = _effectiveTargetGain;
-      if (_audioEngine.stateFor(AudioDeck.a).loaded &&
-          !_autoMixController.isTransitioning) {
-        await _audioEngine.setDeckGain(AudioDeck.a, effectiveGain);
-      }
+      await _applyMasterDeckGains();
       return _userVolume;
     }
     if (name == 'getVolume') {
@@ -1386,6 +1412,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> play() async {
+    SleepTimerService.instance.cancelPendingFadeOut();
     _interruptionActive = false;
     _resumeAfterInterruption = false;
     _desiredPlaying = true;
@@ -1567,6 +1594,7 @@ class MeloAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
+    SleepTimerService.instance.cancelPendingFadeOut();
     await _settingsReady;
     final existingIndex = _items.indexWhere((item) => item.id == mediaItem.id);
     if (existingIndex >= 0) {

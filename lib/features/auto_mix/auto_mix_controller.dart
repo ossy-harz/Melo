@@ -43,9 +43,31 @@ class AutoMixController {
   Future<bool>? _activeTransition;
   Completer<void>? _cancelSignal;
   bool _restoreDecksOnCancel = true;
+  double _liveTargetGain = 1.0;
+  double _liveOutgoingGain = 1.0;
+  double _masterMultiplier = 1.0;
 
   AutoMixSettings get settings => _settings;
   bool get isTransitioning => _activeTransition != null;
+
+  /// Dynamically updates target and outgoing gains or master ducking multiplier during an active transition.
+  /// This ensures volume slider changes and notification ducking propagate immediately
+  /// across both decks rather than using frozen initial gains.
+  void updateTransitionGains({
+    double? targetGain,
+    double? outgoingGain,
+    double? masterMultiplier,
+  }) {
+    if (targetGain != null && targetGain.isFinite) {
+      _liveTargetGain = targetGain.clamp(0.0, 1.0);
+    }
+    if (outgoingGain != null && outgoingGain.isFinite) {
+      _liveOutgoingGain = outgoingGain.clamp(0.0, 1.0);
+    }
+    if (masterMultiplier != null && masterMultiplier.isFinite) {
+      _masterMultiplier = masterMultiplier.clamp(0.0, 1.0);
+    }
+  }
 
   void updateSettings(AutoMixSettings settings) {
     _settings = settings;
@@ -151,6 +173,9 @@ class AutoMixController {
     void Function()? onStarted,
     void Function(double progress)? onProgress,
   }) async {
+    _liveTargetGain = targetGain;
+    _liveOutgoingGain = outgoingGain;
+    _masterMultiplier = 1.0;
     try {
       await _audioEngine.seekDeck(AudioDeck.b, plan.incomingEntryPosition);
       await _audioEngine.setDeckGain(AudioDeck.b, 0);
@@ -166,20 +191,25 @@ class AutoMixController {
         await Future.any<void>([_delay(_gainStep), cancelSignal.future]);
         if (cancelSignal.isCompleted) throw const _TransitionCancelled();
         final gains = TransitionGainCurve.gainsAt(plan.style, step / steps);
+        final deckAGain = _liveOutgoingGain * _masterMultiplier * gains.outgoing;
+        final deckBGain = _liveTargetGain * _masterMultiplier * gains.incoming;
         await Future.wait([
-          _audioEngine.setDeckGain(AudioDeck.a, outgoingGain * gains.outgoing),
-          _audioEngine.setDeckGain(AudioDeck.b, targetGain * gains.incoming),
+          _audioEngine.setDeckGain(AudioDeck.a, deckAGain),
+          _audioEngine.setDeckGain(AudioDeck.b, deckBGain),
         ]);
         onProgress?.call(step / steps);
       }
       await _audioEngine.setDeckGain(AudioDeck.a, 0);
-      await _audioEngine.setDeckGain(AudioDeck.b, targetGain);
+      await _audioEngine.setDeckGain(
+        AudioDeck.b,
+        _liveTargetGain * _masterMultiplier,
+      );
       await _audioEngine.pauseDeck(AudioDeck.a);
       return true;
     } on _TransitionCancelled {
       if (_restoreDecksOnCancel) {
         await _restoreDecks(
-          outgoingGain: outgoingGain,
+          outgoingGain: _liveOutgoingGain * _masterMultiplier,
           incomingGain: incomingGain,
           incomingWasPlaying: incomingWasPlaying,
           incomingPosition: incomingPosition,
@@ -190,7 +220,7 @@ class AutoMixController {
       try {
         if (_restoreDecksOnCancel) {
           await _restoreDecks(
-            outgoingGain: outgoingGain,
+            outgoingGain: _liveOutgoingGain * _masterMultiplier,
             incomingGain: incomingGain,
             incomingWasPlaying: incomingWasPlaying,
             incomingPosition: incomingPosition,
