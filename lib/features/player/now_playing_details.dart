@@ -188,19 +188,6 @@ class _AudioQualityBadges extends StatelessWidget {
               ? item.genre!.trim()
               : studioMeta?.genres.firstOrNull;
 
-      final sourceProvider = item.extras?['downloadProvider'] as String? ??
-          (item.id.startsWith('spotify:') || item.extras?['source'] == 'spotify'
-              ? 'Spotify'
-              : item.id.startsWith('youtube:') || item.extras?['source'] == 'youtube'
-                  ? 'YouTube Music'
-                  : item.id.startsWith('deezer:')
-                      ? 'Deezer'
-                      : item.id.startsWith('soundcloud:')
-                          ? 'SoundCloud'
-                          : item.extras?['source'] == 'device'
-                              ? 'Local Audio'
-                              : studioMeta?.provider.displayName);
-
       return InkWell(
         onTap: () => TrackDetailsSheet.show(context, item),
         borderRadius: BorderRadius.circular(MeloRadii.pill),
@@ -219,29 +206,34 @@ class _AudioQualityBadges extends StatelessWidget {
               ],
               _QualityBadge(
                 label: labelText,
-                icon: isLossless ? Icons.high_quality_rounded : null,
+                icon: isLossless ? Icons.stars_rounded : null,
                 highlighted: isLossless,
               ),
-              if (sourceProvider != null && sourceProvider.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                _QualityBadge(
-                  label: sourceProvider.toUpperCase(),
-                  icon: Icons.cloud_outlined,
-                  highlighted: false,
-                ),
-              ],
-              const SizedBox(width: 6),
               FutureBuilder<List<AudioOutputDeviceInfo>>(
                 future: PlayerDeviceHelper.getOutputDevices(),
                 builder: (context, devSnap) {
                   final activeDevice = devSnap.data?.where((d) => d.isActive).firstOrNull ??
                       devSnap.data?.firstOrNull;
                   if (activeDevice == null) return const SizedBox.shrink();
-                  return _QualityBadge(
-                    label: activeDevice.name.toUpperCase(),
-                    icon: activeDevice.icon,
-                    highlighted: activeDevice.type == 'usb_dac' ||
-                        activeDevice.type == 'bluetooth',
+                  final isSpeaker = activeDevice.type == 'speaker' ||
+                      activeDevice.name.toLowerCase().contains('speaker');
+                  if (isSpeaker) return const SizedBox.shrink();
+                  final shortName = activeDevice.type == 'usb_dac'
+                      ? 'USB DAC'
+                      : activeDevice.type == 'wired'
+                          ? 'HEADPHONES'
+                          : activeDevice.name.toUpperCase();
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(width: 6),
+                      _QualityBadge(
+                        label: shortName,
+                        icon: activeDevice.icon,
+                        highlighted: activeDevice.type == 'usb_dac' ||
+                            activeDevice.type == 'bluetooth',
+                      ),
+                    ],
                   );
                 },
               ),
