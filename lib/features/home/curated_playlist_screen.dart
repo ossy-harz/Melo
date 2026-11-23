@@ -290,28 +290,35 @@ class PlaylistMiniPlayerDock extends StatelessWidget {
                       Container(
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
+                          horizontal: 14,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
-                          borderRadius: BorderRadius.circular(14),
+                          color: const Color(0xE6141416),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: MeloColors.cherry.withValues(alpha: 0.45),
-                            width: 0.9,
+                            color: MeloColors.cherry.withValues(alpha: 0.35),
+                            width: 0.8,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
                           children: [
                             SizedBox(
-                              width: 14,
-                              height: 14,
+                              width: 12,
+                              height: 12,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                                strokeWidth: 1.8,
                                 color: MeloColors.cherry,
                               ),
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 bannerText,
@@ -319,8 +326,9 @@ class PlaylistMiniPlayerDock extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.1,
                                 ),
                               ),
                             ),
@@ -1963,7 +1971,6 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
         ) ??
         false;
     final distinctCovers = _distinctArtworkUrls();
-    final miniPreviewArt = distinctCovers.firstOrNull;
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
@@ -2166,39 +2173,6 @@ class _CuratedPlaylistScreenState extends State<CuratedPlaylistScreen> {
                 children: [
                   Row(
                     children: [
-                      // Mini vertical rounded preview thumbnail
-                      Container(
-                        width: 34,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.34),
-                            width: 1.2,
-                          ),
-                          color: const Color(0xFF1C1C1E),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child:
-                            miniPreviewArt != null && miniPreviewArt.isNotEmpty
-                            ? CachedNetworkArtwork(
-                                url: miniPreviewArt,
-                                width: 34,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                errorWidget: Icon(
-                                  widget.preset.icon,
-                                  color: Colors.white70,
-                                  size: 16,
-                                ),
-                              )
-                            : Icon(
-                                widget.preset.icon,
-                                color: Colors.white70,
-                                size: 16,
-                              ),
-                      ),
-                      const SizedBox(width: 10),
                       IconButton(
                         tooltip: isPlaylistSaved
                             ? 'Saved to Library'

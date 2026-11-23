@@ -85,6 +85,7 @@ class YouScreen extends StatelessWidget {
               const SizedBox(height: 14),
               _SettingsRow(
                 icon: Icons.insights_rounded,
+                accentColor: const Color(0xFFA855F7),
                 title: 'Melo Insights',
                 subtitle: 'Personal listening stats, top artists & habits',
                 onTap: () => Navigator.of(context).push(
@@ -104,6 +105,7 @@ class YouScreen extends StatelessWidget {
                 builder: (context, activeProvider, _) {
                   return _SettingsRow(
                     icon: Icons.hub_outlined,
+                    accentColor: const Color(0xFF06B6D4),
                     title: 'Home feed & discovery provider',
                     subtitle: '${activeProvider.displayName} · Tap to change provider',
                     onTap: () => _showProviderSelectionSheet(context),
@@ -112,6 +114,7 @@ class YouScreen extends StatelessWidget {
               ),
               _SettingsRow(
                 icon: Icons.tune_rounded,
+                accentColor: const Color(0xFF10B981),
                 title: 'Sound & playback',
                 subtitle: 'Equalizer and playback sound',
                 onTap: () => Navigator.of(context).push(
@@ -125,6 +128,7 @@ class YouScreen extends StatelessWidget {
               ),
               _SettingsRow(
                 icon: Icons.sync_alt_outlined,
+                accentColor: const Color(0xFFF59E0B),
                 title: 'AutoMix transitions',
                 subtitle: 'Crossfade between tracks in your queue',
                 onTap: audioHandler == null
@@ -142,6 +146,7 @@ class YouScreen extends StatelessWidget {
               const SizedBox(height: 8),
               _SettingsRow(
                 icon: Icons.wifi_off_rounded,
+                accentColor: const Color(0xFF3B82F6),
                 title: 'Offline & data',
                 subtitle: 'Download quality, streaming sources & local data',
                 onTap: () => Navigator.of(context).push(
@@ -156,6 +161,7 @@ class YouScreen extends StatelessWidget {
               ),
               _SettingsRow(
                 icon: Icons.shield_outlined,
+                accentColor: const Color(0xFF14B8A6),
                 title: 'Privacy & your data',
                 subtitle: 'Optional lyrics and local recommendations',
                 onTap: () => Navigator.of(context).push(
@@ -169,6 +175,7 @@ class YouScreen extends StatelessWidget {
               const SizedBox(height: 8),
               _SettingsRow(
                 icon: Icons.palette_outlined,
+                accentColor: const Color(0xFFEC4899),
                 title: 'Appearance',
                 subtitle: 'Theme, motion, and player surfaces',
                 onTap: () => Navigator.of(context).push(
@@ -187,6 +194,7 @@ class YouScreen extends StatelessWidget {
                     icon: hasUpdate
                         ? Icons.system_update_rounded
                         : Icons.info_outline_rounded,
+                    accentColor: hasUpdate ? const Color(0xFF10B981) : const Color(0xFF64748B),
                     title: 'About Melo',
                     subtitle: hasUpdate
                         ? 'Update available ($latestTag) · Tap to install'
@@ -2241,18 +2249,21 @@ class _SettingsRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.accentColor,
     this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color? accentColor;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final tint = accentColor ?? colors.primary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
@@ -2270,12 +2281,12 @@ class _SettingsRow extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(MeloRadii.sm),
-                    color: colors.primary.withValues(alpha: dark ? 0.16 : 0.1),
+                    color: tint.withValues(alpha: dark ? 0.16 : 0.1),
                     border: Border.all(
-                      color: colors.primary.withValues(alpha: 0.16),
+                      color: tint.withValues(alpha: 0.18),
                     ),
                   ),
-                  child: Icon(icon, color: colors.primary, size: 20),
+                  child: Icon(icon, color: tint, size: 20),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

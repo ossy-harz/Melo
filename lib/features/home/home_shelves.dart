@@ -2799,7 +2799,7 @@ class _ArtistRadioShelfState extends State<ArtistRadioShelf> {
       final lower = clean.toLowerCase();
       if (clean.isEmpty || lower == 'unknown artist') continue;
       if (seen.add(lower) && personalizedArtists.length < 6) {
-        personalizedArtists.add((name: clean, subtitle: 'Based on Your Listening'));
+        personalizedArtists.add((name: clean, subtitle: 'Radio Mix'));
       }
     }
 

@@ -46,11 +46,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final TextEditingController _trackQueryController = TextEditingController();
   static const _filters = [
     'Songs',
+    'Playlists',
     'Albums',
     'Artists',
     'Favorites',
     'Duplicates',
-    'Playlists',
   ];
   String _selectedFilter = _filters.first;
   String _trackQuery = '';
@@ -1285,30 +1285,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ),
                         ],
                         const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final label in _filters)
-                              ChoiceChip(
-                                label: Text(label),
-                                selected: _selectedFilter == label,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _selectedFilter = label;
-                                      _selectedGroup = null;
-                                      _selectedPlaylistId = null;
-                                      _trackQuery = '';
-                                      _trackQueryController.clear();
-                                    });
-                                    if (label == 'Duplicates') {
-                                      _loadDuplicates();
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (var i = 0; i < _filters.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 8),
+                                ChoiceChip(
+                                  label: Text(_filters[i]),
+                                  selected: _selectedFilter == _filters[i],
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() {
+                                        _selectedFilter = _filters[i];
+                                        _selectedGroup = null;
+                                        _selectedPlaylistId = null;
+                                        _trackQuery = '';
+                                        _trackQueryController.clear();
+                                      });
+                                      if (_filters[i] == 'Duplicates') {
+                                        _loadDuplicates();
+                                      }
                                     }
-                                  }
-                                },
-                              ),
-                          ],
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                         if (_selectedFilter == 'Playlists' &&
                             selectedPlaylist == null) ...[

@@ -560,49 +560,80 @@ class _AlbumTrackList extends StatelessWidget {
                 children: [
                   IconButton(
                     tooltip: 'Add to queue',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => onQueue(track),
-                    icon: const Icon(Icons.queue_music_rounded),
+                    icon: const Icon(Icons.queue_music_rounded, size: 20),
                   ),
                   PopupMenuButton<String>(
                     tooltip: 'Song options',
+                    icon: const Icon(Icons.more_vert_rounded, size: 20, color: Colors.white54),
                     onSelected: (value) {
+                      if (value == 'queue') onQueue(track);
                       if (value == 'favorite') onToggleFavorite(track);
                       if (value == 'details') {
                         TrackDetailsSheet.show(context, track.toMediaItem());
                       }
                       if (value == 'remove') onRemove(track);
                     },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'favorite',
-                        child: Text(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'queue',
+                    child: Row(
+                      children: [
+                        Icon(Icons.queue_music_rounded, size: 19),
+                        SizedBox(width: 8),
+                        Text('Add to queue'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'favorite',
+                    child: Row(
+                      children: [
+                        Icon(
+                          isFavorite(track)
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          size: 19,
+                          color: isFavorite(track) ? MeloColors.cherry : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
                           isFavorite(track)
                               ? 'Remove from favorites'
                               : 'Add to favorites',
                         ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'details',
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline_rounded, size: 19),
-                            SizedBox(width: 8),
-                            Text('Track details'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'remove',
-                        child: Text(
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'details',
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 19),
+                        SizedBox(width: 8),
+                        Text('Track details'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'remove',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, size: 19),
+                        const SizedBox(width: 8),
+                        Text(
                           track.isDeviceMedia
                               ? 'Delete original file'
                               : 'Delete imported copy',
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
+            ],
+          ),
             );
           },
           childCount: tracks.length,
@@ -732,42 +763,74 @@ class _TrackList extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             onTap: () => onPlay(track),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (onToggleSelection == null)
-                  IconButton(
-                    tooltip: 'Add to queue',
-                    onPressed: () => onQueue(track),
-                    icon: const Icon(Icons.queue_music_rounded),
+            trailing: onToggleSelection != null
+                ? null
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Add to queue',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => onQueue(track),
+                        icon: const Icon(Icons.queue_music_rounded, size: 20),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Song options',
+                        icon: const Icon(Icons.more_vert_rounded, size: 20, color: Colors.white54),
+                        onSelected: (value) {
+                          if (value == 'queue') onQueue(track);
+                          if (value == 'favorite') onToggleFavorite(track);
+                          if (value == 'remove') onRemove(track);
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'queue',
+                            child: Row(
+                              children: [
+                                Icon(Icons.queue_music_rounded, size: 19),
+                                SizedBox(width: 8),
+                                Text('Add to queue'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'favorite',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isFavorite(track)
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  size: 19,
+                                  color: isFavorite(track) ? MeloColors.cherry : null,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isFavorite(track)
+                                      ? 'Remove from favorites'
+                                      : 'Add to favorites',
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.delete_outline_rounded, size: 19),
+                                const SizedBox(width: 8),
+                                Text(
+                                  track.isDeviceMedia
+                                      ? 'Delete original file'
+                                      : 'Delete imported copy',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                PopupMenuButton<String>(
-                  tooltip: 'Song options',
-                  onSelected: (value) {
-                    if (value == 'favorite') onToggleFavorite(track);
-                    if (value == 'remove') onRemove(track);
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'favorite',
-                      child: Text(
-                        isFavorite(track)
-                            ? 'Remove from favorites'
-                            : 'Add to favorites',
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: Text(
-                        track.isDeviceMedia
-                            ? 'Delete original file'
-                            : 'Delete imported copy',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           );
         },
         childCount: tracks.length,
